@@ -1,0 +1,6 @@
+try {}
+<caret>
+-----
+catch
+finally
+if
