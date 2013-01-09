@@ -10,6 +10,7 @@
       <module fileurl="file://$PROJECT_DIR$/plugins/IntelliLang/IntelliLang-xml.iml" filepath="$PROJECT_DIR$/plugins/IntelliLang/IntelliLang-xml.iml" group="plugins/IntelliLang" />
       <module fileurl="file://$PROJECT_DIR$/plugins/IntentionPowerPak/IntentionPowerPackPlugin.iml" filepath="$PROJECT_DIR$/plugins/IntentionPowerPak/IntentionPowerPackPlugin.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/RegExpSupport/RegExpSupport.iml" filepath="$PROJECT_DIR$/RegExpSupport/RegExpSupport.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../adt/idea/adt-branding/adt-branding.iml" filepath="$PROJECT_DIR$/../adt/idea/adt-branding/adt-branding.iml" group="plugins/Android" />
       <module fileurl="file://$PROJECT_DIR$/../vendor/jetbrains/adt-build.iml" filepath="$PROJECT_DIR$/../vendor/jetbrains/adt-build.iml" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android/android.iml" filepath="$PROJECT_DIR$/../adt/idea/android/android.iml" group="plugins/Android" />
       <module fileurl="file://$PROJECT_DIR$/../adt/idea/android/common/android-common.iml" filepath="$PROJECT_DIR$/../adt/idea/android/common/android-common.iml" group="plugins/Android" />
