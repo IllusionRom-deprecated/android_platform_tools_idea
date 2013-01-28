@@ -20,6 +20,7 @@ import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.PlatformUtils;
 import com.intellij.util.xmlb.SkipDefaultValuesSerializationFilters;
 import com.intellij.util.xmlb.XmlSerializationException;
 import com.intellij.util.xmlb.XmlSerializer;
@@ -75,7 +76,7 @@ public class CodeInsightSettings implements PersistentStateComponent<Element>, C
 
   public boolean AUTO_POPUP_PARAMETER_INFO = true;
   public int PARAMETER_INFO_DELAY = 1000;
-  public boolean AUTO_POPUP_JAVADOC_INFO = false;
+  public boolean AUTO_POPUP_JAVADOC_INFO = PlatformUtils.isAndroidIde();
   public int JAVADOC_INFO_DELAY = 1000;
   public boolean AUTO_POPUP_COMPLETION_LOOKUP = true;
   public int AUTO_LOOKUP_DELAY = 0;
