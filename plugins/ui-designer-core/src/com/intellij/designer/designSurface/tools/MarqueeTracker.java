@@ -38,10 +38,16 @@ public class MarqueeTracker extends InputTool {
 
   private JComponent myFeedback;
   private int mySelectionMode;
+  private boolean mySelectBackground;
 
   public MarqueeTracker() {
     setDefaultCursor(Cursors.CROSS);
     setDisabledCursor(Cursors.getNoCursor());
+  }
+
+  /** Set whether the background should be selected if none of its children are included */
+  public void setSelectBackground(boolean selectBackground) {
+    mySelectBackground = selectBackground;
   }
 
   @Override
@@ -70,6 +76,8 @@ public class MarqueeTracker extends InputTool {
     if (myState == STATE_DRAG_IN_PROGRESS) {
       myState = STATE_NONE;
       eraseFeedback();
+      performMarqueeSelect();
+    } else if (mySelectBackground) {
       performMarqueeSelect();
     }
   }
@@ -138,7 +146,24 @@ public class MarqueeTracker extends InputTool {
       rootComponent.accept(new RadComponentVisitor() {
         @Override
         public void endVisit(RadComponent component) {
-          if (selectionRectangle.contains(component.getBounds(myArea.getNativeComponent()))) {
+          if (selectionRectangle.contains(component.getBounds(myArea.getNativeComponent()))
+              && !component.isBackground()) {
+            newSelection.add(component);
+          }
+        }
+      }, true);
+    }
+
+    if (newSelection.isEmpty() && mySelectBackground && rootComponent != null) {
+      rootComponent.accept(new RadComponentVisitor() {
+        @Override
+        public void endVisit(RadComponent component) {
+          if (!newSelection.isEmpty()) {
+            // Only select the bottom-most background
+            return;
+          }
+          if (component.getBounds(myArea.getNativeComponent()).contains(selectionRectangle.x, selectionRectangle.y)
+              && component.isBackground()) {
             newSelection.add(component);
           }
         }

@@ -20,6 +20,7 @@ import com.intellij.designer.model.RadComponent;
 import com.intellij.designer.propertyTable.InplaceContext;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPopupMenu;
+import com.intellij.util.PlatformUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
@@ -70,9 +71,17 @@ public class SelectionTool extends InputTool {
       }
 
       RadComponent component = myArea.findTarget(myCurrentScreenX, myCurrentScreenY, null);
-      if (component == null) {
+      if (component == null || component.isBackground()) {
         if (!myArea.isTree()) {
-          setTracker(new MarqueeTracker());
+          MarqueeTracker tracker = new MarqueeTracker();
+
+          // Allow marquee dragging within the root (background) layout, and if you click
+          // without dragging, select that background component
+          if (component != null && component.isBackground()) {
+            tracker.setSelectBackground(true);
+          }
+
+          setTracker(tracker);
         }
       }
       else {

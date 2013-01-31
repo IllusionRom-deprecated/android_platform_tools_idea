@@ -79,6 +79,7 @@ public abstract class RadComponent extends PropertiesContainer {
     myParent = parent;
   }
 
+  @NotNull
   public List<RadComponent> getChildren() {
     return Collections.emptyList();
   }
@@ -118,6 +119,18 @@ public abstract class RadComponent extends PropertiesContainer {
 
   public void removeFromParent() {
     getParent().remove(this);
+  }
+
+  /**
+   * Whether this view is considered to be the background.
+   * This can for example return true for the root layout, such that marquee
+   * selection, and Select All, will not include it in marquee selection or select
+   * all operations.
+   *
+   * @return true if this view should be considered part of the background
+   */
+  public boolean isBackground() {
+    return false;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////
