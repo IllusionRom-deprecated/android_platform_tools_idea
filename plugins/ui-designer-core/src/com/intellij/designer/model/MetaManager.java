@@ -49,6 +49,8 @@ public abstract class MetaManager {
   public static final String ATTR_ICON = "icon";
   public static final String ATTR_TOOLTIP = "tooltip";
   public static final String ATTR_VERSION = "version";
+  public static final String ATTR_DEPRECATED = "deprecated";
+  public static final String ATTR_DEPRECATED_HINT = "deprecatedHint";
 
   protected static final Logger LOG = Logger.getInstance("#com.intellij.designer.model.MetaManager");
 

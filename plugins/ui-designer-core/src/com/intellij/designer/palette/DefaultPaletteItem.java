@@ -17,8 +17,8 @@ package com.intellij.designer.palette;
 
 import com.intellij.designer.model.MetaModel;
 import com.intellij.openapi.util.IconLoader;
-import com.intellij.openapi.util.text.StringUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
@@ -34,6 +34,8 @@ public class DefaultPaletteItem implements PaletteItem {
   private final String myTooltip;
   private final String myVersion;
   private boolean myEnabled = true;
+  private final String myDeprecatedVersion;
+  private final String myDeprecatedHint;
 
   protected MetaModel myMetaModel;
 
@@ -41,14 +43,19 @@ public class DefaultPaletteItem implements PaletteItem {
     this(palette.getAttributeValue(ATTR_TITLE),
          palette.getAttributeValue(ATTR_ICON),
          palette.getAttributeValue(ATTR_TOOLTIP),
-         palette.getAttributeValue(ATTR_VERSION));
+         palette.getAttributeValue(ATTR_VERSION),
+         palette.getAttributeValue(ATTR_DEPRECATED),
+         palette.getAttributeValue(ATTR_DEPRECATED_HINT));
   }
 
-  public DefaultPaletteItem(String title, String iconPath, String tooltip, String version) {
+  public DefaultPaletteItem(String title, String iconPath, String tooltip, String version, String deprecatedVersion,
+                            String deprecatedHint) {
     myTitle = title;
     myIconPath = iconPath;
     myTooltip = tooltip;
     myVersion = version;
+    myDeprecatedVersion = deprecatedVersion;
+    myDeprecatedHint = deprecatedHint;
   }
 
   @Override
@@ -91,6 +98,17 @@ public class DefaultPaletteItem implements PaletteItem {
   @Override
   public MetaModel getMetaModel() {
     return myMetaModel;
+  }
+
+  @Override
+  public String getDeprecatedIn() {
+    return myDeprecatedVersion;
+  }
+
+  @Nullable
+  @Override
+  public String getDeprecatedHint() {
+    return myDeprecatedHint;
   }
 
   public void setMetaModel(MetaModel metaModel) {

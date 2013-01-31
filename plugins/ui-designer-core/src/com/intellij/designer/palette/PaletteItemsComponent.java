@@ -81,7 +81,15 @@ public class PaletteItemsComponent extends JBList {
         }
 
         String title = item.getTitle();
-        append(title, SimpleTextAttributes.REGULAR_ATTRIBUTES);
+        SimpleTextAttributes style = SimpleTextAttributes.REGULAR_ATTRIBUTES;
+        String deprecatedIn = item.getDeprecatedIn();
+        @SuppressWarnings("ConstantConditions")
+        boolean deprecated = !StringUtil.isEmpty(deprecatedIn) && myDesigner.isDeprecated(deprecatedIn);
+        if (deprecated) {
+          style = new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null);
+        }
+
+        append(title, style);
 
         String tooltip = item.getTooltip();
         String version = myDesigner.getVersionLabel(item.getVersion());
@@ -89,11 +97,23 @@ public class PaletteItemsComponent extends JBList {
           version = "<sup><i>" +  version + "</i></sup>";
         }
         if (tooltip != null) {
+          String deprecatedMessage = "";
+          if (deprecated) {
+            deprecatedMessage = String.format("<b>This item is deprecated in version \"%1$s\".<br>",
+                                              myDesigner.getVersionLabel(deprecatedIn));
+            String hint = item.getDeprecatedHint();
+            if (!StringUtil.isEmpty(hint)) {
+              deprecatedMessage += hint;
+            }
+            deprecatedMessage += "</b><br><br>";
+          }
+
           tooltip = "<html><body><center><b>" +
                     StringUtil.escapeXml(title) +
                     "</b>" +
                     version +
                     "</center><p style='width: 300px'>" +
+                    deprecatedMessage +
                     tooltip +
                     "</p></body></html>";
         }

@@ -19,6 +19,7 @@ import com.intellij.designer.palette.PaletteItem;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.text.StringUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
@@ -106,5 +107,17 @@ class VariationPaletteItem implements PaletteItem {
   @Override
   public MetaModel getMetaModel() {
     return myModel;
+  }
+
+  @Nullable
+  @Override
+  public String getDeprecatedIn() {
+    return myDefaultItem.getDeprecatedIn();
+  }
+
+  @Nullable
+  @Override
+  public String getDeprecatedHint() {
+    return myDefaultItem.getDeprecatedHint();
   }
 }

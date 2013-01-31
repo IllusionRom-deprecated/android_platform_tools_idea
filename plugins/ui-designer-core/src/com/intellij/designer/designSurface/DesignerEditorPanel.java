@@ -753,6 +753,10 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     return StringUtil.notNullize(version);
   }
 
+  public boolean isDeprecated(@NotNull String deprecatedIn) {
+    return !StringUtil.isEmpty(deprecatedIn);
+  }
+
   @NotNull
   protected abstract ComponentCreationFactory createCreationFactory(PaletteItem paletteItem);
 
