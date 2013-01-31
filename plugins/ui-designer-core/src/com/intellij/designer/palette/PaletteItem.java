@@ -15,6 +15,8 @@
  */
 package com.intellij.designer.palette;
 
+import com.intellij.designer.model.MetaModel;
+
 import javax.swing.*;
 
 /**
@@ -30,4 +32,14 @@ public interface PaletteItem {
   String getVersion();
 
   boolean isEnabled();
+
+  /**
+   * @return the creation data to be used by {@link MetaModel#getCreation()}
+   */
+  String getCreation();
+
+  /**
+   * Returns the associated {@link MetaModel}, if known
+   */
+  MetaModel getMetaModel();
 }

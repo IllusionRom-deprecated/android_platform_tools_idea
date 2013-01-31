@@ -17,6 +17,7 @@ package com.intellij.designer.model;
 
 import com.intellij.designer.palette.DefaultPaletteItem;
 import com.intellij.designer.palette.PaletteGroup;
+import com.intellij.designer.palette.PaletteItem;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
@@ -43,6 +44,11 @@ public abstract class MetaManager {
   private static final String ITEM = "item";
   private static final String TAG = "tag";
   private static final String WRAP_IN = "wrap-in";
+  public static final String CREATION = "creation";
+  public static final String ATTR_TITLE = "title";
+  public static final String ATTR_ICON = "icon";
+  public static final String ATTR_TOOLTIP = "tooltip";
+  public static final String ATTR_VERSION = "version";
 
   protected static final Logger LOG = Logger.getInstance("#com.intellij.designer.model.MetaManager");
 
@@ -125,7 +131,7 @@ public abstract class MetaManager {
 
     Element presentation = element.getChild("presentation");
     if (presentation != null) {
-      meta.setPresentation(presentation.getAttributeValue("title"), presentation.getAttributeValue("icon"));
+      meta.setPresentation(presentation.getAttributeValue(ATTR_TITLE), presentation.getAttributeValue(ATTR_ICON));
     }
 
     Element palette = element.getChild("palette");
@@ -133,7 +139,7 @@ public abstract class MetaManager {
       meta.setPaletteItem(createPaletteItem(palette));
     }
 
-    Element creation = element.getChild("creation");
+    Element creation = element.getChild(CREATION);
     if (creation != null) {
       meta.setCreation(creation.getTextTrim());
     }
@@ -206,8 +212,34 @@ public abstract class MetaManager {
     PaletteGroup group = new PaletteGroup(element.getAttributeValue(NAME));
 
     for (Object child : element.getChildren(ITEM)) {
-      String tag = ((Element)child).getAttributeValue(TAG);
-      group.addItem(getModelByTag(tag).getPaletteItem());
+      Element itemElement = (Element)child;
+      String tag = itemElement.getAttributeValue(TAG);
+      MetaModel model = getModelByTag(tag);
+      PaletteItem paletteItem = model.getPaletteItem();
+      List children = itemElement.getChildren();
+      if (children != null && !children.isEmpty()) {
+        // Replace the palette item shown in the palette; it might provide a custom
+        // title, icon or creation logic (and this is done here rather than in the
+        // default palette item, since when loading elements back from XML, there's
+        // no variation matching. We don't want for example to call the default
+        // LinearLayout item "LinearLayout (Horizontal)", since that item would be
+        // shown in the component tree for any <LinearLayout> found in the XML, including
+        // those which set orientation="vertical". In the future, consider generalizing
+        // this such that the {@link MetaModel} can hold multiple {@link PaletteItem}
+        // instances, and perform attribute matching.
+        if (itemElement.getAttribute(ATTR_TITLE) != null) {
+          paletteItem = new VariationPaletteItem(paletteItem, model, itemElement);
+        }
+        group.addItem(paletteItem);
+
+        for (Object grandChild : itemElement.getChildren(ITEM)) {
+          Element variationElement = (Element)grandChild;
+          PaletteItem variationItem = new VariationPaletteItem(paletteItem, model, variationElement);
+          group.addItem(variationItem);
+        }
+      } else {
+        group.addItem(paletteItem);
+      }
     }
 
     myPaletteGroups.add(group);

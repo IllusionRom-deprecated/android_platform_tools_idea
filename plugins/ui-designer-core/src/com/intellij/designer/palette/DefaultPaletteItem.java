@@ -21,6 +21,8 @@ import org.jdom.Element;
 
 import javax.swing.*;
 
+import static com.intellij.designer.model.MetaManager.*;
+
 /**
  * @author Alexander Lobas
  */
@@ -35,10 +37,10 @@ public class DefaultPaletteItem implements PaletteItem {
   protected MetaModel myMetaModel;
 
   public DefaultPaletteItem(Element palette) {
-    this(palette.getAttributeValue("title"),
-         palette.getAttributeValue("icon"),
-         palette.getAttributeValue("tooltip"),
-         palette.getAttributeValue("version"));
+    this(palette.getAttributeValue(ATTR_TITLE),
+         palette.getAttributeValue(ATTR_ICON),
+         palette.getAttributeValue(ATTR_TOOLTIP),
+         palette.getAttributeValue(ATTR_VERSION));
   }
 
   public DefaultPaletteItem(String title, String iconPath, String tooltip, String version) {
@@ -76,10 +78,16 @@ public class DefaultPaletteItem implements PaletteItem {
     return myEnabled;
   }
 
+  @Override
+  public String getCreation() {
+    return myMetaModel.getCreation();
+  }
+
   public void setEnabled(boolean enabled) {
     myEnabled = enabled;
   }
 
+  @Override
   public MetaModel getMetaModel() {
     return myMetaModel;
   }
