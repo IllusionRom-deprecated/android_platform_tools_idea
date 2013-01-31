@@ -84,12 +84,9 @@ public class PaletteItemsComponent extends JBList {
         append(title, SimpleTextAttributes.REGULAR_ATTRIBUTES);
 
         String tooltip = item.getTooltip();
-        String version = item.getVersion();
-        if (version == null) {
-          version = "";
-        }
-        else {
-          version = "<sup><i>" + version + "</i></sup>";
+        String version = myDesigner.getVersionLabel(item.getVersion());
+        if (!version.isEmpty()) {
+          version = "<sup><i>" +  version + "</i></sup>";
         }
         if (tooltip != null) {
           tooltip = "<html><body><center><b>" +

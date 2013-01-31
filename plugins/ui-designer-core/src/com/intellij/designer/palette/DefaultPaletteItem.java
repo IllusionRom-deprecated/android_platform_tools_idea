@@ -17,6 +17,7 @@ package com.intellij.designer.palette;
 
 import com.intellij.designer.model.MetaModel;
 import com.intellij.openapi.util.IconLoader;
+import com.intellij.openapi.util.text.StringUtil;
 import org.jdom.Element;
 
 import javax.swing.*;
