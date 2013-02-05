@@ -40,7 +40,7 @@ public final class ComponentTreeBuilder extends AbstractTreeBuilder implements C
     initRootNode();
 
     mySurfaceArea = designer.getSurfaceArea();
-    myTreeArea = new TreeEditableArea(tree, this, designer.getActionPanel());
+    myTreeArea = new TreeEditableArea(designer.getEditor(), tree, this, designer.getActionPanel());
     myGlassLayer = new TreeGlassLayer(tree, designer.getToolProvider(), myTreeArea);
     myExpandStateHandler = new ExpandStateHandler(tree, designer, this);
 

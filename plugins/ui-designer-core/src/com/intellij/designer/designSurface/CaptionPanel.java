@@ -15,6 +15,7 @@
  */
 package com.intellij.designer.designSurface;
 
+import com.intellij.designer.DesignerEditor;
 import com.intellij.designer.actions.CommonEditActionsProvider;
 import com.intellij.designer.designSurface.tools.InputTool;
 import com.intellij.designer.model.FindComponentVisitor;
@@ -55,7 +56,7 @@ public class CaptionPanel extends JBLayeredPane implements DataProvider, DeleteP
   private List<RadComponent> myRootChildren = Collections.emptyList();
   private ICaption myCaption;
 
-  public CaptionPanel(DesignerEditorPanel designer, boolean horizontal) {
+  public CaptionPanel(final DesignerEditorPanel designer, boolean horizontal) {
     setBorder(IdeBorderFactory.createBorder(horizontal ? SideBorder.BOTTOM : SideBorder.RIGHT));
     setFocusable(true);
 
@@ -82,6 +83,12 @@ public class CaptionPanel extends JBLayeredPane implements DataProvider, DeleteP
     }
 
     myArea = new ComponentEditableArea(this) {
+      @NotNull
+      @Override
+      public DesignerEditor getDesigner() {
+        return designer.getEditor();
+      }
+
       @Override
       protected void fireSelectionChanged() {
         super.fireSelectionChanged();

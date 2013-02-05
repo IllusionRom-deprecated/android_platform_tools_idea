@@ -15,7 +15,9 @@
  */
 package com.intellij.designer.designSurface.tools;
 
+import com.intellij.designer.designSurface.DesignerEditorPanel;
 import com.intellij.designer.designSurface.EditableArea;
+import com.intellij.designer.designSurface.ZoomType;
 import com.intellij.designer.model.RadComponent;
 import com.intellij.designer.propertyTable.InplaceContext;
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -220,13 +222,43 @@ public class SelectionTool extends InputTool {
 
   @Override
   public void keyTyped(KeyEvent event, EditableArea area) throws Exception {
+    char keyChar = event.getKeyChar();
     if (myTracker != null) {
       myTracker.keyTyped(event, area);
+      return;
     }
-    else if (myToolProvider != null && !area.isTree() &&
-             Character.isLetterOrDigit(event.getKeyChar()) &&
-             (event.getModifiers() & (InputEvent.ALT_MASK | InputEvent.CTRL_MASK | InputEvent.META_MASK)) == 0) {
-      myToolProvider.startInplaceEditing(new InplaceContext(event.getKeyChar()));
+
+    if (!area.isTree()) {
+      switch (keyChar) {
+        // Zoom
+        case '-':
+        case '+':
+        case '0':
+        case '1':
+          ZoomType type;
+          if (keyChar == '-') {
+            type = ZoomType.OUT;
+          } else if (keyChar == '+') {
+            type = ZoomType.IN;
+          } else if (keyChar == '0') {
+            type = ZoomType.FIT;
+          } else { // '1'
+            type = ZoomType.ACTUAL;
+          }
+          DesignerEditorPanel panel = area.getDesigner().getDesignerPanel();
+          if (panel.isZoomSupported()) {
+            panel.zoom(type);
+            event.consume();
+            return;
+          }
+          // else: fall through
+        default:
+          if (myToolProvider != null &&
+              Character.isLetterOrDigit(keyChar) &&
+              (event.getModifiers() & (InputEvent.ALT_MASK | InputEvent.CTRL_MASK | InputEvent.META_MASK)) == 0) {
+            myToolProvider.startInplaceEditing(new InplaceContext(keyChar));
+          }
+      }
     }
   }
 

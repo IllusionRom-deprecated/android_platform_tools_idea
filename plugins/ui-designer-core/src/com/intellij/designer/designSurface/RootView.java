@@ -15,6 +15,8 @@
  */
 package com.intellij.designer.designSurface;
 
+import org.jetbrains.annotations.NotNull;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -23,11 +25,11 @@ import java.awt.image.BufferedImage;
  * @author Alexander Lobas
  */
 public class RootView extends JComponent {
-  private final int myX;
-  private final int myY;
+  protected final int myX;
+  protected final int myY;
   protected BufferedImage myImage;
 
-  public RootView(int x, int y, BufferedImage image) {
+  public RootView(int x, int y, @NotNull BufferedImage image) {
     this(x, y);
     setImage(image);
   }
@@ -37,19 +39,30 @@ public class RootView extends JComponent {
     myY = y;
   }
 
+  @NotNull
   public BufferedImage getImage() {
     return myImage;
   }
 
-  public void setImage(BufferedImage image) {
+  public void setImage(@NotNull BufferedImage image) {
     myImage = image;
-    setBounds(myX, myY, image.getWidth(), image.getHeight());
+    updateSize();
     repaint();
+  }
+
+  protected void updateSize() {
+    if (myImage != null) {
+      setBounds(myX, myY, myImage.getWidth(), myImage.getHeight());
+    }
   }
 
   @Override
   public void paintComponent(Graphics g) {
     super.paintComponent(g);
+    paintImage(g);
+  }
+
+  protected void paintImage(Graphics g) {
     g.drawImage(myImage, 0, 0, null);
   }
 }

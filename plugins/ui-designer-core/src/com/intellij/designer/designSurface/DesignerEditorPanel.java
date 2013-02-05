@@ -103,7 +103,7 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
   protected CaptionPanel myHorizontalCaption;
   protected CaptionPanel myVerticalCaption;
 
-  private JScrollPane myScrollPane;
+  protected JScrollPane myScrollPane;
   protected JLayeredPane myLayeredPane;
   protected GlassLayer myGlassLayer;
   private DecorationLayer myDecorationLayer;
@@ -154,6 +154,12 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     myLayeredPane = new MyLayeredPane();
 
     mySurfaceArea = new ComponentEditableArea(myLayeredPane) {
+      @NotNull
+      @Override
+      public DesignerEditor getDesigner() {
+        return myEditor;
+      }
+
       @Override
       protected void fireSelectionChanged() {
         super.fireSelectionChanged();
@@ -340,6 +346,35 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
         storeSourceSelectionState();
       }
     });
+  }
+
+  protected void viewZoomed() {
+    // Hide quickfix light bulbs; position can be obsolete after the zoom level has changed
+    myQuickFixManager.hideHint();
+  }
+
+  /** Size of the scene, in scroll pane view port pixels */
+  @NotNull
+  protected Dimension getSceneSize(Component target) {
+    int width = 0;
+    int height = 0;
+
+    if (myRootComponent != null) {
+      Rectangle bounds = myRootComponent.getBounds(target);
+      width = Math.max(width, (int)bounds.getMaxX());
+      height = Math.max(height, (int)bounds.getMaxY());
+
+      for (RadComponent component : myRootComponent.getChildren()) {
+        Rectangle childBounds = component.getBounds(target);
+        width = Math.max(width, (int)childBounds.getMaxX());
+        height = Math.max(height, (int)childBounds.getMaxY());
+      }
+    }
+
+    width += 50;
+    height += 40;
+
+    return new Dimension(width, height);
   }
 
   @Nullable
@@ -810,6 +845,33 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
 
   //////////////////////////////////////////////////////////////////////////////////////////
   //
+  // Zooming
+  //
+  //////////////////////////////////////////////////////////////////////////////////////////
+
+
+  /** Returns true if zooming is supported by this designer */
+  public boolean isZoomSupported() {
+    return false;
+  }
+
+  /**
+   * Zoom the editable area.
+   */
+  public void zoom(@NotNull ZoomType type) {
+  }
+
+  /** Sets the zoom level. Note that this should be 1, not 100 (percent), for an image at its actual size */
+  public void setZoom(double zoom) {
+  }
+
+  /** Returns the current zoom level. Note that this is 1, not 100 (percent) for an image at its actual size */
+  public double getZoom() {
+    return 1;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////
+  //
   // Inspection
   //
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -899,25 +961,13 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     }
 
     public Dimension getPreferredSize() {
-      int width = 0;
-      int height = 0;
-
-      if (myRootComponent != null) {
-        width = Math.max(width, (int)myRootComponent.getBounds().getMaxX());
-        height = Math.max(height, (int)myRootComponent.getBounds().getMaxY());
-
-        for (RadComponent component : myRootComponent.getChildren()) {
-          width = Math.max(width, (int)component.getBounds().getMaxX());
-          height = Math.max(height, (int)component.getBounds().getMaxY());
-        }
-      }
-
-      width += 50;
-      height += 40;
-
       Rectangle bounds = myScrollPane.getViewport().getBounds();
 
-      return new Dimension(Math.max(width, bounds.width), Math.max(height, bounds.height));
+      Dimension size = getSceneSize(this);
+      size.width = Math.max(size.width, bounds.width);
+      size.height = Math.max(size.height, bounds.height);
+
+      return size;
     }
 
     public Dimension getPreferredScrollableViewportSize() {

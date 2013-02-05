@@ -15,6 +15,7 @@
  */
 package com.intellij.designer.designSurface;
 
+import com.intellij.designer.DesignerEditor;
 import com.intellij.designer.designSurface.tools.InputTool;
 import com.intellij.designer.model.RadComponent;
 import com.intellij.openapi.actionSystem.ActionGroup;
@@ -100,4 +101,8 @@ public interface EditableArea {
   ActionGroup getPopupActions();
 
   String getPopupPlace();
+
+  /** Returns the designer corresponding to this editable area */
+  @NotNull
+  DesignerEditor getDesigner();
 }

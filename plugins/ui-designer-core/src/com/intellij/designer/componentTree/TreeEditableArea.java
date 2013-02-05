@@ -15,6 +15,7 @@
  */
 package com.intellij.designer.componentTree;
 
+import com.intellij.designer.DesignerEditor;
 import com.intellij.designer.actions.DesignerActionPanel;
 import com.intellij.designer.designSurface.*;
 import com.intellij.designer.designSurface.tools.InputTool;
@@ -42,16 +43,24 @@ import java.util.List;
  */
 public final class TreeEditableArea implements EditableArea, FeedbackTreeLayer, TreeSelectionListener {
   private final EventListenerList myListenerList = new EventListenerList();
+  private final DesignerEditor myDesigner;
   private final ComponentTree myTree;
   private final AbstractTreeBuilder myTreeBuilder;
   private final DesignerActionPanel myActionPanel;
   private boolean myCanvasSelection;
 
-  public TreeEditableArea(ComponentTree tree, AbstractTreeBuilder treeBuilder, DesignerActionPanel actionPanel) {
+  public TreeEditableArea(DesignerEditor designer, ComponentTree tree, AbstractTreeBuilder treeBuilder, DesignerActionPanel actionPanel) {
+    myDesigner = designer;
     myTree = tree;
     myTreeBuilder = treeBuilder;
     myActionPanel = actionPanel;
     hookSelection();
+  }
+
+  @NotNull
+  @Override
+  public DesignerEditor getDesigner() {
+    return myDesigner;
   }
 
   private void hookSelection() {
