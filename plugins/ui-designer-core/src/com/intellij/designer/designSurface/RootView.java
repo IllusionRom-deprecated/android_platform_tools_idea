@@ -28,10 +28,11 @@ public class RootView extends JComponent {
   protected final int myX;
   protected final int myY;
   protected BufferedImage myImage;
+  protected boolean myAlphaChannelImage;
 
-  public RootView(int x, int y, @NotNull BufferedImage image) {
+  public RootView(int x, int y, @NotNull BufferedImage image, boolean alphaChannelImage) {
     this(x, y);
-    setImage(image);
+    setImage(image, alphaChannelImage);
   }
 
   public RootView(int x, int y) {
@@ -44,8 +45,13 @@ public class RootView extends JComponent {
     return myImage;
   }
 
-  public void setImage(@NotNull BufferedImage image) {
+  public boolean isAlphaChannelImage() {
+    return myAlphaChannelImage;
+  }
+
+  public void setImage(@NotNull BufferedImage image, boolean alphaChannelImage) {
     myImage = image;
+    myAlphaChannelImage = alphaChannelImage;
     updateSize();
     repaint();
   }
