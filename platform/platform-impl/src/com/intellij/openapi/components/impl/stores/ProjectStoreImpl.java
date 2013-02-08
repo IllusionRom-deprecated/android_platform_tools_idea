@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import com.intellij.ide.highlighter.WorkspaceFileType;
 import com.intellij.notification.NotificationsManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileTypes.FileType;
@@ -35,6 +36,7 @@ import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.*;
 import com.intellij.util.containers.OrderedSet;
@@ -180,7 +182,12 @@ class ProjectStoreImpl extends BaseFileConfigurableStoreImpl implements IProject
 
       stateStorageManager.addMacro(StoragePathMacros.getMacroName(StoragePathMacros.PROJECT_CONFIG_DIR), dirStore.getPath());
 
-      VfsUtil.markDirtyAndRefresh(false, true, true, fs.refreshAndFindFileByIoFile(dirStore));
+      ApplicationManager.getApplication().invokeAndWait(new Runnable() {
+        @Override
+        public void run() {
+          VfsUtil.markDirtyAndRefresh(false, true, true, fs.refreshAndFindFileByIoFile(dirStore));
+        }
+      }, ModalityState.defaultModalityState());
     }
     else {
       myScheme = StorageScheme.DEFAULT;
@@ -190,7 +197,12 @@ class ProjectStoreImpl extends BaseFileConfigurableStoreImpl implements IProject
       final String workspacePath = composeWsPath(filePath);
       stateStorageManager.addMacro(StoragePathMacros.getMacroName(StoragePathMacros.WORKSPACE_FILE), workspacePath);
 
-      VfsUtil.markDirtyAndRefresh(false, true, false, fs.refreshAndFindFileByPath(filePath), fs.refreshAndFindFileByPath(workspacePath));
+      ApplicationManager.getApplication().invokeAndWait(new Runnable() {
+        @Override
+        public void run() {
+          VfsUtil.markDirtyAndRefresh(false, true, false, fs.refreshAndFindFileByPath(filePath), fs.refreshAndFindFileByPath(workspacePath));
+        }
+      }, ModalityState.defaultModalityState());
     }
     
     myCachedLocation = null;
@@ -198,7 +210,7 @@ class ProjectStoreImpl extends BaseFileConfigurableStoreImpl implements IProject
   }
 
   private static boolean isIprPath(final File file) {
-    return ProjectFileType.DEFAULT_EXTENSION.equals(FileUtil.getExtension(file.getName()));
+    return FileUtilRt.extensionEquals(file.getName(), ProjectFileType.DEFAULT_EXTENSION);
   }
 
   private static String composeWsPath(String filePath) {
@@ -694,9 +706,7 @@ class ProjectStoreImpl extends BaseFileConfigurableStoreImpl implements IProject
         }
       }
 
-      if (!componentNames.isEmpty()) {
-        StorageUtil.logStateDiffInfo(changedFiles, componentNames);
-      }
+      StorageUtil.logStateDiffInfo(changedFiles, componentNames);
 
       if (!isReloadPossible(componentNames)) {
         return false;
@@ -721,4 +731,3 @@ class ProjectStoreImpl extends BaseFileConfigurableStoreImpl implements IProject
     return true;
   }
 }
-

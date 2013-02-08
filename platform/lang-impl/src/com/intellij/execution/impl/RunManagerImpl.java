@@ -37,7 +37,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 
 public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, ProjectComponent {
@@ -556,7 +555,7 @@ public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, 
     ((RunnerAndConfigurationSettingsImpl)settings).writeExternal(configurationElement);
 
     if (!(settings.getConfiguration() instanceof UnknownRunConfiguration)) {
-      final List<BeforeRunTask> tasks = new CopyOnWriteArrayList<BeforeRunTask>(getBeforeRunTasks(settings.getConfiguration()));
+      final List<BeforeRunTask> tasks = ContainerUtil.createLockFreeCopyOnWriteList(getBeforeRunTasks(settings.getConfiguration()));
       final Element methodsElement = new Element(METHOD);
       Map<Key<BeforeRunTask>, BeforeRunTask> templateTasks = new HashMap<Key<BeforeRunTask>, BeforeRunTask>();
       List<BeforeRunTask> beforeRunTasks = settings.isTemplate()
@@ -952,6 +951,9 @@ public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, 
   @NotNull
   @Override
   public <T extends BeforeRunTask> List<T> getBeforeRunTasks(RunConfiguration settings, Key<T> taskProviderID) {
+    if (settings instanceof WrappingRunConfiguration) {
+      return getBeforeRunTasks(((WrappingRunConfiguration)settings).getPeer(), taskProviderID);
+    }
     List<BeforeRunTask> tasks = myConfigurationToBeforeTasksMap.get(settings);
     if (tasks == null) {
       tasks = getBeforeRunTasks(settings);
@@ -968,6 +970,9 @@ public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, 
   @Override
   @NotNull
   public List<BeforeRunTask> getBeforeRunTasks(final RunConfiguration settings) {
+    if (settings instanceof WrappingRunConfiguration) {
+      return getBeforeRunTasks(((WrappingRunConfiguration)settings).getPeer());
+    }
     final List<BeforeRunTask> tasks = myConfigurationToBeforeTasksMap.get(settings);
     if (tasks != null) {
       return getCopies(tasks);

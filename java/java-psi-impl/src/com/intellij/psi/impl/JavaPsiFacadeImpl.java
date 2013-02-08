@@ -20,6 +20,7 @@ import com.intellij.openapi.progress.ProgressIndicatorProvider;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.openapi.roots.PackageIndex;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.text.StringUtil;
@@ -359,9 +360,15 @@ public class JavaPsiFacadeImpl extends JavaPsiFacadeEx {
     @Override
     public Set<String> getClassNames(@NotNull PsiPackage psiPackage, @NotNull GlobalSearchScope scope) {
       Set<String> names = null;
+      FileIndexFacade facade = FileIndexFacade.getInstance(myProject);
       for (PsiDirectory dir : psiPackage.getDirectories(scope)) {
         for (PsiFile file : dir.getFiles()) {
           if (file instanceof PsiClassOwner && file.getViewProvider().getLanguages().size() == 1) {
+            VirtualFile vFile = file.getVirtualFile();
+            if (vFile != null && !facade.isInSourceContent(vFile) && !(file instanceof PsiCompiledElement)) {
+              continue;
+            }
+
             Set<String> inFile = file instanceof PsiClassOwnerEx ? ((PsiClassOwnerEx)file).getClassNames() : getClassNames(((PsiClassOwner)file).getClasses());
 
             if (inFile.isEmpty()) continue;
@@ -377,7 +384,7 @@ public class JavaPsiFacadeImpl extends JavaPsiFacadeEx {
     @Override
     public boolean processPackageDirectories(@NotNull PsiPackage psiPackage, @NotNull final GlobalSearchScope scope, @NotNull final Processor<PsiDirectory> consumer) {
       final PsiManager psiManager = PsiManager.getInstance(getProject());
-      PackageIndex.getInstance(getProject()).getDirsByPackageName(psiPackage.getQualifiedName(), false).forEach(new ReadActionProcessor<VirtualFile>() {
+      return PackageIndex.getInstance(getProject()).getDirsByPackageName(psiPackage.getQualifiedName(), false).forEach(new ReadActionProcessor<VirtualFile>() {
         @Override
         public boolean processInReadAction(final VirtualFile dir) {
           if (!scope.contains(dir)) return true;
@@ -385,7 +392,6 @@ public class JavaPsiFacadeImpl extends JavaPsiFacadeEx {
           return psiDir == null || consumer.process(psiDir);
         }
       });
-      return true;
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,9 @@ import com.intellij.ide.structureView.TreeBasedStructureViewBuilder;
 import com.intellij.lang.LanguageStructureViewBuilder;
 import com.intellij.navigation.ItemPresentation;
 import com.intellij.navigation.NavigationItem;
+import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
 import com.intellij.openapi.editor.ex.RangeHighlighterEx;
@@ -51,7 +53,7 @@ import javax.swing.*;
 import java.awt.*;
 
 public class Bookmark {
-  private static final Icon TICK = PlatformIcons.CHECK_ICON;
+  public static final Icon DEFAULT_ICON = PlatformIcons.CHECK_ICON;
 
   private final VirtualFile myFile;
   private final OpenFileDescriptor myTarget;
@@ -125,7 +127,7 @@ public class Bookmark {
   }
 
   public Icon getIcon() {
-    return myMnemonic == 0 ? TICK : new MnemonicIcon(myMnemonic);
+    return myMnemonic == 0 ? DEFAULT_ICON : new MnemonicIcon(myMnemonic);
   }
 
   public String getDescription() {
@@ -180,7 +182,12 @@ public class Bookmark {
 
   @Override
   public String toString() {
-    return getQualifiedName();
+    StringBuilder result = new StringBuilder(getQualifiedName());
+    String description = StringUtil.escapeXml(getNotEmptyDescription());
+    if (description != null) {
+      result.append(": ").append(description);
+    }
+    return result.toString();
   }
 
   public String getQualifiedName() {
@@ -234,13 +241,14 @@ public class Bookmark {
 
     @Override
     public void paintIcon(Component c, Graphics g, int x, int y) {
-      g.setColor(LightColors.YELLOW);
-      g.fillRect(x, y, getIconWidth(), getIconHeight());
+      x++;
+      g.setColor(new JBColor(LightColors.YELLOW, new Color(103, 81, 51)));
+      g.fillRect(x, y, getIconWidth() - 2, getIconHeight());
 
       g.setColor(JBColor.GRAY);
-      g.drawRect(x, y, getIconWidth(), getIconHeight());
+      g.drawRect(x, y, getIconWidth() - 2, getIconHeight());
 
-      g.setColor(Color.black);
+      g.setColor(JBColor.foreground);
       final Font oldFont = g.getFont();
       g.setFont(MNEMONIC_FONT);
 
@@ -250,12 +258,12 @@ public class Bookmark {
 
     @Override
     public int getIconWidth() {
-      return 10;
+      return DEFAULT_ICON.getIconWidth();
     }
 
     @Override
     public int getIconHeight() {
-      return 12;
+      return DEFAULT_ICON.getIconHeight();
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileFilter;
+import com.intellij.util.Function;
 import com.intellij.util.ui.tree.AbstractFileTreeTable;
 import org.jetbrains.annotations.NotNull;
 
@@ -43,7 +44,6 @@ class EncodingFileTreeTable extends AbstractFileTreeTable<Charset> {
   public EncodingFileTreeTable(@NotNull Project project) {
     super(project, Charset.class, "Default Encoding", VirtualFileFilter.ALL, false);
     reset(EncodingProjectManager.getInstance(project).getAllMappings());
-
     getValueColumn().setCellRenderer(new DefaultTableCellRenderer(){
       @Override
       public Component getTableCellRendererComponent(final JTable table, final Object value,
@@ -95,7 +95,12 @@ class EncodingFileTreeTable extends AbstractFileTreeTable<Charset> {
           @NotNull
           @Override
           protected DefaultActionGroup createPopupActionGroup(JComponent button) {
-            return createGroup("<Clear>", null, "Encoding ''{1}''", null);
+            return createGroup("<Clear>", null, new Function<Charset, String>() {
+              @Override
+              public String fun(Charset charset) {
+                return "Choose encoding '"+charset+"'";
+              }
+            });
           }
 
           @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -712,7 +712,7 @@ public class HighlightMethodUtil {
       PsiType type = expression.getType();
 
       boolean showShort = showShortType(i, parameters, expressions, substitutor);
-      @NonNls String mismatchColor = showShort ? null : "red";
+      @NonNls String mismatchColor = showShort ? null : (UIUtil.isUnderDarcula() ? "ff6464" : "red");
       ms += "<td> " + "<b><nobr>" + (i == 0 ? "(" : "")
             + "<font " + (showShort ? "" : "color=" + mismatchColor) + ">" +
             XmlStringUtil.escapeString(showShort ? type.getPresentableText() : HighlightUtil.formatType(type))
@@ -853,21 +853,24 @@ public class HighlightMethodUtil {
   @Nullable
   static HighlightInfo checkMethodCanHaveBody(PsiMethod method) {
     PsiClass aClass = method.getContainingClass();
-    boolean hasBody = method.getBody() == null;
+    boolean hasNoBody = method.getBody() == null;
     boolean isInterface = aClass != null && aClass.isInterface();
     boolean isExtension = method.hasModifierProperty(PsiModifier.DEFAULT);
+    boolean isStatic = method.hasModifierProperty(PsiModifier.STATIC);
 
     String message = null;
-    if (hasBody) {
+    if (hasNoBody) {
       if (isExtension) {
         message = JavaErrorMessages.message("extension.method.should.have.a.body");
+      } else if (isInterface && isStatic) {
+        message = "Static methods in interfaces should have a body";
       }
     }
     else if (isInterface) {
-      if (!isExtension) {
+      if (!isExtension && !isStatic) {
         message = JavaErrorMessages.message("interface.methods.cannot.have.body");
       }
-      else {
+      else if (isExtension) {
         return HighlightUtil.checkExtensionMethodsFeature(method);
       }
     }
@@ -884,7 +887,7 @@ public class HighlightMethodUtil {
 
     TextRange textRange = HighlightNamesUtil.getMethodDeclarationTextRange(method);
     HighlightInfo info = HighlightInfo.createHighlightInfo(HighlightInfoType.ERROR, textRange, message);
-    if (hasBody) {
+    if (hasNoBody) {
       QuickFixAction.registerQuickFixAction(info, new DeleteMethodBodyFix(method));
     }
     if (method.hasModifierProperty(PsiModifier.ABSTRACT) && isInterface) {

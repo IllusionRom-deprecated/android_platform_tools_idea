@@ -24,9 +24,11 @@
  */
 package com.intellij.codeInspection.dataFlow.value;
 
+import com.intellij.codeInspection.dataFlow.Nullness;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.JavaConstantExpressionEvaluator;
+import com.intellij.psi.util.PsiTreeUtil;
 import gnu.trove.TIntObjectHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -49,8 +51,8 @@ public class DfaValueFactory {
     myRelationFactory = new DfaRelationValue.Factory(this);
   }
 
-  public DfaValue createTypeValueWithNullability(@Nullable PsiType type, @Nullable Boolean nullability) {
-    return nullability == Boolean.FALSE ? getNotNullFactory().create(type) : getTypeFactory().create(type, nullability == Boolean.TRUE);
+  public DfaValue createTypeValueWithNullability(@Nullable PsiType type, Nullness nullability) {
+    return nullability == Nullness.NOT_NULL ? getNotNullFactory().create(type) : getTypeFactory().create(type, nullability == Nullness.NULLABLE);
   }
 
    int createID() {
@@ -133,7 +135,7 @@ public class DfaValueFactory {
       }
     }
 
-    if (isEffectivelyUnqualified(referenceExpression)) {
+    if (!variable.hasModifierProperty(PsiModifier.VOLATILE) && isEffectivelyUnqualified(referenceExpression)) {
       return getVarFactory().createVariableValue(variable, referenceExpression.getType(), false, null, false);
     }
 
@@ -152,9 +154,20 @@ public class DfaValueFactory {
     return null;
   }
 
-  private static boolean isEffectivelyUnqualified(PsiReferenceExpression refExpression) {
+  public static boolean isEffectivelyUnqualified(PsiReferenceExpression refExpression) {
     PsiExpression qualifier = refExpression.getQualifierExpression();
-    return qualifier == null || qualifier instanceof PsiThisExpression;
+    if (qualifier == null) {
+      return true;
+    }
+    if (qualifier instanceof PsiThisExpression){
+      final PsiJavaCodeReferenceElement thisQualifier = ((PsiThisExpression)qualifier).getQualifier();
+      if (thisQualifier == null) return true;
+      final PsiClass innerMostClass = PsiTreeUtil.getParentOfType(refExpression, PsiClass.class);
+      if (innerMostClass == thisQualifier.resolve()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private final DfaVariableValue.Factory myVarFactory;

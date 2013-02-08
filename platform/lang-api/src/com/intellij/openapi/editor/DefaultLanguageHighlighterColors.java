@@ -16,10 +16,7 @@
 package com.intellij.openapi.editor;
 
 import com.intellij.openapi.editor.colors.TextAttributesKey;
-import com.intellij.openapi.options.colors.AttributesDescriptor;
-import com.intellij.util.containers.HashMap;
-
-import java.util.Map;
+import com.intellij.openapi.editor.markup.TextAttributes;
 
 /**
  * Base highlighter colors for multiple languages.
@@ -28,43 +25,88 @@ import java.util.Map;
  */
 public class DefaultLanguageHighlighterColors {
 
-  private final static Map<TextAttributesKey,String> DISPLAY_NAMES_MAP = new HashMap<TextAttributesKey, String>();
-
   public final static TextAttributesKey TEMPLATE_LANGUAGE_COLOR =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_TEMPLATE_LANGUAGE_COLOR");
+    TextAttributesKey.createTextAttributesKey("DEFAULT_TEMPLATE_LANGUAGE_COLOR", HighlighterColors.TEXT);
   public final static TextAttributesKey IDENTIFIER =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_IDENTIFIER");
+    TextAttributesKey.createTextAttributesKey("DEFAULT_IDENTIFIER", HighlighterColors.TEXT);
   public final static TextAttributesKey NUMBER =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_NUMBER", SyntaxHighlighterColors.NUMBER);
+    TextAttributesKey.createTextAttributesKey("DEFAULT_NUMBER");
   public final static TextAttributesKey KEYWORD =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_KEYWORD", SyntaxHighlighterColors.KEYWORD);
+    TextAttributesKey.createTextAttributesKey("DEFAULT_KEYWORD");
   public final static TextAttributesKey STRING =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_STRING", SyntaxHighlighterColors.STRING);
+    TextAttributesKey.createTextAttributesKey("DEFAULT_STRING", HighlighterColors.TEXT);
+  public final static TextAttributesKey BLOCk_COMMENT =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_BLOCK_COMMENT");
   public final static TextAttributesKey LINE_COMMENT =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_LINE_COMMENT", SyntaxHighlighterColors.LINE_COMMENT);
+    TextAttributesKey.createTextAttributesKey("DEFAULT_LINE_COMMENT");
+  public final static TextAttributesKey DOC_COMMENT =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_DOC_COMMENT");
   public final static TextAttributesKey OPERATION_SIGN =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_OPERATION_SIGN", SyntaxHighlighterColors.OPERATION_SIGN);
+    TextAttributesKey.createTextAttributesKey("DEFAULT_OPERATION_SIGN");
   public final static TextAttributesKey BRACES =
-    TextAttributesKey.createTextAttributesKey("DEFAULT_BRACES", SyntaxHighlighterColors.BRACES);
+    TextAttributesKey.createTextAttributesKey("DEFAULT_BRACES");
+  public final static TextAttributesKey DOT =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_DOT");
+  public final static TextAttributesKey SEMICOLON =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_SEMICOLON");
+  public final static TextAttributesKey COMMA =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_COMMA");
+  public final static TextAttributesKey PARENTHESES =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_PARENTHS");
+  public final static TextAttributesKey BRACKETS =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_BRACKETS");
 
-  static {
-    DISPLAY_NAMES_MAP.put(IDENTIFIER, "Identifier");
-    DISPLAY_NAMES_MAP.put(TEMPLATE_LANGUAGE_COLOR, "Template language");
-    DISPLAY_NAMES_MAP.put(NUMBER, "Number");
-    DISPLAY_NAMES_MAP.put(KEYWORD, "Keyword");
-    DISPLAY_NAMES_MAP.put(STRING, "String");
-    DISPLAY_NAMES_MAP.put(LINE_COMMENT, "Line comment");
-    DISPLAY_NAMES_MAP.put(OPERATION_SIGN, "Operator");
-    DISPLAY_NAMES_MAP.put(BRACES, "Braces");
-  }
+  public final static TextAttributesKey LABEL =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_LABEL", IDENTIFIER);
+  public final static TextAttributesKey CONSTANT =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_CONSTANT", IDENTIFIER);
+  public final static TextAttributesKey LOCAL_VARIABLE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_LOCAL_VARIABLE", IDENTIFIER);
+  public final static TextAttributesKey GLOBAL_VARIABLE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_GLOBAL_VARIABLE", IDENTIFIER);
 
-  public static AttributesDescriptor createAttributeDescriptor(TextAttributesKey key) {
-    String presentableName = DISPLAY_NAMES_MAP.get(key);
-    if (presentableName == null) presentableName = key.getExternalName();
-    return new AttributesDescriptor(presentableName, key);
-  }
+  public final static TextAttributesKey FUNCTION_DECLARATION =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_FUNCTION_DECLARATION", IDENTIFIER);
+  public final static TextAttributesKey FUNCTION_CALL =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_FUNCTION_CALL", IDENTIFIER);
+  public final static TextAttributesKey PARAMETER =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_PARAMETER", IDENTIFIER);
+  public final static TextAttributesKey CLASS_NAME =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_CLASS_NAME", IDENTIFIER);
+  public final static TextAttributesKey INTERFACE_NAME =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_INTERFACE_NAME", IDENTIFIER);
+  public final static TextAttributesKey CLASS_REFERENCE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_CLASS_REFERENCE", IDENTIFIER);
+  public final static TextAttributesKey INSTANCE_METHOD =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_INSTANCE_METHOD", FUNCTION_DECLARATION);
+  public final static TextAttributesKey INSTANCE_FIELD =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_INSTANCE_FIELD", IDENTIFIER);
+  public final static TextAttributesKey STATIC_METHOD =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_STATIC_METHOD", FUNCTION_DECLARATION);
+  public final static TextAttributesKey STATIC_FIELD =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_STATIC_FIELD", IDENTIFIER);
 
-  public static String getDisplayName(TextAttributesKey key) {
-    return DISPLAY_NAMES_MAP.containsKey(key) ? DISPLAY_NAMES_MAP.get(key) : "<" + key.getExternalName() +">";
-  }
+  public final static TextAttributesKey DOC_COMMENT_MARKUP =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_DOC_MARKUP");
+  public final static TextAttributesKey DOC_COMMENT_TAG =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_DOC_COMMENT_TAG");
+  public final static TextAttributesKey DOC_COMMENT_TAG_VALUE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_DOC_COMMENT_TAG_VALUE");
+  public final static TextAttributesKey VALID_STRING_ESCAPE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_VALID_STRING_ESCAPE");
+  public final static TextAttributesKey INVALID_STRING_ESCAPE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_INVALID_STRING_ESCAPE");
+
+  public final static TextAttributesKey PREDEFINED_SYMBOL =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_PREDEFINED_SYMBOL", IDENTIFIER);
+
+  public final static TextAttributesKey METADATA =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_METADATA", HighlighterColors.TEXT);
+  
+  public final static TextAttributesKey MARKUP_TAG =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_TAG", HighlighterColors.TEXT);
+  public final static TextAttributesKey MARKUP_ATTRIBUTE =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_ATTRIBUTE", IDENTIFIER);
+  public final static TextAttributesKey MARKUP_ENTITY =
+    TextAttributesKey.createTextAttributesKey("DEFAULT_ENTITY", IDENTIFIER);
 }

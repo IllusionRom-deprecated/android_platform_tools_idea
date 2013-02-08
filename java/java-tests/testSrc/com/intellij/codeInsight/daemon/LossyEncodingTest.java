@@ -35,6 +35,7 @@ import com.intellij.openapi.vfs.encoding.EncodingManager;
 import com.intellij.openapi.vfs.encoding.EncodingProjectManager;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.NotNull;
 
 import java.nio.charset.Charset;
 import java.util.Collection;
@@ -43,6 +44,7 @@ import java.util.List;
 public class LossyEncodingTest extends LightDaemonAnalyzerTestCase {
   @NonNls private static final String BASE_PATH = "/codeInsight/daemonCodeAnalyzer/lossyEncoding";
 
+  @NotNull
   @Override
   protected LocalInspectionTool[] configureLocalInspectionTools() {
     return new LocalInspectionTool[]{new LossyEncodingInspection()};
@@ -50,7 +52,9 @@ public class LossyEncodingTest extends LightDaemonAnalyzerTestCase {
 
   public void testText() throws Exception {
     doTest("Text.txt");
-    EncodingManager.getInstance().setEncoding(myVFile, Charset.forName("US-ASCII"));
+    Charset ascii = CharsetToolkit.forName("US-ASCII");
+    EncodingManager.getInstance().setEncoding(myVFile, ascii);
+    assertEquals(ascii, myVFile.getCharset());
     int start = myEditor.getCaretModel().getOffset();
     type((char)0x445);
     type((char)0x438);

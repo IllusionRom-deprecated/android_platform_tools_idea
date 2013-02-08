@@ -332,6 +332,9 @@ public class ReplaceInProjectManager {
   private boolean doReplace(final ReplaceContext replaceContext, Collection<Usage> usages) {
     boolean success = true;
     int replacedCount = 0;
+    if (!ensureUsagesWritable(replaceContext, usages)) {
+      return true;
+    }
     for (final Usage usage : usages) {
       try {
         doReplace(usage, replaceContext.getFindModel(), replaceContext.getExcludedSet(), false);
@@ -431,6 +434,21 @@ public class ReplaceInProjectManager {
       return;
     }
 
+    if (!ensureUsagesWritable(replaceContext, selectedUsages)) return;
+
+    CommandProcessor.getInstance().executeCommand(myProject, new Runnable() {
+      @Override
+      public void run() {
+        final boolean success = doReplace(replaceContext, selectedUsages);
+        final UsageView usageView = replaceContext.getUsageView();
+
+        if (closeUsageViewIfEmpty(usageView, success)) return;
+        usageView.getComponent().requestFocus();
+      }
+    }, FindBundle.message("find.replace.command"), null);
+  }
+
+  private boolean ensureUsagesWritable(ReplaceContext replaceContext, Collection<Usage> selectedUsages) {
     Set<VirtualFile> readOnlyFiles = null;
     for (final Usage usage : selectedUsages) {
       final VirtualFile file = ((UsageInFile)usage).getFile();
@@ -451,20 +469,10 @@ public class ReplaceInProjectManager {
                                                FindBundle.message("find.replace.occurrences.in.read.only.files.title"),
                                                Messages.getWarningIcon());
       if (result != 0) {
-        return;
+        return false;
       }
     }
-
-    CommandProcessor.getInstance().executeCommand(myProject, new Runnable() {
-      @Override
-      public void run() {
-        final boolean success = doReplace(replaceContext, selectedUsages);
-        final UsageView usageView = replaceContext.getUsageView();
-
-        if (closeUsageViewIfEmpty(usageView, success)) return;
-        usageView.getComponent().requestFocus();
-      }
-    }, FindBundle.message("find.replace.command"), null);
+    return true;
   }
 
   private boolean closeUsageViewIfEmpty(UsageView usageView, boolean success) {

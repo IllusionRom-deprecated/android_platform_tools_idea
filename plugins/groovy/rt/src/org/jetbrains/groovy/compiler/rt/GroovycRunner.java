@@ -76,8 +76,11 @@ public class GroovycRunner {
     */
 
     if (args.length != 2) {
-      System.err.println("There is no arguments for groovy compiler");
-      return;
+      if (args.length != 3 || !"--indy".equals(args[2])) {
+        System.err.println("There is no arguments for groovy compiler");
+        System.exit(1);
+      }
+      System.setProperty("groovy.target.indy", "true");
     }
 
     final boolean forStubs = "stubs".equals(args[0]);
@@ -85,7 +88,7 @@ public class GroovycRunner {
 
     if (!argsFile.exists()) {
       System.err.println("Arguments file for groovy compiler not found");
-      return;
+      System.exit(1);
     }
 
     try {
@@ -126,7 +129,7 @@ public class GroovycRunner {
       runPatchers(patchers, compilerMessages, unit, resourceLoader, srcFiles);
 
       System.out.println(GroovyRtConstants.PRESENTABLE_MESSAGE + "Groovyc: compiling...");
-      final List compiledFiles = GroovyCompilerWrapper.compile(compilerMessages, forStubs, unit);
+      final List<GroovyCompilerWrapper.OutputItem> compiledFiles = new GroovyCompilerWrapper(compilerMessages, forStubs).compile(unit);
       System.out.println(GroovyRtConstants.CLEAR_PRESENTABLE);
 
       System.out.println();
@@ -527,6 +530,14 @@ public class GroovycRunner {
                     ensureWellFormed(type, visited);
                   }
                 }
+                for (Constructor method : aClass.getDeclaredConstructors()) {
+                  for (Type type : method.getGenericExceptionTypes()) {
+                    ensureWellFormed(type, visited);
+                  }
+                  for (Type type : method.getGenericParameterTypes()) {
+                    ensureWellFormed(type, visited);
+                  }
+                }
 
                 for (Field field : aClass.getDeclaredFields()) {
                   ensureWellFormed(field.getGenericType(), visited);
@@ -539,6 +550,12 @@ public class GroovycRunner {
 
                 for (Type intf : aClass.getGenericInterfaces()) {
                   ensureWellFormed(intf, visited);
+                }
+
+                aClass.getAnnotations();
+                Package aPackage = aClass.getPackage();
+                if (aPackage != null) {
+                  aPackage.getAnnotations();
                 }
               }
               catch (LinkageError e) {

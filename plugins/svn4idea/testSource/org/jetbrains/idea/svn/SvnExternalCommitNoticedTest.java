@@ -134,8 +134,7 @@ public class SvnExternalCommitNoticedTest extends Svn17TestCase {
     final String branchUrl = prepareBranchesStructure();
     final SubTree tree = new SubTree(myWorkingCopyDir);
 
-    SvnConfiguration.getInstance(myProject).DETECT_NESTED_COPIES = true;
-    myVcs.invokeRefreshSvnRoots(false);
+    myVcs.invokeRefreshSvnRoots();
     clManager.ensureUpToDate(false);
     clManager.ensureUpToDate(false);
     SvnFileUrlMapping workingCopies = myVcs.getSvnFileUrlMapping();

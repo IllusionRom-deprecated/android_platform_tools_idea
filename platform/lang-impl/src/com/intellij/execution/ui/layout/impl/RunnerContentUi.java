@@ -30,6 +30,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.ui.ScreenUtil;
 import com.intellij.ui.UIBundle;
 import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.awt.RelativeRectangle;
@@ -1071,6 +1072,11 @@ public class RunnerContentUi implements ContentUI, Disposable, CellTransform.Fac
     myMinimizedButtonsPlaceholder.clear();
     myCommonActionsPlaceholder.clear();
     myContextActions.clear();
+
+    myOriginal = null;
+    myTopActions = null;
+    myAdditonalFocusActions = null;
+    myLeftToolbarActions = null;
   }
 
   public void restoreLayout() {
@@ -1260,6 +1266,8 @@ public class RunnerContentUi implements ContentUI, Disposable, CellTransform.Fac
 
     public void removeNotify() {
       super.removeNotify();
+      if (!ScreenUtil.isStandardAddRemoveNotify(this))
+        return;
 
       if (Disposer.isDisposed(RunnerContentUi.this)) return;
 

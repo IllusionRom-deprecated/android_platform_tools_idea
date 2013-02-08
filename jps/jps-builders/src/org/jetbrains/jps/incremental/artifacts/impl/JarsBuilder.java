@@ -169,8 +169,7 @@ public class JarsBuilder {
           else {
             final String filePath = FileUtil.toSystemIndependentName(descriptor.getRootFile().getAbsolutePath());
             packedFilePaths.add(filePath);
-            myOutSrcMapping.appendData(targetJarPath, Collections
-              .singletonList(new ArtifactOutputToSourceMapping.SourcePathAndRootIndex(filePath, rootIndex)));
+            myOutSrcMapping.appendData(targetJarPath, rootIndex, filePath);
             extractFileAndAddToJar(jarOutputStream, (JarBasedArtifactRootDescriptor)descriptor, relativePath, writtenPaths);
           }
         }
@@ -329,7 +328,7 @@ public class JarsBuilder {
                                        List<String> packedFilePaths,
                                        int rootIndex) throws IOException {
     final String filePath = FileUtil.toSystemIndependentName(file.getAbsolutePath());
-    if (!filter.accept(filePath, myContext.getProjectDescriptor())) {
+    if (!filter.accept(filePath) || !filter.shouldBeCopied(filePath, myContext.getProjectDescriptor())) {
       return;
     }
 
@@ -350,7 +349,7 @@ public class JarsBuilder {
 
     final boolean added = ZipUtil.addFileToZip(jarOutputStream, file, relativePath, writtenItemRelativePaths, null);
     if (rootIndex != -1) {
-      myOutSrcMapping.appendData(targetJarPath, Collections.singletonList(new ArtifactOutputToSourceMapping.SourcePathAndRootIndex(filePath, rootIndex)));
+      myOutSrcMapping.appendData(targetJarPath, rootIndex, filePath);
       if (added) {
         packedFilePaths.add(filePath);
       }

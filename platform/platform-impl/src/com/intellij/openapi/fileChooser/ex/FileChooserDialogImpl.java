@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,7 +124,8 @@ public class FileChooserDialogImpl extends DialogWrapper implements FileChooserD
     show();
     if (myChosenFiles.length > 0) {
       callback.consume(Arrays.asList(myChosenFiles));
-    } else if (callback instanceof FileChooser.FileChooserConsumer){
+    }
+    else if (callback instanceof FileChooser.FileChooserConsumer) {
       ((FileChooser.FileChooserConsumer)callback).cancelled();
     }
   }
@@ -208,6 +209,7 @@ public class FileChooserDialogImpl extends DialogWrapper implements FileChooserD
       FileChooserFactoryImpl.getMacroMap(), getDisposable(),
       new LocalFsFinder.FileChooserFilter(myChooserDescriptor, myFileSystemTree)) {
       protected void onTextChanged(final String newValue) {
+        myUiUpdater.cancelAllUpdates();
         updateTreeFromPath(newValue);
       }
     };
@@ -357,6 +359,19 @@ public class FileChooserDialogImpl extends DialogWrapper implements FileChooserD
   }
 
   private VirtualFile[] getSelectedFilesInt() {
+    if (myTreeIsUpdating || !myUiUpdater.isEmpty()) {
+      if (isTextFieldActive() && !StringUtil.isEmpty(myPathTextField.getTextFieldText())) {
+        LookupFile toFind = myPathTextField.getFile();
+        if (toFind instanceof LocalFsFinder.VfsFile && toFind.exists()) {
+          VirtualFile file = ((LocalFsFinder.VfsFile)toFind).getFile();
+          if (file != null) {
+            return new VirtualFile[]{file};
+          }
+        }
+      }
+      return VirtualFile.EMPTY_ARRAY;
+    }
+
     final List<VirtualFile> selectedFiles = Arrays.asList(myFileSystemTree.getSelectedFiles());
     return VfsUtilCore.toVirtualFileArray(FileChooserUtil.getChosenFiles(myChooserDescriptor, selectedFiles));
   }
@@ -551,7 +566,6 @@ public class FileChooserDialogImpl extends DialogWrapper implements FileChooserD
     }
   }
 
-  // todo[r.sh] fix symlink selection
   private void selectInTree(final VirtualFile[] array, final boolean requestFocus) {
     myTreeIsUpdating = true;
     final List<VirtualFile> fileList = Arrays.asList(array);

@@ -26,12 +26,16 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public abstract class ProjectManagerEx extends ProjectManager {
   public static ProjectManagerEx getInstanceEx() {
     return (ProjectManagerEx)ApplicationManager.getApplication().getComponent(ProjectManager.class);
   }
 
+  /**
+   * @param filePath path to .ipr file or directory where .idea directory is located
+   */
   @Nullable
   public abstract Project newProject(final String projectName, String filePath, boolean useDefaultProjectSettings, boolean isDummy);
 
@@ -53,8 +57,10 @@ public abstract class ProjectManagerEx extends ProjectManager {
 
   @TestOnly
   public abstract void openTestProject(@NotNull Project project);
+
   @TestOnly
-  public abstract void closeTestProject(@NotNull Project project);
+  // returns remaining open test projects
+  public abstract Collection<Project> closeTestProject(@NotNull Project project);
 
   // returns true on success
   public abstract boolean closeAndDispose(@NotNull Project project);

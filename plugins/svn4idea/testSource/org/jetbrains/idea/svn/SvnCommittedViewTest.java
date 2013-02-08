@@ -41,7 +41,6 @@ public class SvnCommittedViewTest extends Svn17TestCase {
   @Before
   public void setUp() throws Exception {
     super.setUp();
-    SvnConfiguration.getInstance(myProject).DETECT_NESTED_COPIES = false;
   }
 
   @Test
@@ -58,7 +57,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     checkin();
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),
@@ -90,7 +89,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     checkin();
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),
@@ -122,7 +121,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     checkin();
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),
@@ -151,7 +150,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     checkin();
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),
@@ -183,7 +182,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     checkin();
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),
@@ -208,7 +207,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     verify(runSvn("copy", "-m", "test", myRepoUrl + "/trunk", myRepoUrl + "/branch"));
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),
@@ -238,7 +237,7 @@ public class SvnCommittedViewTest extends Svn17TestCase {
     checkin();
 
     final SvnVcs vcs = SvnVcs.getInstance(myProject);
-    vcs.invokeRefreshSvnRoots(false);
+    vcs.invokeRefreshSvnRoots();
     final CommittedChangesProvider<SvnChangeList,ChangeBrowserSettings> committedChangesProvider = vcs.getCommittedChangesProvider();
     final List<SvnChangeList> changeListList =
       committedChangesProvider.getCommittedChanges(committedChangesProvider.createDefaultSettings(),

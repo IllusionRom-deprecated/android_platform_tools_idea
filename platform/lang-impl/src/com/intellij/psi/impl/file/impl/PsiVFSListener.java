@@ -29,14 +29,16 @@ import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.startup.StartupManager;
-import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.vfs.*;
 import com.intellij.openapi.vfs.impl.BulkVirtualFileListenerAdapter;
 import com.intellij.psi.*;
+import com.intellij.psi.impl.PsiDocumentManagerImpl;
 import com.intellij.psi.impl.PsiManagerImpl;
 import com.intellij.psi.impl.PsiTreeChangeEventImpl;
 import com.intellij.psi.impl.smartPointers.SmartPointerManagerImpl;
 import com.intellij.util.FileContentUtil;
+import com.intellij.util.ObjectUtils;
 import com.intellij.util.messages.MessageBusConnection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -318,6 +320,26 @@ public class PsiVFSListener extends VirtualFileAdapter {
 
     VirtualFile parent = vFile.getParent();
     final PsiDirectory parentDir = getCachedDirectory(parent);
+
+    if (FileContentUtil.FORCE_RELOAD_REQUESTOR.equals(event.getRequestor())) {
+      FileViewProvider viewProvider = myFileManager.createFileViewProvider(vFile, true);
+      myFileManager.setViewProvider(vFile, viewProvider);
+      PsiFile newPsiFile = ObjectUtils.assertNotNull(myManager.findFile(vFile));
+      if (!viewProvider.isPhysical()) {
+        PsiDocumentManagerImpl.cachePsi(viewProvider.getDocument(), newPsiFile);
+      }
+      if (parentDir != null) {
+        PsiTreeChangeEventImpl treeEvent = new PsiTreeChangeEventImpl(myManager);
+        treeEvent.setParent(parentDir);
+
+        treeEvent.setOldChild(oldPsiFile);
+        treeEvent.setNewChild(newPsiFile);
+        myManager.childReplaced(treeEvent);
+      }
+      return;
+    }
+
+    // do not suppress reparse request for light files
     if (parentDir == null) {
       boolean fire = VirtualFile.PROP_NAME.equals(propertyName) && vFile.isDirectory();
       if (fire) {
@@ -376,9 +398,7 @@ public class PsiVFSListener extends VirtualFileAdapter {
                 else if (!newPsiFile.getClass().equals(oldPsiFile.getClass()) ||
                          newPsiFile.getFileType() != myFileTypeManager.getFileTypeByFileName((String)event.getOldValue()) ||
                          languageDialectChanged(newPsiFile, (String)event.getOldValue()) ||
-                         !oldFileViewProvider.getLanguages().equals(fileViewProvider.getLanguages()) ||
-                         FileContentUtil.FORCE_RELOAD_REQUESTOR.equals(event.getRequestor())
-                  ) {
+                         !oldFileViewProvider.getLanguages().equals(fileViewProvider.getLanguages())) {
                   myFileManager.cacheViewProvider(vFile, fileViewProvider);
 
                   treeEvent.setOldChild(oldPsiFile);
@@ -395,8 +415,10 @@ public class PsiVFSListener extends VirtualFileAdapter {
               }
               else if (newPsiFile != null) {
                 myFileManager.cacheViewProvider(vFile, fileViewProvider);
-                treeEvent.setChild(newPsiFile);
-                myManager.childAdded(treeEvent);
+                if (parentDir != null) {
+                  treeEvent.setChild(newPsiFile);
+                  myManager.childAdded(treeEvent);
+                }
               }
             }
           }
@@ -560,7 +582,7 @@ public class PsiVFSListener extends VirtualFileAdapter {
 
   // When file is renamed so that extension changes then language dialect might change and thus psiFile should be invalidated
   private static boolean languageDialectChanged(final PsiFile newPsiFile, String oldFileName) {
-    return newPsiFile != null && !FileUtil.getExtension(newPsiFile.getName()).equals(FileUtil.getExtension(oldFileName));
+    return newPsiFile != null && !FileUtilRt.extensionEquals(oldFileName, FileUtilRt.getExtension(newPsiFile.getName()));
   }
 
   private class MyModuleRootListener implements ModuleRootListener {

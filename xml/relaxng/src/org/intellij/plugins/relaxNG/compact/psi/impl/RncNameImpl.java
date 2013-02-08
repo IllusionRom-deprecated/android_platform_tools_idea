@@ -35,6 +35,7 @@ import com.intellij.psi.tree.IElementType;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.IncorrectOperationException;
 import org.intellij.plugins.relaxNG.compact.RncElementTypes;
+import org.intellij.plugins.relaxNG.compact.RncFileType;
 import org.intellij.plugins.relaxNG.compact.RncTokenTypes;
 import org.intellij.plugins.relaxNG.compact.psi.*;
 import org.intellij.plugins.relaxNG.compact.psi.util.EscapeUtil;
@@ -49,20 +50,13 @@ import org.jetbrains.annotations.Nullable;
  */
 public class RncNameImpl extends RncElementImpl implements RncName, PsiReference,
         EmptyResolveMessageProvider, QuickFixProvider<RncNameImpl> {
+
   private enum Kind {
     NAMESPACE, DATATYPES
   }
-  private final Kind myKind;
 
   public RncNameImpl(ASTNode node) {
     super(node);
-
-    final IElementType parent = node.getTreeParent().getElementType();
-    if (parent == RncElementTypes.DATATYPE_PATTERN) {
-      myKind = Kind.DATATYPES;
-    } else {
-      myKind = Kind.NAMESPACE;
-    }
   }
 
   @Nullable
@@ -97,9 +91,18 @@ public class RncNameImpl extends RncElementImpl implements RncName, PsiReference
 
   @Nullable
   public PsiElement resolve() {
-    final MyResolver resolver = new MyResolver(getPrefix(), myKind);
+    final MyResolver resolver = new MyResolver(getPrefix(), getKind());
     getContainingFile().processDeclarations(resolver, ResolveState.initial(), this, this);
     return resolver.getResult();
+  }
+
+  private Kind getKind() {
+    final IElementType parent = getNode().getTreeParent().getElementType();
+    if (parent == RncElementTypes.DATATYPE_PATTERN) {
+      return Kind.DATATYPES;
+    } else {
+      return Kind.NAMESPACE;
+    }
   }
 
   @NotNull
@@ -197,7 +200,7 @@ public class RncNameImpl extends RncElementImpl implements RncName, PsiReference
 
     @NotNull
       public String getFamilyName() {
-      return "Create " + myReference.myKind.name().toLowerCase() + " declaration";
+      return "Create " + myReference.getKind().name().toLowerCase() + " declaration";
     }
 
     public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
@@ -206,7 +209,10 @@ public class RncNameImpl extends RncElementImpl implements RncName, PsiReference
 
     public void invoke(@NotNull Project project, Editor editor, PsiFile file) throws IncorrectOperationException {
       final String prefix = myReference.getPrefix();
-      final RncFile psiFile = (RncFile)PsiFileFactory.getInstance(myReference.getProject()).createFileFromText("dummy.rnc", myReference.myKind.name().toLowerCase() + " " + prefix + " = \"###\"");
+      final PsiFileFactory factory = PsiFileFactory.getInstance(myReference.getProject());
+      final RncFile psiFile = (RncFile)factory.createFileFromText("dummy.rnc",
+                                                                  RncFileType.getInstance(),
+                                                                   myReference.getKind().name().toLowerCase() + " " + prefix + " = \"###\"");
       final RncFile rncFile = (RncFile)myReference.getContainingFile();
       final RncDecl[] declarations = rncFile.getDeclarations();
       final RncDecl decl = psiFile.getDeclarations()[0];
@@ -230,7 +236,7 @@ public class RncNameImpl extends RncElementImpl implements RncName, PsiReference
 
       CodeStyleManager.getInstance(e.getManager().getProject()).reformatNewlyAddedElement(blockNode, newNode);
 
-      final SmartPsiElementPointer<RncDecl> p = SmartPointerManager.getInstance(project).createLazyPointer(e);
+      final SmartPsiElementPointer<RncDecl> p = SmartPointerManager.getInstance(project).createSmartPsiElementPointer(e);
       PsiDocumentManager.getInstance(project).doPostponedOperationsAndUnblockDocument(editor.getDocument());
 
       final RncDecl d = p.getElement();

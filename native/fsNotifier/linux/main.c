@@ -48,8 +48,12 @@
 #define HELP_MSG \
     "Try 'fsnotifier --help' for more information.\n"
 
-#define INOTIFY_LIMIT_MSG \
-    "The current <b>inotify</b>(7) watch limit of %d is too low. " \
+#define INSTANCE_LIMIT_TEXT \
+    "The <b>inotify</b>(7) instances limit reached. " \
+    "<a href=\"http://confluence.jetbrains.net/display/IDEADEV/Inotify+Instances+Limit\">More details.</a>\n"
+
+#define WATCH_LIMIT_TEXT \
+    "The current <b>inotify</b>(7) watch limit is too low. " \
     "<a href=\"http://confluence.jetbrains.net/display/IDEADEV/Inotify+Watches+Limit\">More details.</a>\n"
 
 typedef struct {
@@ -59,7 +63,6 @@ typedef struct {
 
 static array* roots = NULL;
 
-static bool show_warning = true;
 static bool self_test = false;
 
 static void init_log();
@@ -71,6 +74,7 @@ static void unregister_roots();
 static bool register_roots(array* new_roots, array* unwatchable, array* mounts);
 static array* unwatchable_mounts();
 static void inotify_callback(char* path, int event);
+static void report_event(char* event, char* path);
 static void output(const char* format, ...);
 
 
@@ -103,7 +107,6 @@ int main(int argc, char** argv) {
   }
 
   setvbuf(stdin, NULL, _IONBF, 0);
-  setvbuf(stdout, NULL, _IONBF, 0);
 
   roots = array_create(20);
   if (init_inotify() && roots != NULL) {
@@ -119,7 +122,7 @@ int main(int argc, char** argv) {
     unregister_roots();
   }
   else {
-    printf("GIVEUP\n");
+    output("GIVEUP\n");
   }
   close_inotify();
   array_delete(roots);
@@ -149,6 +152,19 @@ static void init_log() {
   snprintf(ident, sizeof(ident), "fsnotifier[%d]", getpid());
   openlog(ident, 0, LOG_USER);
   setlogmask(LOG_UPTO(level));
+}
+
+
+void message(MSG id) {
+  if (id == MSG_INSTANCE_LIMIT) {
+    output("MESSAGE\n" INSTANCE_LIMIT_TEXT);
+  }
+  else if (id == MSG_WATCH_LIMIT) {
+    output("MESSAGE\n" WATCH_LIMIT_TEXT);
+  }
+  else {
+    userlog(LOG_ERR, "unknown message: %d", id);
+  }
 }
 
 
@@ -353,12 +369,6 @@ static bool register_roots(array* new_roots, array* unwatchable, array* mounts) 
       return false;
     }
     else if (id != ERR_IGNORE) {
-      if (show_warning && watch_limit_reached()) {
-        int limit = get_watch_count();
-        userlog(LOG_WARNING, "watch limit (%d) reached", limit);
-        output("MESSAGE\n" INOTIFY_LIMIT_MSG, limit);
-        show_warning = false;  // warn only once
-      }
       CHECK_NULL(array_push(unwatchable, strdup(unflattened)), false);
     }
   }
@@ -398,26 +408,23 @@ static array* unwatchable_mounts() {
 
 static void inotify_callback(char* path, int event) {
   if (event & IN_CREATE || event & IN_MOVED_TO) {
-    output("CREATE\n%s\nCHANGE\n%s\n", path, path);
-    userlog(LOG_DEBUG, "CREATE: %s", path);
+    report_event("CREATE", path);
+    report_event("CHANGE", path);
     return;
   }
 
   if (event & IN_MODIFY) {
-    output("CHANGE\n%s\n", path);
-    userlog(LOG_DEBUG, "CHANGE: %s", path);
+    report_event("CHANGE", path);
     return;
   }
 
   if (event & IN_ATTRIB) {
-    output("STATS\n%s\n", path);
-    userlog(LOG_DEBUG, "STATS: %s", path);
+    report_event("STATS", path);
     return;
   }
 
   if (event & IN_DELETE || event & IN_MOVED_FROM) {
-    output("DELETE\n%s\n", path);
-    userlog(LOG_DEBUG, "DELETE: %s", path);
+    report_event("DELETE", path);
     return;
   }
 
@@ -426,6 +433,24 @@ static void inotify_callback(char* path, int event) {
     userlog(LOG_DEBUG, "RESET");
     return;
   }
+}
+
+static void report_event(char* event, char* path) {
+  userlog(LOG_DEBUG, "%s: %s", event, path);
+
+  int len = strlen(path);
+  for (char* p = path; *p != '\0'; p++) {
+    if (*p == '\n') {
+      *p = '\0';
+    }
+  }
+
+  fputs(event, stdout);
+  fputc('\n', stdout);
+  fwrite(path, len, 1, stdout);
+  fputc('\n', stdout);
+
+  fflush(stdout);
 }
 
 
@@ -438,4 +463,6 @@ static void output(const char* format, ...) {
   va_start(ap, format);
   vprintf(format, ap);
   va_end(ap);
+
+  fflush(stdout);
 }

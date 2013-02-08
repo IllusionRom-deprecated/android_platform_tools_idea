@@ -39,6 +39,7 @@ public class XmlTagTreeElement extends AbstractXmlTagTreeElement<XmlTag>{
 
   public String getPresentableText() {
     final XmlTag element = getElement();
+    if (element == null) return "*invalid*";
     String id = element.getAttributeValue(ID_ATTR_NAME);
     if (id == null) id = element.getAttributeValue(NAME_ATTR_NAME);
     id = toCanonicalForm(id);
@@ -88,7 +89,7 @@ public class XmlTagTreeElement extends AbstractXmlTagTreeElement<XmlTag>{
   }
 
   @Nullable
-  protected static String toCanonicalForm(@Nullable String id) {
+  public static String toCanonicalForm(@Nullable String id) {
     if (id != null) {
       id = id.trim();
       if (id.length() == 0) id = null;

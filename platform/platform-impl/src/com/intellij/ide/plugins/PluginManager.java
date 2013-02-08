@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,8 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.application.ex.ApplicationInfoEx;
+import com.intellij.openapi.application.impl.ApplicationInfoImpl;
 import com.intellij.openapi.components.ExtensionAreas;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.Extensions;
@@ -45,6 +47,7 @@ import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Function;
+import com.intellij.util.PlatformUtils;
 import com.intellij.util.graph.CachingSemiGraph;
 import com.intellij.util.graph.DFSTBuilder;
 import com.intellij.util.graph.Graph;
@@ -94,8 +97,6 @@ public class PluginManager {
   private static final Map<PluginId,Integer> ourId2Index = new THashMap<PluginId, Integer>();
   @NonNls private static final String MODULE_DEPENDENCY_PREFIX = "com.intellij.module";
   private static final List<String> ourAvailableModules = new ArrayList<String>();
-  private static final boolean ourOptimize = "true".equals(System.getProperty("idea.optimize"));
-
 
   public static long startupStart;
   public static final float PLUGINS_PROGRESS_MAX_VALUE = 0.3f;
@@ -233,7 +234,7 @@ public class PluginManager {
     }
 
     final IdeaPluginDescriptor corePluginDescriptor = idToDescriptorMap.get(PluginId.getId(CORE_PLUGIN_ID));
-    assert corePluginDescriptor != null : CORE_PLUGIN_ID + " not found; platform prefix is " + System.getProperty("idea.platform.prefix");
+    assert corePluginDescriptor != null : CORE_PLUGIN_ID + " not found; platform prefix is " + System.getProperty(PlatformUtils.PLATFORM_PREFIX_KEY);
     for (IdeaPluginDescriptorImpl descriptor : result) {
       if (descriptor != corePluginDescriptor) {
         descriptor.insertDependency(corePluginDescriptor);
@@ -633,7 +634,7 @@ public class PluginManager {
   private static void loadDescriptorsFromClassPath(final List<IdeaPluginDescriptorImpl> result, @Nullable StartupProgress progress) {
     try {
       final Collection<URL> urls = getClassLoaderUrls();
-      final String platformPrefix = System.getProperty("idea.platform.prefix");
+      final String platformPrefix = System.getProperty(PlatformUtils.PLATFORM_PREFIX_KEY);
       int i = 0;
       for (URL url : urls) {
         i++;
@@ -832,7 +833,11 @@ public class PluginManager {
     if (ourBuildNumber == null) {
       ourBuildNumber = BuildNumber.fromString(System.getProperty("idea.plugins.compatible.build"));
       if (ourBuildNumber == null) {
-        ourBuildNumber = BuildNumber.fromFile();
+        ApplicationInfoEx appInfo = ApplicationInfoImpl.getShadowInstance();
+        ourBuildNumber = appInfo != null ? appInfo.getBuild() : null;
+        if (ourBuildNumber == null) {
+          ourBuildNumber = BuildNumber.fallback();
+        }
       }
     }
     return ourBuildNumber;

@@ -21,10 +21,7 @@ import com.intellij.execution.process.ProcessEvent;
 import com.intellij.execution.process.ProcessOutputTypes;
 import com.intellij.ide.actions.ShowFilePathAction;
 import com.intellij.notification.*;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationBundle;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.application.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.io.FileUtil;
@@ -44,6 +41,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.intellij.util.containers.ContainerUtil.*;
 
@@ -86,13 +84,14 @@ public class FileWatcher {
   private volatile int myStartAttemptCount = 0;
   private volatile boolean myIsShuttingDown = false;
   private volatile boolean myFailureShownToTheUser = false;
+  private final AtomicInteger mySettingRoots = new AtomicInteger(0);
 
   /** @deprecated use {@linkplain com.intellij.openapi.vfs.impl.local.LocalFileSystemImpl#getFileWatcher()} (to remove in IDEA 13) */
   public static FileWatcher getInstance() {
     return ((LocalFileSystemImpl)LocalFileSystem.getInstance()).getFileWatcher();
   }
 
-  FileWatcher(@NotNull final ManagingFS managingFS) {
+  FileWatcher(@NotNull ManagingFS managingFS) {
     myManagingFS = managingFS;
 
     boolean disabled = Boolean.parseBoolean(System.getProperty(PROPERTY_WATCHER_DISABLED));
@@ -114,6 +113,9 @@ public class FileWatcher {
           ShowFilePathAction.openFile(myExecutable);
         }
       });
+    }
+    else if (!isUpToDate(myExecutable)) {
+      notifyOnFailure(ApplicationBundle.message("watcher.exe.outdated"), null);
     }
     else {
       try {
@@ -168,6 +170,14 @@ public class FileWatcher {
     return null;
   }
 
+  private static boolean isUpToDate(File executable) {
+    long length = SystemInfo.isWindows ? 70216 :
+                  SystemInfo.isMac ? 13924 :
+                  SystemInfo.isLinux ? SystemInfo.isAMD64 ? 29227 : 22734 :
+                  -1;
+    return length < 0 || length == executable.length();
+  }
+
   private void notifyOnFailure(final String cause, @Nullable final NotificationListener listener) {
     LOG.warn(cause);
 
@@ -178,7 +188,7 @@ public class FileWatcher {
           String title = ApplicationBundle.message("watcher.slow.sync");
           Notifications.Bus.notify(NOTIFICATION_GROUP.getValue().createNotification(title, cause, NotificationType.WARNING, listener));
         }
-      });
+      }, ModalityState.NON_MODAL);
     }
   }
 
@@ -234,6 +244,10 @@ public class FileWatcher {
     return myProcessHandler != null;
   }
 
+  public boolean isSettingRoots() {
+    return mySettingRoots.get() > 0;
+  }
+
   public static class DirtyPaths {
     public final List<String> dirtyPaths;
     public final List<String> dirtyPathsRecursive;
@@ -278,6 +292,7 @@ public class FileWatcher {
         return;
       }
 
+      mySettingRoots.incrementAndGet();
       myMapping.clear();
 
       try {
@@ -291,8 +306,7 @@ public class FileWatcher {
         writeLine("#");
       }
       catch (IOException e) {
-        LOG.error(e);
-        shutdownProcess();
+        LOG.warn(e);
       }
 
       myRecursiveWatchRoots = recursive;
@@ -324,6 +338,10 @@ public class FileWatcher {
       myWriter.write(line);
       myWriter.newLine();
       myWriter.flush();
+    }
+
+    protected boolean useAdaptiveSleepingPolicyWhenReadingOutput() {
+      return true;
     }
   }
 
@@ -378,6 +396,7 @@ public class FileWatcher {
     return myWatchedPaths;
   }
 
+  @SuppressWarnings("SpellCheckingInspection")
   private enum WatcherOp {
     GIVEUP, RESET, UNWATCHEABLE, REMAP, MESSAGE, CREATE, DELETE, STATS, CHANGE, DIRTY, RECDIRTY
   }
@@ -422,9 +441,8 @@ public class FileWatcher {
         }
 
         if (watcherOp == WatcherOp.GIVEUP) {
-          LOG.info("Native file watcher gives up to operate on this platform");
+          notifyOnFailure(ApplicationBundle.message("watcher.gave.up"), null);
           myIsShuttingDown = true;
-          shutdownProcess();
         }
         else if (watcherOp == WatcherOp.RESET) {
           reset();
@@ -445,6 +463,7 @@ public class FileWatcher {
             processRemap();
           }
           else {
+            mySettingRoots.decrementAndGet();
             processUnwatchable();
           }
           myLines.clear();
@@ -455,7 +474,8 @@ public class FileWatcher {
         }
       }
       else {
-        processChange(line, myLastOp);
+        String path = line.replace('\0', '\n');  // unescape
+        processChange(path, myLastOp);
         myLastOp = null;
       }
     }
