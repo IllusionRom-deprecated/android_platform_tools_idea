@@ -27,6 +27,7 @@ import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.PanelWithActionsAndCloseButton;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vcs.*;
 import com.intellij.openapi.vcs.changes.committed.CommittedChangesBrowserUseCase;
 import com.intellij.openapi.vcs.changes.committed.CommittedChangesCache;
@@ -36,6 +37,10 @@ import com.intellij.openapi.vcs.versionBrowser.CommittedChangeList;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
+import com.intellij.psi.search.scope.packageSet.NamedScope;
+import com.intellij.psi.search.scope.packageSet.NamedScopesHolder;
+import com.intellij.psi.search.scope.packageSet.PackageSet;
+import com.intellij.psi.search.scope.packageSet.PackageSetBase;
 import com.intellij.ui.*;
 import com.intellij.ui.content.ContentManager;
 import com.intellij.ui.treeStructure.Tree;
@@ -76,6 +81,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
   private final ActionInfo myActionInfo;
   private boolean myCanGroupByChangeList = false;
   private boolean myGroupByChangeList = false;
+  private boolean myShowOnlyFilteredItems;
   private JLabel myLoadingChangeListsLabel;
   private List<CommittedChangeList> myCommittedChangeLists;
   private final JPanel myCenterPanel = new JPanel(new CardLayout());
@@ -109,6 +115,8 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
     myProject = project;
     myUpdatedFiles = updatedFiles;
     myRootName = rootName;
+    
+    myShowOnlyFilteredItems = VcsConfiguration.getInstance(myProject).UPDATE_FILTER_BY_SCOPE;
 
     myFileStatusManager = FileStatusManager.getInstance(myProject);
     myFileStatusManager.addFileStatusListener(myFileStatusListener);
@@ -143,6 +151,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
   protected void addActionsTo(DefaultActionGroup group) {
     group.add(new MyGroupByPackagesAction());
     group.add(new GroupByChangeListAction());
+    group.add(new FilterAction());
     group.add(ActionManager.getInstance().getAction(IdeActions.ACTION_EXPAND_ALL));
     group.add(ActionManager.getInstance().getAction(IdeActions.ACTION_COLLAPSE_ALL));
     group.add(ActionManager.getInstance().getAction("Diff.UpdatedFiles"));
@@ -162,13 +171,16 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
   private void createTree() {
     SmartExpander.installOn(myTree);
     SelectionSaver.installOn(myTree);
-    refreshTree();
+    createTreeModel();
 
     myTree.addTreeSelectionListener(new TreeSelectionListener() {
       public void valueChanged(TreeSelectionEvent e) {
         AbstractTreeNode treeNode = (AbstractTreeNode)e.getPath().getLastPathComponent();
+        VirtualFilePointer pointer = null;
         if (treeNode instanceof FileTreeNode) {
-          final VirtualFilePointer pointer = ((FileTreeNode)treeNode).getFilePointer();
+          pointer = ((FileTreeNode)treeNode).getFilePointer();
+        }
+        if (pointer != null && pointer.isValid()) {
           mySelectedUrl = pointer.getUrl();
           mySelectedFile = pointer.getFile();
         }
@@ -206,13 +218,20 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
     myTree.setSelectionRow(0);
   }
 
-  private void refreshTree() {
+  private void createTreeModel() {
     myRoot = new UpdateRootNode(myUpdatedFiles, myProject, myRootName, myActionInfo);
-    myRoot.rebuild(VcsConfiguration.getInstance(myProject).UPDATE_GROUP_BY_PACKAGES);
+    updateTreeModel();
     myTreeModel = new DefaultTreeModel(myRoot);
     myRoot.setTreeModel(myTreeModel);
     myTree.setModel(myTreeModel);
     myRoot.setTree(myTree);
+  }
+
+  private void updateTreeModel() {
+    myRoot.rebuild(VcsConfiguration.getInstance(myProject).UPDATE_GROUP_BY_PACKAGES, getScopeFilter(), myShowOnlyFilteredItems);
+    if (myTreeModel != null) {
+      myTreeModel.reload();
+    }
   }
 
   public Object getData(String dataId) {
@@ -248,9 +267,10 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
     return super.getData(dataId);
   }
 
-  private class MyTreeIterator implements Iterator<VirtualFilePointer> {
+  private class MyTreeIterator implements Iterator<Pair<VirtualFilePointer, FileStatus>> {
     private final Enumeration myEnum;
     private VirtualFilePointer myNext;
+    private FileStatus myStatus;
 
     private MyTreeIterator() {
       myEnum = myRoot.depthFirstEnumeration();
@@ -261,10 +281,11 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
       return myNext != null;
     }
 
-    public VirtualFilePointer next() {
+    public Pair<VirtualFilePointer, FileStatus> next() {
       final VirtualFilePointer result = myNext;
+      final FileStatus status = myStatus;
       step();
-      return result;
+      return new Pair<VirtualFilePointer, FileStatus>(result, status);
     }
 
     private void step() {
@@ -272,7 +293,19 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
       while (myEnum.hasMoreElements()) {
         final Object o = myEnum.nextElement();
         if (o instanceof FileTreeNode) {
-          myNext = ((FileTreeNode) o).getFilePointer();
+          final FileTreeNode treeNode = (FileTreeNode)o;
+          myNext = treeNode.getFilePointer();
+          myStatus = FileStatus.MODIFIED;
+
+          final TreeNode parent = treeNode.getParent();
+          if (parent instanceof GroupTreeNode) {
+            final String id = ((GroupTreeNode)parent).getFileGroupId();
+            if (FileGroup.CREATED_ID.equals(id)) {
+              myStatus = FileStatus.ADDED;
+            } else if (FileGroup.REMOVED_FROM_REPOSITORY_ID.equals(id)) {
+              myStatus = FileStatus.DELETED;
+            }
+          }
           break;
         }
       }
@@ -283,8 +316,8 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
     }
   }
 
-  private class MyTreeIterable implements Iterable<VirtualFilePointer> {
-    public Iterator<VirtualFilePointer> iterator() {
+  private class MyTreeIterable implements Iterable<Pair<VirtualFilePointer, FileStatus>> {
+    public Iterator<Pair<VirtualFilePointer, FileStatus>> iterator() {
       return new MyTreeIterator();
     }
   }
@@ -360,7 +393,7 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
 
     public void setSelected(AnActionEvent e, boolean state) {
       VcsConfiguration.getInstance(myProject).UPDATE_GROUP_BY_PACKAGES = state;
-      myRoot.rebuild(VcsConfiguration.getInstance(myProject).UPDATE_GROUP_BY_PACKAGES);
+      updateTreeModel();
     }
 
     public void update(final AnActionEvent e) {
@@ -402,5 +435,45 @@ public class UpdateInfoTree extends PanelWithActionsAndCloseButton implements Di
 
   public void setAfter(Label after) {
     myAfter = after;
+  }
+
+  @Nullable
+  private Pair<PackageSetBase, NamedScopesHolder> getScopeFilter() {
+    String scopeName = VcsConfiguration.getInstance(myProject).UPDATE_FILTER_SCOPE_NAME;
+    if (scopeName != null) {
+      for (NamedScopesHolder holder : NamedScopesHolder.getAllNamedScopeHolders(myProject)) {
+        NamedScope scope = holder.getScope(scopeName);
+        if (scope != null) {
+          PackageSet packageSet = scope.getValue();
+          if (packageSet instanceof PackageSetBase) {
+            return new Pair<PackageSetBase, NamedScopesHolder>((PackageSetBase)packageSet, holder);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private class FilterAction extends ToggleAction implements DumbAware {
+    public FilterAction() {
+      super("Scope Filter", VcsBundle.getString("settings.filter.update.project.info.by.scope"), AllIcons.General.Filter);
+    }
+
+    @Override
+    public boolean isSelected(AnActionEvent e) {
+      return myShowOnlyFilteredItems;
+    }
+
+    @Override
+    public void setSelected(AnActionEvent e, boolean state) {
+      myShowOnlyFilteredItems = state;
+      VcsConfiguration.getInstance(myProject).UPDATE_FILTER_BY_SCOPE = myShowOnlyFilteredItems;
+      updateTreeModel();
+    }
+
+    public void update(AnActionEvent e) {
+      super.update(e);
+      e.getPresentation().setEnabled(!myGroupByChangeList && VcsConfiguration.getInstance(myProject).UPDATE_FILTER_SCOPE_NAME != null);
+    }
   }
 }

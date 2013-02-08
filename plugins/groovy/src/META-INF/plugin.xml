@@ -14,7 +14,7 @@
   ~
   -->
 
-<idea-plugin url="http://www.jetbrains.net/confluence/display/GRVY/Groovy+Home">
+<idea-plugin>
   <id>org.intellij.groovy</id>
   <name>Groovy</name>
   <description>Plugin for Groovy language support, including Groovy++, Grape, Gant and Griffon</description>
@@ -164,6 +164,8 @@
     <customAnnotationChecker implementation="org.jetbrains.plugins.groovy.annotator.FieldAnnotationChecker"/>
     <customAnnotationChecker implementation="org.jetbrains.plugins.groovy.annotator.NewifyAnnotationChecker"/>
     <customAnnotationChecker implementation="org.jetbrains.plugins.groovy.annotator.GrabAnnotationChecker"/>
+    <customAnnotationChecker implementation="org.jetbrains.plugins.groovy.annotator.GrAliasAnnotationChecker"/>
+    <customAnnotationChecker implementation="org.jetbrains.plugins.groovy.annotator.AnnotationCollectorChecker" order="first"/>
   </extensions>
 
   <extensions defaultExtensionNs="com.intellij.properties">
@@ -419,6 +421,7 @@
     <methodReferencesSearch implementation="org.jetbrains.plugins.groovy.findUsages.MethodLateBoundReferencesSearcher"/>
     <methodReferencesSearch implementation="org.jetbrains.plugins.groovy.findUsages.GroovyConstructorUsagesSearcher"/>
     <methodReferencesSearch implementation="org.jetbrains.plugins.groovy.findUsages.GroovyReflectedMethodReferenceSearcher"/>
+    <methodReferencesSearch implementation="org.jetbrains.plugins.groovy.findUsages.GrLiteralMethodSearcher"/>
     <annotatedElementsSearch implementation="org.jetbrains.plugins.groovy.findUsages.AnnotatedMembersSearcher"/>
     <superMethodsSearch implementation="org.jetbrains.plugins.groovy.findUsages.GDKSuperMethodSearcher"/>
     <definitionsSearch implementation="org.jetbrains.plugins.groovy.findUsages.GroovyImplementationSearch"/>
@@ -458,6 +461,8 @@
 
     <projectService serviceInterface="org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElementFactory"
                     serviceImplementation="org.jetbrains.plugins.groovy.lang.psi.impl.GroovyPsiElementFactoryImpl"/>
+    <projectService serviceInterface="org.jetbrains.plugins.groovy.compiler.GroovyCompilerWorkspaceConfiguration"
+                    serviceImplementation="org.jetbrains.plugins.groovy.compiler.GroovyCompilerWorkspaceConfiguration"/>
     <projectService serviceInterface="org.jetbrains.plugins.groovy.compiler.GroovyCompilerConfiguration"
                     serviceImplementation="org.jetbrains.plugins.groovy.compiler.GroovyCompilerConfiguration"/>
 
@@ -1306,6 +1311,11 @@
       <bundleName>org.jetbrains.plugins.groovy.intentions.GroovyIntentionsBundle</bundleName>
       <categoryKey>intention.category.groovy/intention.category.groovy.declaration</categoryKey>
       <className>org.jetbrains.plugins.groovy.intentions.declaration.GrMakeMemberPrivateIntention</className>
+    </intentionAction>
+    <intentionAction>
+      <bundleName>org.jetbrains.plugins.groovy.intentions.GroovyIntentionsBundle</bundleName>
+      <categoryKey>intention.category.groovy/intention.category.groovy.declaration</categoryKey>
+      <className>org.jetbrains.plugins.groovy.intentions.declaration.GrIntroduceLocalVariableIntention</className>
     </intentionAction>
 
     <!--other-->

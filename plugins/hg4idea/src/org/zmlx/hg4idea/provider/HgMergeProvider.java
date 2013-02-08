@@ -26,15 +26,18 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.vcsUtil.VcsRunnable;
 import com.intellij.vcsUtil.VcsUtil;
 import org.jetbrains.annotations.NotNull;
-import org.zmlx.hg4idea.HgContentRevision;
-import org.zmlx.hg4idea.HgFile;
-import org.zmlx.hg4idea.HgRevisionNumber;
+import org.zmlx.hg4idea.*;
+import org.zmlx.hg4idea.action.HgCommandResultNotifier;
+import org.zmlx.hg4idea.command.HgLogCommand;
+import org.zmlx.hg4idea.execution.HgCommandException;
 import org.zmlx.hg4idea.util.HgUtil;
 import org.zmlx.hg4idea.command.HgResolveCommand;
 import org.zmlx.hg4idea.command.HgWorkingCopyRevisionsCommand;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Kirill Likhodedov
@@ -57,21 +60,40 @@ public class HgMergeProvider implements MergeProvider {
         final VirtualFile repo = HgUtil.getHgRootOrThrow(myProject, file);
         final HgFile hgFile = new HgFile(myProject, file);
 
-        HgRevisionNumber serverRevisionNumber, baseRevisionNumber;
+        HgRevisionNumber serverRevisionNumber, baseRevisionNumber = null, localRevisionNumber;
         // there are two possibilities: we have checked in local changes in the selected file or we didn't.
         if (wasFileCheckedIn(repo, file)) {
           // 1. We checked in.
           // We have a merge in progress, which means we have 2 heads (parents).
-          // the latest one is "their" revision pulled from the parent repo,
-          // the earlier parent is the local change.
-          // to retrieve the base version we get the parent of the local change, i.e. the [only] parent of the second parent.
+          // the second one is "their" revision pulled from the parent repo,
+          // first parent is the local change.
+          // to retrieve the base version we get the parent of the local change, i.e. the [only] parent of the first parent.
+          //Whick one is local revision depends on which one is merged with,
+          // i.e if you update to 17 revision and then merge it woth 23, so 17 is your local and 17->parent is your base revision.
+          // This may produce misunderstanding when you update your project with merging (your update firstly to next revisions  and then
+          // merge with previous). see http://hgbook.red-bean.com/read/managing-releases-and-branchy-development.html
           final Pair<HgRevisionNumber, HgRevisionNumber> parents = command.parents(repo, file);
-          serverRevisionNumber = parents.first;
-          final HgContentRevision local = new HgContentRevision(myProject, hgFile, parents.second);
+          serverRevisionNumber = parents.second;
+          localRevisionNumber = parents.first;
+          final HgContentRevision local = new HgContentRevision(myProject, hgFile, localRevisionNumber);
           mergeData.CURRENT = local.getContentAsBytes();
-          // we are sure that we have a grandparent, because otherwise we'll get "repository is unrelated" error while pulling,
+          // we are sure that we have a common ancestor, because otherwise we'll get "repository is unrelated" error while pulling,
           // due to different root changesets which is prohibited.
-          baseRevisionNumber = command.parents(repo, file, parents.second).first;
+          // Find common ancestor of two revisions : hg log -r "ancestor(rev1,ancestor(rev2,rev3))"
+          List<String> arguments = new ArrayList<String>();
+          arguments.add("-r");
+          arguments.add("\"ancestor(" + localRevisionNumber.getRevision() + ',' + serverRevisionNumber.getRevision() + ")\"");
+          final List<HgFileRevision> revisions;
+          try {
+            revisions = new HgLogCommand(myProject).execute(new HgFile(myProject, file), -1, false, arguments);
+            if (revisions != null && !revisions.isEmpty()) {
+              baseRevisionNumber = revisions.get(0).getRevisionNumber();
+            }
+          }
+          catch (HgCommandException e) {
+            new HgCommandResultNotifier(myProject)
+              .notifyError(null, HgVcsMessages.message("hg4idea.error.log.command.execution"), e.getMessage());
+          }
         } else {
           // 2. local changes are not checked in.
           // then there is only one parent, which is server changes.

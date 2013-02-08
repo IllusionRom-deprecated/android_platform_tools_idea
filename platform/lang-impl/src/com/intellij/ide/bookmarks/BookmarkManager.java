@@ -16,6 +16,7 @@
 
 package com.intellij.ide.bookmarks;
 
+import com.intellij.ide.IdeBundle;
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.editor.Document;
@@ -28,6 +29,8 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.DumbAwareRunnable;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupManager;
+import com.intellij.openapi.ui.InputValidator;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
@@ -94,6 +97,24 @@ public class BookmarkManager extends AbstractProjectComponent implements Persist
     });
   }
 
+  public void editDescription(@NotNull Bookmark bookmark) {
+    String description = Messages
+      .showInputDialog(myProject, IdeBundle.message("action.bookmark.edit.description.dialog.message"),
+                       IdeBundle.message("action.bookmark.edit.description.dialog.title"), Messages.getQuestionIcon(),
+                       bookmark.getDescription(), new InputValidator() {
+        public boolean checkInput(String inputString) {
+          return true;
+        }
+
+        public boolean canClose(String inputString) {
+          return true;
+        }
+      });
+    if (description != null) {
+      setDescription(bookmark, description);
+    }
+  }
+
   @NotNull
   @Override
   public String getComponentName() {
@@ -113,8 +134,8 @@ public class BookmarkManager extends AbstractProjectComponent implements Persist
 
   public Bookmark addTextBookmark(VirtualFile file, int lineIndex, String description) {
     Bookmark b = new Bookmark(myProject, file, lineIndex, description);
-    myBus.syncPublisher(BookmarksListener.TOPIC).bookmarkAdded(b);
     myBookmarks.add(0, b);
+    myBus.syncPublisher(BookmarksListener.TOPIC).bookmarkAdded(b);
     return b;
   }
 
@@ -290,11 +311,17 @@ public class BookmarkManager extends AbstractProjectComponent implements Persist
    */
   @NotNull
   public List<Bookmark> moveBookmarkUp(@NotNull Bookmark bookmark) {
-    int index = myBookmarks.indexOf(bookmark);
+    final int index = myBookmarks.indexOf(bookmark);
     if (index > 0) {
       Collections.swap(myBookmarks, index, index - 1);
+      EventQueue.invokeLater(new Runnable() {
+        @Override
+        public void run() {
+          myBus.syncPublisher(BookmarksListener.TOPIC).bookmarkChanged(myBookmarks.get(index));
+          myBus.syncPublisher(BookmarksListener.TOPIC).bookmarkChanged(myBookmarks.get(index - 1));
+        }
+      });
     }
-
     return myBookmarks;
   }
 
@@ -306,9 +333,16 @@ public class BookmarkManager extends AbstractProjectComponent implements Persist
    */
   @NotNull
   public List<Bookmark> moveBookmarkDown(@NotNull Bookmark bookmark) {
-    int index = myBookmarks.indexOf(bookmark);
+    final int index = myBookmarks.indexOf(bookmark);
     if (index < myBookmarks.size() - 1) {
       Collections.swap(myBookmarks, index, index + 1);
+      EventQueue.invokeLater(new Runnable() {
+        @Override
+        public void run() {
+          myBus.syncPublisher(BookmarksListener.TOPIC).bookmarkChanged(myBookmarks.get(index));
+          myBus.syncPublisher(BookmarksListener.TOPIC).bookmarkChanged(myBookmarks.get(index + 1));
+        }
+      });
     }
 
     return myBookmarks;

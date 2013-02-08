@@ -16,6 +16,7 @@
 package com.intellij.openapi.vfs.encoding;
 
 import com.intellij.AppTopics;
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -28,35 +29,40 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileDocumentManagerAdapter;
 import com.intellij.openapi.fileEditor.impl.LoadTextUtil;
 import com.intellij.openapi.project.DumbAware;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.ListPopup;
-import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileEvent;
 import com.intellij.openapi.vfs.VirtualFileListener;
+import com.intellij.util.ArrayUtil;
+import com.intellij.util.Function;
 import com.intellij.util.messages.MessageBusConnection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.text.MessageFormat;
+import java.util.Arrays;
 
 /**
  * @author cdr
 */
-public class ReloadFileInOtherEncodingAction extends AnAction implements DumbAware, Condition<Charset> {
-  protected VirtualFile myFile;
-  protected String text;
-
+public class ReloadFileInOtherEncodingAction extends AnAction implements DumbAware {
   public ReloadFileInOtherEncodingAction() {
-    text = "Reload in...";
+    this("Reload in...");
+  }
+  protected ReloadFileInOtherEncodingAction(String text) {
+    super(text);
   }
 
   @Nullable("null means disabled, otherwise it's the document and the action description")
-  protected Pair<Document, String> checkEnabled(@NotNull VirtualFile virtualFile) {
+  public Pair<Document, String> checkEnabled(@NotNull VirtualFile virtualFile) {
     String failReason = ChooseFileEncodingAction.checkCanReload(virtualFile).second;
     if (failReason != null) return null;
     FileDocumentManager documentManager = FileDocumentManager.getInstance();
@@ -72,21 +78,30 @@ public class ReloadFileInOtherEncodingAction extends AnAction implements DumbAwa
 
   @Override
   public void update(AnActionEvent e) {
-    myFile = e.getData(PlatformDataKeys.VIRTUAL_FILE);
+    VirtualFile myFile = e.getData(PlatformDataKeys.VIRTUAL_FILE);
     Pair<Document, String> pair = myFile == null ? null : checkEnabled(myFile);
     e.getPresentation().setEnabled(pair != null);
     if (pair != null) {
       e.getPresentation().setDescription(pair.second);
-      e.getPresentation().setText(text);
     }
   }
 
   @Override
   public final void actionPerformed(final AnActionEvent e) {
+    final VirtualFile myFile = e.getData(PlatformDataKeys.VIRTUAL_FILE);
+    if (myFile == null) return;
     Pair<Document, String> pair = checkEnabled(myFile);
     if (pair == null) return;
     final Document document = pair.first;
     final Editor editor = e.getData(PlatformDataKeys.EDITOR);
+
+    final byte[] bytes;
+    try {
+      bytes = myFile.contentsToByteArray();
+    }
+    catch (IOException e1) {
+      return;
+    }
 
     DefaultActionGroup group =
      new ChooseFileEncodingAction(myFile) {
@@ -97,24 +112,35 @@ public class ReloadFileInOtherEncodingAction extends AnAction implements DumbAwa
       @NotNull
       @Override
       protected DefaultActionGroup createPopupActionGroup(JComponent button) {
-        return createGroup(null, ReloadFileInOtherEncodingAction.this, "Reload file ''{0}'' in''{1}''", myFile.getCharset()); // no 'clear'
+        return createGroup(null, myFile.getCharset(), new Function<Charset, String>() {
+          @Override
+          public String fun(Charset charset) {
+            return isCompatibleCharset(myFile, bytes, document.getText(), charset);
+          }
+        }); // no 'clear'
       }
 
       @Override
       protected void chosen(@Nullable VirtualFile virtualFile, @NotNull Charset charset) {
         if (virtualFile != null) {
-          ReloadFileInOtherEncodingAction.this.chosen(document, editor, virtualFile, charset);
+          ReloadFileInOtherEncodingAction.this.chosen(document, editor, virtualFile, bytes, charset);
         }
       }
     }
     .createPopupActionGroup(null);
 
-    final ListPopup popup = JBPopupFactory.getInstance().createActionGroupPopup(
-      text, group, e.getDataContext(), JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, false);
+    final ListPopup popup = JBPopupFactory.getInstance().createActionGroupPopup(getTemplatePresentation().getText(),
+      group, e.getDataContext(), JBPopupFactory.ActionSelectionAid.SPEEDSEARCH, false);
     popup.showInBestPositionFor(e.getDataContext());
   }
 
-  protected void chosen(@NotNull Document document, Editor editor, @NotNull VirtualFile virtualFile, @NotNull final Charset charset) {
+  protected void chosen(@NotNull Document document,
+                        Editor editor,
+                        @NotNull VirtualFile virtualFile,
+                        @NotNull byte[] bytes,
+                        @NotNull final Charset charset) {
+    if (!checkCompatibleEncodingAndWarn(virtualFile, bytes, document.getText(), charset, "Reload")) return;
+
     FileDocumentManager documentManager = FileDocumentManager.getInstance();
     //Project project = ProjectLocator.getInstance().guessProjectForFile(myFile);
     //if (documentManager.isFileModified(myFile)) {
@@ -127,25 +153,64 @@ public class ReloadFileInOtherEncodingAction extends AnAction implements DumbAwa
     connection.subscribe(AppTopics.FILE_DOCUMENT_SYNC, new FileDocumentManagerAdapter() {
       @Override
       public void beforeFileContentReload(VirtualFile file, @NotNull Document document) {
-        EncodingManager.getInstance().setEncoding(myFile, charset);
+        EncodingManager.getInstance().setEncoding(file, charset);
 
-        myFile.setCharset(charset);
-        LoadTextUtil.setCharsetWasDetectedFromBytes(myFile, null);
+        file.setCharset(charset);
+        LoadTextUtil.setCharsetWasDetectedFromBytes(file, null);
       }
     });
 
     // if file was modified, the user will be asked here
     try {
-      ((VirtualFileListener)documentManager).contentsChanged(new VirtualFileEvent(null, myFile, myFile.getName(), myFile.getParent()));
+      ((VirtualFileListener)documentManager).contentsChanged(
+        new VirtualFileEvent(null, virtualFile, virtualFile.getName(), virtualFile.getParent()));
     }
     finally {
       Disposer.dispose(disposable);
     }
   }
 
-  // charset filter
-  @Override
-  public boolean value(Charset charset) {
+  // returns true if user chose to continue anyway
+  protected boolean checkCompatibleEncodingAndWarn(@NotNull VirtualFile virtualFile,
+                                                   @NotNull byte[] bytes,
+                                                   @NotNull String text,
+                                                   @NotNull Charset charset,
+                                                   @NotNull String action) {
+    if (isCompatibleCharset(virtualFile, bytes, text, charset) == null) {
+      int res = Messages.showDialog("File '"+virtualFile.getName()+"' most likely wasn't stored in the '" + charset.displayName() + "' encoding.",
+                                    "Incompatible Encoding: " + charset.displayName(), new String[]{action + " anyway", "Cancel"}, 1,
+                                    AllIcons.General.WarningDialog);
+      if (res != 0) return false;
+    }
     return true;
+  }
+
+  // check if file can be loaded in the encoding correctly:
+  // returns true if bytes on disk, converted to text with the charset, converted back to bytes matched
+  private static boolean canBeLoadedIn(@NotNull VirtualFile virtualFile, @NotNull byte[] bytes, @NotNull Charset charset) {
+    String loaded = new String(bytes, charset);
+
+    String separator = FileDocumentManager.getInstance().getLineSeparator(virtualFile, null);
+    String toSave = StringUtil.convertLineSeparators(loaded, separator);
+    byte[] bom = virtualFile.getBOM();
+    bom = bom == null ? ArrayUtil.EMPTY_BYTE_ARRAY : bom;
+    byte[] bytesToSave;
+    try {
+      bytesToSave = toSave.getBytes(charset);
+    }
+    catch (UnsupportedOperationException e) {
+      return false;
+    }
+    if (!ArrayUtil.startsWith(bytesToSave, bom)) {
+      bytesToSave = ArrayUtil.mergeArrays(bom, bytesToSave); // for 2-byte encodings String.getBytes(Charset) adds BOM automatically
+    }
+
+    return Arrays.equals(bytesToSave, bytes);
+  }
+
+  // charset filter
+  @Nullable("null means incompatible")
+  public String isCompatibleCharset(@NotNull VirtualFile virtualFile, @NotNull byte[] bytesOnDisk, @NotNull String text, @NotNull Charset charset) {
+    return canBeLoadedIn(virtualFile, bytesOnDisk, charset) ? "Reload file '" + virtualFile.getName() + "' in '" + charset + "'" : null;
   }
 }

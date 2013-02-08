@@ -23,13 +23,16 @@ import com.intellij.util.CommonProcessors;
 import com.intellij.util.Processor;
 import com.intellij.util.containers.LimitedPool;
 import com.intellij.util.containers.SLRUCache;
+import com.intellij.util.containers.hash.EqualityPolicy;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * @author Eugene Zhuravlev
@@ -37,6 +40,7 @@ import java.util.*;
  */
 public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<Key> implements PersistentMap<Key, Value> {
   private static final Logger LOG = Logger.getInstance("#com.intellij.util.io.PersistentHashMap");
+  private static final int DEAD_KEY_NUMBER_MASK = 0xFFFFFFFF;
 
   private PersistentHashMapValueStorage myValueStorage;
   protected final DataExternalizer<Value> myValueExternalizer;
@@ -85,37 +89,7 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
     }
   });
 
-  private final SLRUCache<Key, BufferExposingByteArrayOutputStream> myAppendCache = new SLRUCache<Key, BufferExposingByteArrayOutputStream>(16 * 1024, 4 * 1024) {
-    @Override
-    @NotNull
-    public BufferExposingByteArrayOutputStream createValue(final Key key) {
-      return myStreamPool.alloc();
-    }
-
-    @Override
-    protected void onDropFromCache(final Key key, @NotNull final BufferExposingByteArrayOutputStream bytes) {
-      myEnumerator.lockStorage();
-      try {
-        final int id = enumerate(key);
-        long oldHeaderRecord = readValueId(id);
-
-        long headerRecord = myValueStorage.appendBytes(bytes.getInternalBuffer(), 0, bytes.size(), oldHeaderRecord);
-
-        updateValueId(id, headerRecord, oldHeaderRecord, key, 0);
-        if (oldHeaderRecord == NULL_ADDR) {
-          myLiveAndGarbageKeysCounter += LIVE_KEY_MASK;
-        }
-
-        myStreamPool.recycle(bytes);
-      }
-      catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      finally {
-        myEnumerator.unlockStorage();
-      }
-    }
-  };
+  private final SLRUCache<Key, BufferExposingByteArrayOutputStream> myAppendCache;
 
   private boolean canUseIntAddressForNewRecord(long size) {
     return myCanReEnumerate ? size + POSITIVE_VALUE_SHIFT < Integer.MAX_VALUE: false;
@@ -134,7 +108,7 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
   
   public PersistentHashMap(@NotNull final File file, @NotNull KeyDescriptor<Key> keyDescriptor, @NotNull DataExternalizer<Value> valueExternalizer, final int initialSize) throws IOException {
     super(checkDataFiles(file), keyDescriptor, initialSize);
-
+    myAppendCache = createAppendCache(keyDescriptor);
     final PersistentEnumeratorBase.RecordBufferHandler<PersistentEnumeratorBase> recordHandler = myEnumerator.getRecordHandler();
     myParentValueRefOffset = recordHandler.getRecordBuffer(myEnumerator).length;
     myRecordBuffer = new byte[myParentValueRefOffset + 8];
@@ -176,7 +150,7 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
       myValueStorage = PersistentHashMapValueStorage.create(getDataFile(file).getPath());
       myLiveAndGarbageKeysCounter = myEnumerator.getMetaData();
       long data2 = myEnumerator.getMetaData2();
-      myLargeIndexWatermarkId = (int)(data2 & 0xFFFFFFFF);
+      myLargeIndexWatermarkId = (int)(data2 & DEAD_KEY_NUMBER_MASK);
       myReadCompactionGarbageSize = (int)(data2 >>> 32);
       myCanReEnumerate = myEnumerator.canReEnumerate();
 
@@ -205,8 +179,58 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
     }
   }
 
+  private SLRUCache<Key, BufferExposingByteArrayOutputStream> createAppendCache(final KeyDescriptor<Key> keyDescriptor) {
+    final EqualityPolicy<Key> hashingStrategy = new EqualityPolicy<Key>() {
+      @Override
+      public int getHashCode(Key object) {
+        return keyDescriptor.getHashCode(object);
+      }
+
+      @Override
+      public boolean isEqual(Key val1, Key val2) {
+        return keyDescriptor.isEqual(val1, val2);
+      }
+    };
+    return new SLRUCache<Key, BufferExposingByteArrayOutputStream>(16 * 1024, 4 * 1024, hashingStrategy) {
+      @Override
+      @NotNull
+      public BufferExposingByteArrayOutputStream createValue(final Key key) {
+        return myStreamPool.alloc();
+      }
+
+      @Override
+      protected void onDropFromCache(final Key key, @NotNull final BufferExposingByteArrayOutputStream bytes) {
+        myEnumerator.lockStorage();
+        try {
+          final int id = enumerate(key);
+          long oldHeaderRecord = readValueId(id);
+
+          long headerRecord = myValueStorage.appendBytes(bytes.getInternalBuffer(), 0, bytes.size(), oldHeaderRecord);
+
+          updateValueId(id, headerRecord, oldHeaderRecord, key, 0);
+          if (oldHeaderRecord == NULL_ADDR) {
+            myLiveAndGarbageKeysCounter += LIVE_KEY_MASK;
+          }
+
+          myStreamPool.recycle(bytes);
+        }
+        catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+        finally {
+          myEnumerator.unlockStorage();
+        }
+      }
+    };
+  }
+
   private boolean doNewCompact() {
-    return System.getProperty("idea.persistent.hash.map.newcompact") != null;
+    return System.getProperty("idea.persistent.hash.map.oldcompact") == null;
+  }
+
+  private boolean forceNewCompact() {
+    return System.getProperty("idea.persistent.hash.map.newcompact") != null &&
+           ((int)(myLiveAndGarbageKeysCounter & DEAD_KEY_NUMBER_MASK)) > 0;
   }
 
   public void dropMemoryCaches() {
@@ -236,9 +260,9 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
 
     if (fileSize > 5 * megabyte) { // file is longer than 5MB and (more than 50% of keys is garbage or approximate benefit larger than 100M)
       int liveKeys = (int)(myLiveAndGarbageKeysCounter / LIVE_KEY_MASK);
-      int deadKeys = (int)(myLiveAndGarbageKeysCounter & 0xFFFFFFFF);
+      int deadKeys = (int)(myLiveAndGarbageKeysCounter & DEAD_KEY_NUMBER_MASK);
 
-      if (fileSize > 50 *  megabyte && doNewCompact()) return true;
+      if (fileSize > 50 *  megabyte && forceNewCompact()) return true;
       if (deadKeys < 50) return false;
 
       final int benefitSize = 100 * megabyte;
@@ -550,6 +574,11 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
   // made public for tests
   public void compact() throws IOException {
     synchronized (myEnumerator) {
+      LOG.info("Compacting "+myEnumerator.myFile.getPath());
+      LOG.info("Live keys:" + ((int)(myLiveAndGarbageKeysCounter  / LIVE_KEY_MASK)) +
+               ", dead keys:" + ((int)(myLiveAndGarbageKeysCounter & DEAD_KEY_NUMBER_MASK)) +
+               ", read compaction size:" + myReadCompactionGarbageSize);
+
       final long now = System.currentTimeMillis();
       final String newPath = getDataFile(myEnumerator.myFile).getPath() + ".new";
       final PersistentHashMapValueStorage newStorage = PersistentHashMapValueStorage.create(newPath);
@@ -583,21 +612,20 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
       }
 
       myValueStorage.dispose();
-      System.out.println("Size before:"+sizeBefore + ", after:" +newStorage.getSize());
+      final long newSize = newStorage.getSize();
 
       FileUtil.rename(new File(newPath), getDataFile(myEnumerator.myFile));
 
       myValueStorage = PersistentHashMapValueStorage.create(getDataFile(myEnumerator.myFile).getPath());
-      LOG.info("Compacted " + myEnumerator.myFile.getPath() + " in " + (System.currentTimeMillis() - now) + "ms.");
-
+      LOG.info("Compacted " + myEnumerator.myFile.getPath() + ":" + sizeBefore + " bytes into " + newSize + " bytes in " + (System.currentTimeMillis() - now) + "ms.");
       myEnumerator.putMetaData(myLiveAndGarbageKeysCounter);
+      myEnumerator.putMetaData2( myLargeIndexWatermarkId );
     }
   }
 
   private void newCompact(PersistentHashMapValueStorage newStorage) throws IOException {
-    int l = (int)(myLiveAndGarbageKeysCounter / LIVE_KEY_MASK);
     long started = System.currentTimeMillis();
-    final List<CompactionRecordInfo> infos = new ArrayList<CompactionRecordInfo>(l);
+    final List<CompactionRecordInfo> infos = new ArrayList<CompactionRecordInfo>(10000);
 
     traverseAllRecords(new PersistentEnumerator.RecordsProcessor() {
       @Override
@@ -610,14 +638,16 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
       }
     });
 
-    System.out.println("Loaded:"+(System.currentTimeMillis() - started));
+    LOG.info("Loaded mappings:"+(System.currentTimeMillis() - started) + "ms,");
     started = System.currentTimeMillis();
-    if (infos.size() > 0) myValueStorage.compactValues(infos, newStorage);
-    System.out.println("Compacted:"+(System.currentTimeMillis() - started));
+    int fragments = 0;
+    if (infos.size() > 0) fragments = myValueStorage.compactValues(infos, newStorage);
+    LOG.info("Compacted values for:"+(System.currentTimeMillis() - started) + "ms fragments:"+fragments + ", keys:"+infos.size());
 
     started = System.currentTimeMillis();
     try {
       myEnumerator.lockStorage();
+
       for(int i = 0; i < infos.size(); ++i) {
         CompactionRecordInfo info = infos.get(i);
         updateValueId(info.address, info.newValueAddress, info.valueAddress, null, info.key);
@@ -626,7 +656,7 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
     } finally {
       myEnumerator.unlockStorage();
     }
-    System.out.println("Updated:" + (System.currentTimeMillis() - started));
+    LOG.info("Updated mappings:" + (System.currentTimeMillis() - started) + " ms");
   }
 
   private long readValueId(final int keyId) {
@@ -661,14 +691,14 @@ public class PersistentHashMap<Key, Value> extends PersistentEnumeratorDelegate<
         myEnumerator.myStorage.putInt(keyId + myParentValueRefOffset, -(int)(value + POSITIVE_VALUE_SHIFT));
         if (newKey) ++smallKeys;
       } else {
-        if (newKey && myLargeIndexWatermarkId == 0) {
-          myLargeIndexWatermarkId = keyId;
-        }
-        if (keyId < myLargeIndexWatermarkId && (oldValue == NULL_ADDR || canUseIntAddressForNewRecord(oldValue))) {
+        if ((keyId < myLargeIndexWatermarkId || myLargeIndexWatermarkId == 0) && (newKey || canUseIntAddressForNewRecord(oldValue))) {
           // keyId is result of enumerate, if we do reenumerate then it is no longer accessible unless somebody cached it
           myIntAddressForNewRecord = false;
           keyId = myEnumerator.reenumerate(key == null ? myEnumerator.getValue(keyId, processingKey) : key);
           ++transformedKeys;
+          if (myLargeIndexWatermarkId == 0) {
+            myLargeIndexWatermarkId = keyId;
+          }
         }
       }
     }

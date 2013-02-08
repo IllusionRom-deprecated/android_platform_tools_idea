@@ -25,7 +25,7 @@ import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.util.DefaultJDOMExternalizer;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
-import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.io.FileUtilRt;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.PlatformUtils;
 import org.jdom.Element;
@@ -90,6 +90,7 @@ public final class VcsConfiguration implements PersistentStateComponent<Element>
   public boolean SHOW_DIRTY_RECURSIVELY = false;
   public boolean LIMIT_HISTORY = true;
   public int MAXIMUM_HISTORY_ROWS = 1000;
+  public String UPDATE_FILTER_SCOPE_NAME;
 
   public enum StandardOption {
     ADD(VcsBundle.message("vcs.command.name.add")),
@@ -144,6 +145,7 @@ public final class VcsConfiguration implements PersistentStateComponent<Element>
   public String ACTIVE_VCS_NAME;
   public boolean UPDATE_GROUP_BY_PACKAGES = false;
   public boolean UPDATE_GROUP_BY_CHANGELIST = false;
+  public boolean UPDATE_FILTER_BY_SCOPE = false;
   public boolean SHOW_FILE_HISTORY_AS_TREE = false;
   public float FILE_HISTORY_SPLITTER_PROPORTION = 0.6f;
   private static final int MAX_STORED_MESSAGES = 25;
@@ -345,10 +347,10 @@ public final class VcsConfiguration implements PersistentStateComponent<Element>
 
   public void acceptLastCreatedPatchName(final String string) {
     if (StringUtil.isEmptyOrSpaces(string)) return;
-    final String extension = FileUtil.getExtension(string);
-    if (DIFF.equalsIgnoreCase(extension)) {
+    if (FileUtilRt.extensionEquals(string, DIFF)) {
       DEFAULT_PATCH_EXTENSION = DIFF;
-    } else if (PATCH.equalsIgnoreCase(extension)) {
+    }
+    else if (FileUtilRt.extensionEquals(string, PATCH)) {
       DEFAULT_PATCH_EXTENSION = PATCH;
     }
   }

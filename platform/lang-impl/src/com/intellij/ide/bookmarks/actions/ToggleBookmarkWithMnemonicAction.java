@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,10 +29,11 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.popup.ComponentPopupBuilder;
 import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.util.ui.UIUtil;
 
 public class ToggleBookmarkWithMnemonicAction extends ToggleBookmarkAction {
   public ToggleBookmarkWithMnemonicAction() {
-    getTemplatePresentation().setText(IdeBundle.message("action.toggle.bookmark.mnemonic"));
+    getTemplatePresentation().setText(IdeBundle.message("action.bookmark.toggle.mnemonic"));
   }
 
   @Override
@@ -73,7 +74,7 @@ public class ToggleBookmarkWithMnemonicAction extends ToggleBookmarkAction {
         setRequestFocus(true).
         setMovable(false).
         setCancelKeyEnabled(false).
-        setAdText(bookmarks.hasBookmarksWithMnemonics() ? "Yellow cells in use" : null).
+        setAdText(bookmarks.hasBookmarksWithMnemonics() ? (UIUtil.isUnderDarcula() ? "Brown" : "Yellow") + " cells are in use" : null).
         setResizable(false)
           .createPopup();
 
@@ -84,6 +85,6 @@ public class ToggleBookmarkWithMnemonicAction extends ToggleBookmarkAction {
   public void update(AnActionEvent event) {
     super.update(event);
 
-    event.getPresentation().setText(IdeBundle.message("action.toggle.bookmark.mnemonic"));
+    event.getPresentation().setText(IdeBundle.message("action.bookmark.toggle.mnemonic"));
   }
 }

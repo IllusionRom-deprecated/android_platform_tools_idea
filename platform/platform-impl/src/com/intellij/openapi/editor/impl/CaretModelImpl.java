@@ -110,7 +110,7 @@ public class CaretModelImpl implements CaretModel, PrioritizedDocumentListener, 
     DocumentBulkUpdateListener bulkUpdateListener = new DocumentBulkUpdateListener() {
       @Override
       public void updateStarted(@NotNull Document doc) {
-        if (doc != myEditor.getDocument() || myOffset >= doc.getTextLength() || savedBeforeBulkCaretMarker != null) return;
+        if (doc != myEditor.getDocument() || myOffset > doc.getTextLength() || savedBeforeBulkCaretMarker != null) return;
         savedBeforeBulkCaretMarker = doc.createRangeMarker(myOffset, myOffset);
       }
 
@@ -622,7 +622,7 @@ public class CaretModelImpl implements CaretModel, PrioritizedDocumentListener, 
 
   @Override
   public boolean isUpToDate() {
-    return !myIsInUpdate;
+    return !myIsInUpdate && !myReportCaretMoves;
   }
 
   @Override

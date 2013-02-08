@@ -97,10 +97,9 @@ public class SvnExternalTests extends Svn17TestCase {
 
     // start change list manager again
     clManager.forceGoInTestMode();
-    SvnConfiguration.getInstance(myProject).DETECT_NESTED_COPIES = true;
-    myVcs.invokeRefreshSvnRoots(false);
-    clManager.ensureUpToDate(false);
-    clManager.ensureUpToDate(false);
+    refreshSvnMappingsSynchronously();
+    //clManager.ensureUpToDate(false);
+    //clManager.ensureUpToDate(false);
   }
 
   @Test

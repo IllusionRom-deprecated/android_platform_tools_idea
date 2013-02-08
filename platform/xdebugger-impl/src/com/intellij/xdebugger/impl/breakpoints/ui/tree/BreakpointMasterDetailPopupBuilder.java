@@ -150,7 +150,7 @@ public class BreakpointMasterDetailPopupBuilder {
 
     myTreeController = new BreakpointItemsTreeController(myRulesEnabled);
 
-    JTree tree = myIsViewer ? new BreakpointsSimpleTree(myTreeController) : new BreakpointsCheckboxTree(myTreeController);
+    JTree tree = myIsViewer ? new BreakpointsSimpleTree(myProject, myTreeController) : new BreakpointsCheckboxTree(myProject, myTreeController);
 
     if (myPlainView) {
       tree.putClientProperty("plainView", Boolean.TRUE);
@@ -202,6 +202,11 @@ public class BreakpointMasterDetailPopupBuilder {
         if (myCallback != null && item instanceof BreakpointItem) {
           myCallback.breakpointChosen(myProject, (BreakpointItem)item,  popup, withEnterOrDoubleClick);
         }
+      }
+
+      @Override
+      public void removeSelectedItemsInTree() {
+        myTreeController.removeSelectedBreakpoints(myProject);
       }
     };
 
@@ -327,7 +332,14 @@ public class BreakpointMasterDetailPopupBuilder {
     actions.add(new AnAction("Remove Breakpoint", null, PlatformIcons.DELETE_ICON) {
       @Override
       public void update(AnActionEvent e) {
-        e.getPresentation().setEnabled(MasterDetailPopupBuilder.allowedToRemoveItems(myPopupBuilder.getSelectedItems()));
+        boolean enabled = false;
+        final ItemWrapper[] items = myPopupBuilder.getSelectedItems();
+        for (ItemWrapper item : items) {
+          if (item.allowedToRemove()) {
+            enabled = true;
+          }
+        }
+        e.getPresentation().setEnabled(enabled);
       }
 
       @Override

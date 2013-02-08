@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 package git4idea.config
+
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.io.FileUtil
-import git4idea.test.GitTestUtil
 import org.jetbrains.annotations.NotNull
 import org.junit.Before
 import org.junit.Test
 
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
-import java.util.regex.Matcher
 
 import static junit.framework.Assert.assertEquals
+import static org.junit.Assume.assumeTrue
 
 /**
  *
@@ -38,7 +39,7 @@ class GitExecutableDetectorWindowsTest {
 
   @Before
   void setUp() {
-    GitTestUtil.setWindows(true);
+    assumeTrue(SystemInfo.isWindows)
     testRoot = FileUtil.createTempDirectory("", "")
     setWindowsRoot(new File(testRoot, "C_"));
   }
@@ -74,7 +75,7 @@ class GitExecutableDetectorWindowsTest {
   }
 
   @Test
-  void "Prefer git.cmd over git.exe"() {
+  void "Prefer git_cmd over git_exe"() {
     fs "C:/Program Files (x86)/Git 1.7.4/bin/git.exe",
        "C:/Program Files/Git 1.7.4/cmd/git.cmd"
     assertExecutable "C:/Program Files/Git 1.7.4/cmd/git.cmd"
@@ -88,7 +89,7 @@ class GitExecutableDetectorWindowsTest {
   }
 
   @Test
-  void "1.8.0 Prefer cmd/git.cmd over cmd/git.exe and bin/git.exe"() {
+  void "1_8_0 Prefer cmd/git_cmd over cmd/git_exe and bin/git_exe"() {
     fs "C:/Program Files (x86)/Git_1.8/bin/git.exe",
        "C:/Program Files (x86)/Git_1.8/cmd/git.cmd",
        "C:/Program Files (x86)/Git_1.8/cmd/git.exe"
@@ -131,7 +132,7 @@ class GitExecutableDetectorWindowsTest {
   }
 
   @Test
-  void "For both git.exe and git.cmd prefer git.cmd"() {
+  void "For both git_exe and git_cmd prefer git_cmd"() {
     CAN_RUN = [ "git.exe", "git.cmd" ]
     assertExecutable "git.cmd"
   }

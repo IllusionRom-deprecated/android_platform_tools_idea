@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2011 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,44 +18,63 @@ package com.intellij.ui;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
+import com.intellij.openapi.application.ex.ApplicationInfoEx;
 import com.intellij.openapi.application.impl.ApplicationInfoImpl;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.PlatformUtils;
-import com.intellij.util.ui.UIUtil;
+import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.InputStream;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * @author yole
  */
 public class AppUIUtil {
+  private static final Logger LOG = Logger.getInstance("#com.intellij.ui.AppUIUtil");
   private static final String VENDOR_PREFIX = "jetbrains-";
 
-  private static boolean isDebugMode() {
-    return "true".equals(System.getProperty("idea.debug.mode"));
+  public static void updateWindowIcon(@NotNull Window window) {
+    window.setIconImages(getAppIconImages());
   }
 
+  /** @deprecated use {@linkplain #updateWindowIcon(Window)} (to remove in IDEA 13) */
+  @SuppressWarnings("UnusedDeclaration")
   public static void updateFrameIcon(final Frame frame) {
-    frame.setIconImages(getAppIconImages());
+    updateWindowIcon(frame);
+  }
+
+  /** @deprecated use {@linkplain #updateWindowIcon(Window)} (to remove in IDEA 13) */
+  @SuppressWarnings("UnusedDeclaration")
+  public static void updateDialogIcon(final JDialog dialog) {
+    updateWindowIcon(dialog);
   }
 
   @SuppressWarnings({"UnnecessaryFullyQualifiedName", "deprecation"})
-  public static List<Image> getAppIconImages() {
-    final List<Image> images = new ArrayList<Image>();
-    images.add(com.intellij.util.ImageLoader.loadFromResource(ApplicationInfoImpl.getShadowInstance().getIconUrl()));
-    images.add(com.intellij.util.ImageLoader.loadFromResource(ApplicationInfoImpl.getShadowInstance().getSmallIconUrl()));
-    return images;
-  }
+  private static List<Image> getAppIconImages() {
+    ApplicationInfoEx appInfo = ApplicationInfoImpl.getShadowInstance();
+    List<Image> images = ContainerUtil.newArrayListWithExpectedSize(3);
 
-  public static void updateDialogIcon(final JDialog dialog) {
-    UIUtil.updateDialogIcon(dialog, getAppIconImages());
+    if (SystemInfo.isXWindow) {
+      String bigIconUrl = appInfo.getBigIconUrl();
+      if (bigIconUrl != null) {
+        images.add(com.intellij.util.ImageLoader.loadFromResource(bigIconUrl));
+      }
+    }
+
+    images.add(com.intellij.util.ImageLoader.loadFromResource(appInfo.getIconUrl()));
+    images.add(com.intellij.util.ImageLoader.loadFromResource(appInfo.getSmallIconUrl()));
+
+    return images;
   }
 
   public static void invokeLaterIfProjectAlive(@NotNull final Project project, @NotNull final Runnable runnable) {
@@ -87,11 +106,33 @@ public class AppUIUtil {
   }
 
   public static String getFrameClass() {
-    final String name = ApplicationNamesInfo.getInstance().getProductName().toLowerCase();
+    String name = ApplicationNamesInfo.getInstance().getProductName().toLowerCase();
     String wmClass = VENDOR_PREFIX + StringUtil.replaceChar(name, ' ', '-');
-    if (isDebugMode()) {
+    if ("true".equals(System.getProperty("idea.debug.mode"))) {
       wmClass += "-debug";
     }
     return PlatformUtils.isCommunity() ? wmClass + "-ce" : wmClass;
+  }
+
+  public static void registerBundledFonts() {
+    registerFont("/fonts/Inconsolata.ttf");
+    registerFont("/fonts/SourceCodePro-Regular.ttf");
+    registerFont("/fonts/SourceCodePro-Bold.ttf");
+  }
+
+  private static void registerFont(@NonNls String name) {
+    try {
+      InputStream is = AppUIUtil.class.getResourceAsStream(name);
+      try {
+        Font font = Font.createFont(Font.TRUETYPE_FONT, is);
+        GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
+      }
+      finally {
+        is.close();
+      }
+    }
+    catch (Exception e) {
+      LOG.error(e);
+    }
   }
 }

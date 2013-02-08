@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,10 +51,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -164,18 +162,17 @@ public class BrowserUtil {
         try {
           Desktop.getDesktop().browse(uri);
           LOG.debug("Browser launched using JDK 1.6 API");
-        }
-        catch (Exception e) {
-          LOG.error(e);
-        }
-        return;
-      }
-      else {
-        List<String> command = getDefaultBrowserCommand();
-        if (command != null) {
-          launchBrowserByCommand(uri, command);
           return;
         }
+        catch (Exception e) {
+          LOG.warn("Error while using Desktop API, fallback to CLI", e);
+        }
+      }
+
+      List<String> command = getDefaultBrowserCommand();
+      if (command != null) {
+        launchBrowserByCommand(uri, command);
+        return;
       }
     }
 
@@ -207,7 +204,7 @@ public class BrowserUtil {
   @NonNls
   private static List<String> getDefaultBrowserCommand() {
     if (SystemInfo.isWindows) {
-      return newArrayList(ExecUtil.getWindowsShellName(), "/c", "start", "\"\"");
+      return newArrayList(ExecUtil.getWindowsShellName(), "/c", "start", GeneralCommandLine.inescapableQuote(""));
     }
     else if (SystemInfo.isMac) {
       return newSmartList(ExecUtil.getOpenCommandPath());
@@ -221,11 +218,8 @@ public class BrowserUtil {
 
   private static void launchBrowserByCommand(@NotNull final URI uri, @NotNull final List<String> command) {
     try {
-      final GeneralCommandLine commandLine = new GeneralCommandLine(command);
-      commandLine.addParameter(escapeUrl(uri.toString()));
-      if (SystemInfo.isWindows) {
-        commandLine.putUserData(GeneralCommandLine.DO_NOT_ESCAPE_QUOTES, true);
-      }
+      GeneralCommandLine commandLine = new GeneralCommandLine(command);
+      commandLine.addParameter(uri.toString());
       commandLine.createProcess();
 
       if (LOG.isDebugEnabled()) {
@@ -237,21 +231,31 @@ public class BrowserUtil {
     }
   }
 
-  @NotNull
+  /** @deprecated unneeded and misleading (to remove in IDEA 13) */
+  @SuppressWarnings("unused")
   public static String escapeUrl(@NotNull @NonNls String url) {
     return SystemInfo.isWindows ? '"' + url + '"' : url;
   }
 
   @NotNull
   public static List<String> getOpenBrowserCommand(@NonNls @NotNull String browserPathOrName) {
+    return getOpenBrowserCommand(browserPathOrName, false);
+  }
+
+  @NotNull
+  public static List<String> getOpenBrowserCommand(@NonNls @NotNull String browserPathOrName, boolean newWindowIfPossible) {
     if (new File(browserPathOrName).isFile()) {
       return newSmartList(browserPathOrName);
     }
     else if (SystemInfo.isMac) {
-      return newArrayList(ExecUtil.getOpenCommandPath(), "-a", browserPathOrName);
+      List<String> command = newArrayList(ExecUtil.getOpenCommandPath(), "-a", browserPathOrName);
+      if (newWindowIfPossible) {
+        command.add("-n");
+      }
+      return command;
     }
     else if (SystemInfo.isWindows) {
-      return newArrayList(ExecUtil.getWindowsShellName(), "/c", "start", "\"\"", browserPathOrName);
+      return newArrayList(ExecUtil.getWindowsShellName(), "/c", "start", GeneralCommandLine.inescapableQuote(""), browserPathOrName);
     }
     else {
       return newSmartList(browserPathOrName);
