@@ -140,6 +140,7 @@ public class SelectionTool extends InputTool {
         myToolProvider.hideInspections();
         myTracker.setToolProvider(myToolProvider);
         myTracker.setArea(myArea);
+        myTracker.myModifiers = myModifiers;
         myTracker.activate();
       }
     }
@@ -206,6 +207,8 @@ public class SelectionTool extends InputTool {
 
   @Override
   public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
+    super.keyPressed(event, area);
+
     if (myTracker != null) {
       myTracker.keyPressed(event, area);
     }
@@ -222,6 +225,8 @@ public class SelectionTool extends InputTool {
 
   @Override
   public void keyTyped(KeyEvent event, EditableArea area) throws Exception {
+    super.keyTyped(event, area);
+
     char keyChar = event.getKeyChar();
     if (myTracker != null) {
       myTracker.keyTyped(event, area);
@@ -264,6 +269,8 @@ public class SelectionTool extends InputTool {
 
   @Override
   public void keyReleased(KeyEvent event, EditableArea area) throws Exception {
+    super.keyReleased(event, area);
+
     if (myTracker != null) {
       myTracker.keyReleased(event, area);
     }

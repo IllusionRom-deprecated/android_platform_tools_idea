@@ -49,6 +49,7 @@ public abstract class InputTool {
   protected int myButton;
   protected int myStartScreenX;
   protected int myStartScreenY;
+  protected int myModifiers;
 
   private boolean myCanPastThreshold;
 
@@ -167,12 +168,18 @@ public abstract class InputTool {
   //////////////////////////////////////////////////////////////////////////////////////////
 
   public void keyTyped(KeyEvent event, EditableArea area) throws Exception {
+    setEvent(event);
+    setArea(area);
   }
 
   public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
+    setEvent(event);
+    setArea(area);
   }
 
   public void keyReleased(KeyEvent event, EditableArea area) throws Exception {
+    setEvent(event);
+    setArea(area);
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -182,12 +189,18 @@ public abstract class InputTool {
   //////////////////////////////////////////////////////////////////////////////////////////
   private static final int DRAG_THRESHOLD = 5;
 
+  private void setEvent(KeyEvent event) {
+    myInputEvent = event;
+    myModifiers = event.getModifiers();
+  }
+
   private void setEvent(MouseEvent event) {
     myCurrentScreenX = event.getX();
     myCurrentScreenY = event.getY();
     myButton = event.getButton();
     myInputEvent = event;
     myToolProvider.setEvent(event);
+    myModifiers = event.getModifiers();
   }
 
   private boolean movedPastThreshold() {
@@ -308,5 +321,17 @@ public abstract class InputTool {
       setArea(null);
       myToolProvider.setArea(null);
     }
+  }
+
+  protected boolean isShiftPressed() {
+    return (myModifiers & InputEvent.SHIFT_MASK) != 0;
+  }
+
+  protected boolean isAltOptionPressed() {
+    return (myModifiers & InputEvent.ALT_MASK) != 0;
+  }
+
+  protected boolean isCtrlCmdPressed() {
+    return (myModifiers & (InputEvent.CTRL_MASK|InputEvent.META_DOWN_MASK)) != 0;
   }
 }

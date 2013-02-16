@@ -15,6 +15,7 @@
  */
 package com.intellij.designer.designSurface.tools;
 
+import com.intellij.designer.designSurface.EditableArea;
 import com.intellij.designer.designSurface.FeedbackLayer;
 import com.intellij.designer.designSurface.feedbacks.AlphaFeedback;
 import com.intellij.designer.model.RadComponent;
@@ -23,6 +24,7 @@ import com.intellij.designer.utils.Cursors;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -94,6 +96,30 @@ public class MarqueeTracker extends InputTool {
   }
 
   @Override
+  public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
+    int modifiers = event.getModifiers();
+    boolean changedModifiers = modifiers != myModifiers;
+
+    super.keyPressed(event, area);
+
+    if (changedModifiers) {
+      showFeedback();
+    }
+  }
+
+  @Override
+  public void keyReleased(KeyEvent event, EditableArea area) throws Exception {
+    int modifiers = event.getModifiers();
+    boolean changedModifiers = modifiers != myModifiers;
+
+    super.keyReleased(event, area);
+
+    if (changedModifiers) {
+      showFeedback();
+    }
+  }
+
+  @Override
   public void deactivate() {
     if (myState == STATE_DRAG_IN_PROGRESS) {
       eraseFeedback();
@@ -134,7 +160,15 @@ public class MarqueeTracker extends InputTool {
   }
 
   private Rectangle getSelectionRectangle() {
-    return new Rectangle(myStartScreenX, myStartScreenY, 0, 0).union(new Rectangle(myCurrentScreenX, myCurrentScreenY, 0, 0));
+    if (isAltOptionPressed()) {
+      // Alt/Option: Center selection around starting point
+      int deltaX = Math.abs(myStartScreenX - myCurrentScreenX);
+      int deltaY = Math.abs(myStartScreenY - myCurrentScreenY);
+      return new Rectangle(myStartScreenX - deltaX, myStartScreenY - deltaY, 2 * deltaX, 2 * deltaY);
+    } else {
+      // Select diagonally from upper left to lower right
+      return new Rectangle(myStartScreenX, myStartScreenY, 0, 0).union(new Rectangle(myCurrentScreenX, myCurrentScreenY, 0, 0));
+    }
   }
 
   private void performMarqueeSelect() {

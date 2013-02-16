@@ -38,6 +38,7 @@ public final class OperationContext {
   private InputEvent myInputEvent;
   private Point myLocation;
   private Point myMoveDelta;
+  private int myModifiers;
   private Dimension mySizeDelta;
   private int myResizeDirection;
 
@@ -172,5 +173,13 @@ public final class OperationContext {
 
   public void setResizeDirection(int resizeDirection) {
     myResizeDirection = resizeDirection;
+  }
+
+  public int getModifiers() {
+    return myModifiers;
+  }
+
+  public void setModifiers(int modifiers) {
+    myModifiers = modifiers;
   }
 }
