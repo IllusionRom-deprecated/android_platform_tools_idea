@@ -21,6 +21,7 @@ import com.intellij.designer.designSurface.DesignerEditorPanel;
 import com.intellij.designer.designSurface.EditableArea;
 import com.intellij.designer.designSurface.tools.ComponentPasteFactory;
 import com.intellij.designer.designSurface.tools.PasteTool;
+import com.intellij.designer.model.IComponentDeletionParticipant;
 import com.intellij.designer.model.IGroupDeleteComponent;
 import com.intellij.designer.model.RadComponent;
 import com.intellij.ide.CopyProvider;
@@ -32,6 +33,7 @@ import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.ide.CopyPasteManager;
 import com.intellij.uiDesigner.SerializedComponentData;
 import com.intellij.util.ThrowableRunnable;
+import com.intellij.util.containers.hash.HashMap;
 import org.jdom.Element;
 import org.jdom.output.XMLOutputter;
 import org.jetbrains.annotations.NotNull;
@@ -39,7 +41,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Alexander Lobas
@@ -105,16 +109,65 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
           area.select(newSelection);
         }
 
-        if (components.get(0) instanceof IGroupDeleteComponent) {
-          ((IGroupDeleteComponent)components.get(0)).delete(components);
-        }
-        else {
-          for (RadComponent component : components) {
-            component.delete();
-          }
-        }
+        handleDeletion(components);
       }
     }, DesignerBundle.message("command.delete.selection"), true);
+  }
+
+  private static void deleteComponents(List<RadComponent> components) throws Exception {
+    if (components.get(0) instanceof IGroupDeleteComponent) {
+      ((IGroupDeleteComponent)components.get(0)).delete(components);
+    }
+    else {
+      for (RadComponent component : components) {
+        component.delete();
+      }
+    }
+  }
+
+  private static void handleDeletion(@NotNull List<RadComponent> components) throws Exception {
+    // Segment the deleted components into clusters of siblings
+    Map<RadComponent, List<RadComponent>> clusters =
+      new HashMap<RadComponent, List<RadComponent>>();
+    List<RadComponent> componentsWithoutParents = null;
+    for (RadComponent node : components) {
+      if (node == null) {
+        continue;
+      }
+      RadComponent parent = node.getParent();
+      if (parent != null) {
+        List<RadComponent> children = clusters.get(parent);
+        if (children == null) {
+          children = new ArrayList<RadComponent>();
+          clusters.put(parent, children);
+        }
+        children.add(node);
+      } else {
+        if (componentsWithoutParents == null) {
+          componentsWithoutParents = new ArrayList<RadComponent>();
+        }
+        componentsWithoutParents.add(node);
+      }
+    }
+
+    // Notify parent components about children getting deleted
+    for (Map.Entry<RadComponent, List<RadComponent>> entry : clusters.entrySet()) {
+      RadComponent parent = entry.getKey();
+      List<RadComponent> children = entry.getValue();
+      assert children != null && children.size() > 0;
+      boolean finished = false;
+      if (parent instanceof IComponentDeletionParticipant) {
+        IComponentDeletionParticipant handler = (IComponentDeletionParticipant)parent;
+        finished = handler.deleteChildren(parent, children);
+      }
+      if (!finished) {
+        deleteComponents(children);
+      }
+    }
+
+    if (componentsWithoutParents != null) {
+      deleteComponents(componentsWithoutParents);
+    }
   }
 
   @Nullable
