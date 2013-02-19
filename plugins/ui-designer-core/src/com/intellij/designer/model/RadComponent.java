@@ -439,6 +439,14 @@ public abstract class RadComponent extends PropertiesContainer {
     return null;
   }
 
+  /**
+   * Returns true if this component is of the same logical type as the given other component.
+   * This is used to for example select "Select Same Type".
+   */
+  public boolean isSameType(@NotNull RadComponent other) {
+    return other.getClass() == this.getClass();
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////
   //
   // Utils

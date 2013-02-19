@@ -23,6 +23,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.SideBorder;
 import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.event.KeyEvent;
@@ -63,6 +64,28 @@ public class DesignerActionPanel implements DataProvider {
     myToolbar.setBorder(IdeBorderFactory.createBorder(SideBorder.BOTTOM));
     myToolbar.setVisible(false);
 
+    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_CUT));
+    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_COPY));
+    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_PASTE));
+    myPopupGroup.addSeparator();
+    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_DELETE));
+    myPopupGroup.addSeparator();
+    myPopupGroup.add(createSelectActionGroup(designer));
+    myPopupGroup.addSeparator();
+    myPopupGroup.add(myDynamicPopupGroup);
+
+    designer.getSurfaceArea().addSelectionListener(new ComponentSelectionListener() {
+      @Override
+      public void selectionChanged(EditableArea area) {
+        updateSelectionActions(area.getSelection());
+      }
+    });
+  }
+
+  @NotNull
+  private ActionGroup createSelectActionGroup(DesignerEditorPanel designer) {
+    final DefaultActionGroup group = new DefaultActionGroup("_Select", true);
+
     AnAction selectParent = new AnAction("Select Parent", "Select Parent", null) {
       @Override
       public void actionPerformed(AnActionEvent e) {
@@ -75,26 +98,21 @@ public class DesignerActionPanel implements DataProvider {
     };
     selectParent.registerCustomShortcutSet(KeyEvent.VK_ESCAPE, 0, null);
 
-    SelectAllAction selectAllAction = new SelectAllAction(designer.getSurfaceArea());
+    EditableArea area = designer.getSurfaceArea();
+    AnAction selectSiblings = new SelectSiblingsAction(area);
+    AnAction selectSameType = new SelectSameTypeAction(area);
+    AnAction deselectAllAction = new DeselectAllAction(area);
+    SelectAllAction selectAllAction = new SelectAllAction(area);
     registerAction(selectAllAction, "$SelectAll");
 
-    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_CUT));
-    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_COPY));
-    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_PASTE));
-    myPopupGroup.addSeparator();
-    myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_DELETE));
-    myPopupGroup.addSeparator();
-    myPopupGroup.add(selectParent);
-    myPopupGroup.add(selectAllAction);
-    myPopupGroup.addSeparator();
-    myPopupGroup.add(myDynamicPopupGroup);
+    group.add(selectParent);
+    group.add(selectSiblings);
+    group.add(selectSameType);
+    group.addSeparator();
+    group.add(selectAllAction);
+    group.add(deselectAllAction);
 
-    designer.getSurfaceArea().addSelectionListener(new ComponentSelectionListener() {
-      @Override
-      public void selectionChanged(EditableArea area) {
-        updateSelectionActions(area.getSelection());
-      }
-    });
+    return group;
   }
 
   public static StartInplaceEditing createInplaceEditingAction(JComponent shortcuts) {
