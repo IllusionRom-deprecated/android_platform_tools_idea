@@ -35,14 +35,14 @@ import java.util.List;
 public class DesignerActionPanel implements DataProvider {
   public static final String TOOLBAR = "DesignerToolbar";
 
-  private final DefaultActionGroup myActionGroup = new DefaultActionGroup();
+  private final DefaultActionGroup myActionGroup;
   private final DefaultActionGroup myStaticGroup = new DefaultActionGroup();
   private final DefaultActionGroup myDynamicGroup = new DefaultActionGroup();
   private final DefaultActionGroup myPopupGroup = new DefaultActionGroup();
   private final DefaultActionGroup myDynamicPopupGroup = new DefaultActionGroup();
 
-  private JComponent myToolbar;
-  private final DesignerEditorPanel myDesigner;
+  protected JComponent myToolbar;
+  protected final DesignerEditorPanel myDesigner;
   private final CommonEditActionsProvider myCommonEditActionsProvider;
   private final JComponent myShortcuts;
 
@@ -53,17 +53,10 @@ public class DesignerActionPanel implements DataProvider {
 
     createInplaceEditingAction(myShortcuts).setDesignerPanel(designer);
 
-    myActionGroup.add(myStaticGroup);
-    myActionGroup.add(myDynamicGroup);
+    myActionGroup = createActionGroup();
+    myToolbar = createToolbar();
 
     ActionManager actionManager = ActionManager.getInstance();
-    ActionToolbar actionToolbar = actionManager.createActionToolbar(TOOLBAR, myActionGroup, true);
-    actionToolbar.setLayoutPolicy(ActionToolbar.WRAP_LAYOUT_POLICY);
-
-    myToolbar = actionToolbar.getComponent();
-    myToolbar.setBorder(IdeBorderFactory.createBorder(SideBorder.BOTTOM));
-    myToolbar.setVisible(false);
-
     myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_CUT));
     myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_COPY));
     myPopupGroup.add(actionManager.getAction(IdeActions.ACTION_PASTE));
@@ -80,6 +73,23 @@ public class DesignerActionPanel implements DataProvider {
         updateSelectionActions(area.getSelection());
       }
     });
+  }
+
+  protected DefaultActionGroup createActionGroup() {
+    DefaultActionGroup group = new DefaultActionGroup();
+    group.add(myStaticGroup);
+    group.add(myDynamicGroup);
+    return group;
+  }
+
+  protected JComponent createToolbar() {
+    ActionManager actionManager = ActionManager.getInstance();
+    ActionToolbar actionToolbar = actionManager.createActionToolbar(TOOLBAR, myActionGroup, true);
+    actionToolbar.setLayoutPolicy(ActionToolbar.WRAP_LAYOUT_POLICY);
+    JComponent toolbar = actionToolbar.getComponent();
+    toolbar.setBorder(IdeBorderFactory.createBorder(SideBorder.BOTTOM));
+    toolbar.setVisible(false);
+    return toolbar;
   }
 
   @NotNull
@@ -138,6 +148,14 @@ public class DesignerActionPanel implements DataProvider {
 
   public DefaultActionGroup getPopupGroup() {
     return myPopupGroup;
+  }
+
+  protected DefaultActionGroup getDynamicActionGroup() {
+    return myDynamicGroup;
+  }
+
+  protected JComponent getShortcuts() {
+    return myShortcuts;
   }
 
   public void update() {
