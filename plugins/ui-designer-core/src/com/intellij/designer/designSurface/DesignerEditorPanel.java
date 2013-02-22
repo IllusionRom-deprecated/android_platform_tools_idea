@@ -64,6 +64,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 import java.awt.*;
@@ -308,14 +310,14 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     gbc.gridy = 1;
     gbc.fill = GridBagConstraints.VERTICAL;
 
-    myVerticalCaption = new CaptionPanel(this, false);
+    myVerticalCaption = createCaptionPanel(false);
     content.add(myVerticalCaption, gbc);
 
     gbc.gridx = 1;
     gbc.gridy = 0;
     gbc.fill = GridBagConstraints.HORIZONTAL;
 
-    myHorizontalCaption = new CaptionPanel(this, true);
+    myHorizontalCaption = createCaptionPanel(true);
     content.add(myHorizontalCaption, gbc);
 
     gbc.gridx = 1;
@@ -324,8 +326,7 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     gbc.weighty = 1;
     gbc.fill = GridBagConstraints.BOTH;
 
-    myScrollPane = ScrollPaneFactory.createScrollPane(myLayeredPane);
-    myScrollPane.setBackground(new JBColor(Color.WHITE, UIUtil.getListBackground()));
+    myScrollPane = createScrollPane(myLayeredPane);
     content.add(myScrollPane, gbc);
 
     myHorizontalCaption.attachToScrollPane(myScrollPane);
@@ -348,6 +349,16 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
         storeSourceSelectionState();
       }
     });
+  }
+
+  protected CaptionPanel createCaptionPanel(boolean horizontal) {
+    return new CaptionPanel(this, horizontal, true);
+  }
+
+  protected JScrollPane createScrollPane(@NotNull JLayeredPane content) {
+    JScrollPane scrollPane = ScrollPaneFactory.createScrollPane(content);
+    scrollPane.setBackground(new JBColor(Color.WHITE, UIUtil.getListBackground()));
+    return scrollPane;
   }
 
   protected DesignerActionPanel createActionPanel() {
