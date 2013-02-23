@@ -24,10 +24,13 @@ import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.SideBorder;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.event.KeyEvent;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Alexander Lobas
@@ -195,16 +198,21 @@ public class DesignerActionPanel implements DataProvider {
       myDynamicGroup.removeAll();
     }
 
-    for (RadComponent parent : RadComponent.getParents(selection)) {
-      parent.getLayout().addSelectionActions(myDesigner, myDynamicGroup, myShortcuts, selection);
-    }
-    for (RadComponent component : selection) {
-      component.addSelectionActions(myDesigner, myDynamicGroup, myShortcuts, selection);
-    }
+    addSelectionActions(selection, myDynamicGroup, myShortcuts);
+
     update |= isVisible(myDynamicGroup);
 
     if (update) {
       update();
+    }
+  }
+
+  protected void addSelectionActions(List<RadComponent> selection, DefaultActionGroup group, JComponent shortcuts) {
+    for (RadComponent parent : RadComponent.getParents(selection)) {
+      parent.getLayout().addSelectionActions(myDesigner, group, shortcuts, selection);
+    }
+    for (RadComponent component : selection) {
+      component.addSelectionActions(myDesigner, group, shortcuts, selection);
     }
   }
 

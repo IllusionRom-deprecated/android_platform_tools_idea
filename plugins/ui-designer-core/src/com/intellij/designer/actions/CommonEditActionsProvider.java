@@ -126,35 +126,13 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
   }
 
   private static void handleDeletion(@NotNull List<RadComponent> components) throws Exception {
-    // Segment the deleted components into clusters of siblings
-    Map<RadComponent, List<RadComponent>> clusters =
-      new HashMap<RadComponent, List<RadComponent>>();
-    List<RadComponent> componentsWithoutParents = null;
-    for (RadComponent node : components) {
-      if (node == null) {
-        continue;
-      }
-      RadComponent parent = node.getParent();
-      if (parent != null) {
-        List<RadComponent> children = clusters.get(parent);
-        if (children == null) {
-          children = new ArrayList<RadComponent>();
-          clusters.put(parent, children);
-        }
-        children.add(node);
-      } else {
-        if (componentsWithoutParents == null) {
-          componentsWithoutParents = new ArrayList<RadComponent>();
-        }
-        componentsWithoutParents.add(node);
-      }
-    }
+    // Segment the deleted components into lists of siblings
+    Map<RadComponent, List<RadComponent>> siblingLists = RadComponent.groupSiblings(components);
 
     // Notify parent components about children getting deleted
-    for (Map.Entry<RadComponent, List<RadComponent>> entry : clusters.entrySet()) {
-      RadComponent parent = entry.getKey();
-      List<RadComponent> children = entry.getValue();
-      assert children != null && children.size() > 0;
+    for (Map.Entry<RadComponent, List<RadComponent>> entry : siblingLists.entrySet()) {
+      @Nullable RadComponent parent = entry.getKey();
+      @NotNull List<RadComponent> children = entry.getValue();
       boolean finished = false;
       if (parent instanceof IComponentDeletionParticipant) {
         IComponentDeletionParticipant handler = (IComponentDeletionParticipant)parent;
@@ -163,10 +141,6 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
       if (!finished) {
         deleteComponents(children);
       }
-    }
-
-    if (componentsWithoutParents != null) {
-      deleteComponents(componentsWithoutParents);
     }
   }
 

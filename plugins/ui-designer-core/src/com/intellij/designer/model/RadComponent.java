@@ -23,6 +23,7 @@ import com.intellij.designer.designSurface.tools.DragTracker;
 import com.intellij.designer.designSurface.tools.InputTool;
 import com.intellij.designer.propertyTable.PropertyTable;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
+import com.intellij.util.containers.hash.*;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,6 +31,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import java.awt.*;
 import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -491,6 +494,45 @@ public abstract class RadComponent extends PropertiesContainer {
       }
     }
     return parents;
+  }
+
+  /**
+   * Partitions the given list of components into a map where each value is a list of siblings,
+   * in the same order as in the original list, and where the keys are the parents (or null
+   * for the components that do not have a parent).
+   * <p>
+   * The value lists will never be empty. The parent key will be null for components without parents.
+   *
+   * @param components the components to be grouped
+   * @return a map from parents (or null) to a list of components with the corresponding parent
+   */
+  @NotNull
+  public static Map<RadComponent,List<RadComponent>> groupSiblings(@NotNull List<? extends RadComponent> components) {
+    Map<RadComponent, List<RadComponent>> siblingLists =
+      new com.intellij.util.containers.hash.HashMap<RadComponent, List<RadComponent>>();
+
+    if (components.isEmpty()) {
+      return siblingLists;
+    } else if (components.size() == 1) {
+      RadComponent component = components.get(0);
+      siblingLists.put(component.getParent(), Collections.singletonList(component));
+      return siblingLists;
+    }
+
+    for (RadComponent node : components) {
+      if (node == null) {
+        continue;
+      }
+      RadComponent parent = node.getParent();
+      List<RadComponent> children = siblingLists.get(parent);
+      if (children == null) {
+        children = new ArrayList<RadComponent>();
+        siblingLists.put(parent, children);
+      }
+      children.add(node);
+    }
+
+    return siblingLists;
   }
 
   public static boolean isParentsContainedIn(List<RadComponent> components, RadComponent component) {
