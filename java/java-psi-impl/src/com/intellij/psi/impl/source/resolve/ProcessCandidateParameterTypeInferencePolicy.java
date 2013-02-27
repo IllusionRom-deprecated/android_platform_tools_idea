@@ -24,6 +24,7 @@ import com.intellij.psi.scope.processor.MethodCandidatesProcessor;
 import com.intellij.psi.scope.util.PsiScopesUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.util.ArrayUtil;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,60 +35,30 @@ import java.util.List;
  */
 public class ProcessCandidateParameterTypeInferencePolicy extends DefaultParameterTypeInferencePolicy {
   public static final ProcessCandidateParameterTypeInferencePolicy INSTANCE = new ProcessCandidateParameterTypeInferencePolicy();
-
+  
+  
   @Override
   public Pair<PsiType, ConstraintType> inferTypeConstraintFromCallContext(PsiExpression innerMethodCall,
                                                                           PsiExpressionList expressionList,
                                                                           PsiCallExpression contextCall,
                                                                           PsiTypeParameter typeParameter) {
     PsiExpression[] expressions = expressionList.getExpressions();
-    int i = ArrayUtil.find(expressions, innerMethodCall);
+    PsiElement parent = innerMethodCall;
+    while (parent.getParent() instanceof PsiParenthesizedExpression) {
+      parent = parent.getParent();
+    }
+    int i = ArrayUtil.find(expressions, parent);
     if (i < 0) return null;
+    PsiMethod owner = (PsiMethod)typeParameter.getOwner();
+    if (owner == null) return null;
 
-    final MethodCandidatesProcessor processor = new MethodCandidatesProcessor(contextCall);
     try {
-      //can't call resolve() since it obtains full substitution, that may result in infinite recursion
-      PsiScopesUtil.setupAndRunProcessor(processor, contextCall, false);
-      final JavaResolveResult[] results = processor.getResult();
-      PsiMethod owner = (PsiMethod)typeParameter.getOwner();
-      if (owner == null) return null;
-
+      final JavaResolveResult[] results = getResults(contextCall, i);
       final PsiType innerReturnType = owner.getReturnType();
       for (final JavaResolveResult result : results) {
-        final PsiSubstitutor substitutor;
-        if (result instanceof MethodCandidateInfo) {
-          List<PsiExpression> leftArgs = Arrays.asList(expressions).subList(0, i);
-          substitutor = ((MethodCandidateInfo)result).inferTypeArguments(this, leftArgs.toArray(new PsiExpression[leftArgs.size()]));
-        }
-        else {
-          substitutor = result.getSubstitutor();
-        }
-
-        final PsiElement element = result.getElement();
-        if (element instanceof PsiMethod) {
-          final PsiMethod method = (PsiMethod)element;
-          final PsiParameter[] parameters = method.getParameterList().getParameters();
-          PsiParameter parameter = null;
-          if (parameters.length > i) {
-            parameter = parameters[i];
-          }
-          else if (method.isVarArgs()) {
-            parameter = parameters[parameters.length - 1];
-          }
-          if (parameter != null) {
-            final PsiParameter finalParameter = parameter;
-            PsiType type = PsiResolveHelper.ourGuard.doPreventingRecursion(innerMethodCall, true, new Computable<PsiType>() {
-              @Override
-              public PsiType compute() {
-                return substitutor.substitute(finalParameter.getType());
-              }
-            });
-            final Pair<PsiType, ConstraintType> constraint =
-              PsiResolveHelperImpl.getSubstitutionForTypeParameterConstraint(typeParameter, innerReturnType, type, false,
-                                                                             PsiUtil.getLanguageLevel(innerMethodCall));
-            if (constraint != null) return constraint;
-          }
-        }
+        final PsiSubstitutor substitutor = getSubstitutor(contextCall, expressions, i, result);
+        final Pair<PsiType, ConstraintType> constraint = inferConstraint(typeParameter, innerMethodCall, i, innerReturnType, result, substitutor);
+        if (constraint != null) return constraint;
       }
     }
     catch (MethodProcessorSetupFailedException ev) {
@@ -95,5 +66,61 @@ public class ProcessCandidateParameterTypeInferencePolicy extends DefaultParamet
     }
 
     return null;
+  }
+
+  protected PsiSubstitutor getSubstitutor(PsiCallExpression contextCall, PsiExpression[] expressions, int i, JavaResolveResult result) {
+    if (result instanceof MethodCandidateInfo) {
+      List<PsiExpression> leftArgs = getExpressions(expressions, i);
+      return ((MethodCandidateInfo)result).inferTypeArguments(this, leftArgs.toArray(new PsiExpression[leftArgs.size()]));
+    }
+    else {
+      return result.getSubstitutor();
+    }
+  }
+
+  protected List<PsiExpression> getExpressions(PsiExpression[] expressions, int i) {
+    return Arrays.asList(expressions).subList(0, i);
+  }
+
+  protected static Pair<PsiType, ConstraintType> inferConstraint(PsiTypeParameter typeParameter,
+                                                                 PsiExpression innerMethodCall,
+                                                                 int parameterIdx,
+                                                                 PsiType innerReturnType,
+                                                                 JavaResolveResult result,
+                                                                 final PsiSubstitutor substitutor) {
+    final PsiElement element = result.getElement();
+    if (element instanceof PsiMethod) {
+      final PsiMethod method = (PsiMethod)element;
+      final PsiParameter[] parameters = method.getParameterList().getParameters();
+      PsiParameter parameter = null;
+      if (parameters.length > parameterIdx) {
+        parameter = parameters[parameterIdx];
+      }
+      else if (method.isVarArgs()) {
+        parameter = parameters[parameters.length - 1];
+      }
+      if (parameter != null) {
+        final PsiParameter finalParameter = parameter;
+        PsiType type = PsiResolveHelper.ourGuard.doPreventingRecursion(innerMethodCall, true, new Computable<PsiType>() {
+          @Override
+          public PsiType compute() {
+            return substitutor.substitute(finalParameter.getType());
+          }
+        });
+        final Pair<PsiType, ConstraintType> constraint =
+          PsiResolveHelperImpl.getSubstitutionForTypeParameterConstraint(typeParameter, innerReturnType, type, false,
+                                                                         PsiUtil.getLanguageLevel(finalParameter));
+        if (constraint != null) return constraint;
+      }
+    }
+    return null;
+  }
+
+  @NotNull
+  protected JavaResolveResult[] getResults(PsiCallExpression contextCall, final int exprIdx) throws MethodProcessorSetupFailedException {
+    final MethodCandidatesProcessor processor = new MethodCandidatesProcessor(contextCall);
+    //can't call resolve() since it obtains full substitution, that may result in infinite recursion
+    PsiScopesUtil.setupAndRunProcessor(processor, contextCall, false);
+    return processor.getResult();
   }
 }

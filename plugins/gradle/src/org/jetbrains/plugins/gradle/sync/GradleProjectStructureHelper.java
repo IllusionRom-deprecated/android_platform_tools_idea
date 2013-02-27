@@ -3,6 +3,7 @@ package org.jetbrains.plugins.gradle.sync;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.*;
+import com.intellij.openapi.roots.impl.ModuleLibraryOrderEntryImpl;
 import com.intellij.openapi.roots.libraries.Library;
 import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.util.Ref;
@@ -220,6 +221,36 @@ public class GradleProjectStructureHelper {
   }
 
   @Nullable
+  public ModuleLibraryOrderEntryImpl findIdeModuleLocalLibraryDependency(@NotNull final String moduleName,
+                                                                         @NotNull final String libraryName)
+  {
+    final Module ideModule = findIdeModule(moduleName);
+    if (ideModule == null) {
+      return null;
+    }
+    RootPolicy<ModuleLibraryOrderEntryImpl> visitor = new RootPolicy<ModuleLibraryOrderEntryImpl>() {
+      @Override
+      public ModuleLibraryOrderEntryImpl visitLibraryOrderEntry(LibraryOrderEntry ideDependency, ModuleLibraryOrderEntryImpl value) {
+        Library library = ideDependency.getLibrary();
+        if (library == null) {
+          return value;
+        }
+        if (ideDependency instanceof ModuleLibraryOrderEntryImpl && libraryName.equals(GradleUtil.getLibraryName(library))) {
+          return (ModuleLibraryOrderEntryImpl)ideDependency;
+        }
+        return value;
+      }
+    };
+    for (OrderEntry entry : myFacade.getOrderEntries(ideModule)) {
+      final ModuleLibraryOrderEntryImpl result = entry.accept(visitor, null);
+      if (result != null) {
+        return result;
+      }
+    }
+    return null;
+  }
+
+  @Nullable
   public LibraryOrderEntry findIdeLibraryDependency(@NotNull final String libraryName,
                                                     @NotNull ModifiableRootModel model)
   {
@@ -293,6 +324,11 @@ public class GradleProjectStructureHelper {
   }
 
   @Nullable
+  public GradleModuleDependency findGradleModuleDependency(@NotNull GradleModuleDependencyId id) {
+    return findGradleModuleDependency(id.getOwnerModuleName(), id.getDependencyName());
+  }
+  
+  @Nullable
   public GradleModuleDependency findGradleModuleDependency(@NotNull final String ownerModuleName,
                                                            @NotNull final String dependencyModuleName)
   {
@@ -313,6 +349,11 @@ public class GradleProjectStructureHelper {
       dependency.invite(visitor);
     }
     return ref.get();
+  }
+
+  @Nullable
+  public ModuleOrderEntry findIdeModuleDependency(@NotNull final GradleModuleDependencyId id) {
+    return findIdeModuleDependency(id.getOwnerModuleName(), id.getDependencyName());
   }
   
   @Nullable

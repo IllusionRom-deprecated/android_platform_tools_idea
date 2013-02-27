@@ -158,6 +158,10 @@ public class GradleProjectStructureTreeModel extends DefaultTreeModel {
   }
 
   public void rebuild() {
+    rebuild(false);
+  }
+  
+  public void rebuild(boolean onIdeProjectStructureChange) {
     myModuleDependencies.clear();
     myModules.clear();
 
@@ -224,7 +228,7 @@ public class GradleProjectStructureTreeModel extends DefaultTreeModel {
 
     GradleProject project = myChangesModel.getGradleProject();
     if (project != null) {
-      GradleChangesCalculationContext context = myChangesModel.getCurrentChangesContext(project, false);
+      GradleChangesCalculationContext context = myChangesModel.getCurrentChangesContext(project, onIdeProjectStructureChange);
       processChanges(Collections.<GradleProjectStructureChange>emptyList(), context.getCurrentChanges());
       filterNodes(root);
     }
@@ -603,16 +607,15 @@ public class GradleProjectStructureTreeModel extends DefaultTreeModel {
   }
   
   private void processNewChangedLibraryVersionChange(@NotNull GradleOutdatedLibraryVersionChange change) {
-    for (Map.Entry<String, GradleProjectStructureNode<GradleSyntheticId>> entry : myModuleDependencies.entrySet()) {
-      String moduleName = entry.getKey();
-      LibraryOrderEntry libraryDependency =
+    for (Module module : myPlatformFacade.getModules(myProject)) {
+      String moduleName = module.getName();
+      LibraryOrderEntry dependency =
         myProjectStructureHelper.findIdeLibraryDependency(moduleName, change.getIdeLibraryId().getLibraryName());
-      if (libraryDependency == null) {
-        // Current module doesn't have target outdated library as a dependency. 
+      if (dependency == null) {
         continue;
       }
-
-      GradleProjectStructureNode<GradleSyntheticId> dependenciesNode = entry.getValue();
+      GradleProjectStructureNode<GradleSyntheticId> dependenciesNode =
+        getDependenciesNode(new GradleModuleId(GradleEntityOwner.IDE, moduleName));
 
       // Remove local dependency nodes (if any).
       Collection<GradleProjectStructureNode<GradleLibraryDependencyId>> dependencyNodes =
@@ -623,10 +626,10 @@ public class GradleProjectStructureTreeModel extends DefaultTreeModel {
           dependenciesNode.remove(dependencyNode);
         }
       }
-      
+
       // Add 'changed version' nodes.
       GradleCompositeLibraryDependencyId libraryDependencyId = new GradleCompositeLibraryDependencyId(
-        new GradleLibraryDependencyId(GradleEntityOwner.GRADLE, moduleName, change.getGradleLibraryId().getLibraryName()), 
+        new GradleLibraryDependencyId(GradleEntityOwner.GRADLE, moduleName, change.getGradleLibraryId().getLibraryName()),
         new GradleLibraryDependencyId(GradleEntityOwner.IDE, moduleName, change.getIdeLibraryId().getLibraryName())
       );
       String libraryDependencyNodeName = GradleUtil.getOutdatedEntityName(
@@ -637,7 +640,9 @@ public class GradleProjectStructureTreeModel extends DefaultTreeModel {
       GradleProjectStructureNode<GradleCompositeLibraryDependencyId> libraryDependencyNode =
         buildNode(libraryDependencyId, libraryDependencyNodeName);
       libraryDependencyNode.setAttributes(GradleTextAttributes.OUTDATED_ENTITY);
-      dependenciesNode.add(libraryDependencyNode);
+      if (passFilters(libraryDependencyNode)) {
+        dependenciesNode.add(libraryDependencyNode);
+      }
     }
   }
   

@@ -29,6 +29,8 @@ import com.intellij.designer.palette.PaletteGroup;
 import com.intellij.designer.palette.PaletteItem;
 import com.intellij.designer.palette.PaletteToolWindowManager;
 import com.intellij.designer.propertyTable.InplaceContext;
+import com.intellij.designer.propertyTable.PropertyTableTab;
+import com.intellij.designer.propertyTable.TablePanelActionPolicy;
 import com.intellij.diagnostic.LogMessageEx;
 import com.intellij.diagnostic.errordialog.Attachment;
 import com.intellij.icons.AllIcons;
@@ -119,7 +121,7 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
 
   private PaletteItem myActivePaletteItem;
   private List<?> myExpandedComponents;
-  private Property mySelectionProperty;
+  private final Map<String, Property> mySelectionPropertyMap = new HashMap<String, Property>();
   private int[][] myExpandedState;
   private int[][] mySelectionState;
   private final Map<String, int[][]> mySourceSelectionState = new FixedHashMap<String, int[][]>(16);
@@ -645,12 +647,12 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     myExpandedComponents = expandedComponents;
   }
 
-  public Property getSelectionProperty() {
-    return mySelectionProperty;
+  public Property getSelectionProperty(@Nullable String key) {
+    return mySelectionPropertyMap.get(key);
   }
 
-  public void setSelectionProperty(Property selectionProperty) {
-    mySelectionProperty = selectionProperty;
+  public void setSelectionProperty(@Nullable String key, Property selectionProperty) {
+    mySelectionPropertyMap.put(key, selectionProperty);
   }
 
   protected void storeState() {
@@ -845,6 +847,16 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
   public abstract TreeComponentDecorator getTreeDecorator();
 
   public void handleTreeArea(TreeEditableArea treeArea) {
+  }
+
+  @NotNull
+  public TablePanelActionPolicy getTablePanelActionPolicy() {
+    return TablePanelActionPolicy.ALL;
+  }
+
+  @Nullable
+  public PropertyTableTab[] getPropertyTableTabs() {
+    return null;
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////

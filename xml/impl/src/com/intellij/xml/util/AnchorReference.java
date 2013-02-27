@@ -87,7 +87,7 @@ public class AnchorReference implements PsiReference, EmptyResolveMessageProvide
         attribute = tag.getAttribute("usemap");
       }
 
-      assert attribute != null;
+      assert attribute != null: tag.getText();
       return attribute.getValueElement();
     }
 
@@ -215,6 +215,7 @@ public class AnchorReference implements PsiReference, EmptyResolveMessageProvide
     return mySoft;
   }
 
+  @NotNull
   public String getUnresolvedMessagePattern() {
     final XmlFile xmlFile = getFile();
     return xmlFile == null ? 

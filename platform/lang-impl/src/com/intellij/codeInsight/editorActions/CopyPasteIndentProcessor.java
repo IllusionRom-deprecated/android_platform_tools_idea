@@ -16,6 +16,7 @@ import com.intellij.openapi.util.text.CharFilter;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.codeStyle.CodeStyleSettingsManager;
 
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -88,13 +89,20 @@ public class CopyPasteIndentProcessor implements CopyPastePostProcessor<IndentTr
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
       @Override
       public void run() {
+        final boolean useTabs =
+          CodeStyleSettingsManager.getSettings(project).useTabCharacter(psiFile.getFileType());
+        CharFilter NOT_INDENT_FILTER = new CharFilter() {
+          public boolean accept(char ch) {
+            return useTabs? ch != '\t' : ch != ' ';
+          }
+        };
         String pastedText = document.getText(TextRange.create(bounds));
 
         int startLine = document.getLineNumber(bounds.getStartOffset());
         int endLine = document.getLineNumber(bounds.getEndOffset());
 
         //calculate from indent
-        int fromIndent = StringUtil.findFirst(pastedText, CharFilter.NOT_WHITESPACE_FILTER);
+        int fromIndent = StringUtil.findFirst(pastedText, NOT_INDENT_FILTER);
         if (fromIndent < 0) fromIndent = 0;
 
         //calculate to indent
@@ -106,18 +114,15 @@ public class CopyPasteIndentProcessor implements CopyPastePostProcessor<IndentTr
           int lineNumber = initialDocument.getTextLength() > caretOffset? initialDocument.getLineNumber(caretOffset)
                                                                         : initialDocument.getLineCount() - 1;
           final int offset = getLineStartSafeOffset(initialDocument, lineNumber);
-          final int caretColumn = caretOffset - offset;
 
           if (bounds.getStartOffset() == offset) {
             String toString = initialDocument.getText(TextRange.create(offset, initialDocument.getLineEndOffset(lineNumber)));
-            toIndent = StringUtil.findFirst(toString, new CharFilter() {
-              @Override
-              public boolean accept(char ch) {
-                return ch != ' ';
-              }
-            });
-            if (toIndent < 0 || toString.startsWith("\n")) {
-              toIndent = caretColumn;
+            toIndent = StringUtil.findFirst(toString, NOT_INDENT_FILTER);
+            if (toIndent < 0 && StringUtil.isEmptyOrSpaces(toString)) {
+              toIndent = toString.length();
+            }
+            else if ((toIndent < 0 || toString.startsWith("\n")) && initialText.length() >= caretOffset) {
+              toIndent = caretOffset - offset;
             }
           }
           else if (isNotApplicable(initialDocument, offset))
@@ -130,7 +135,9 @@ public class CopyPasteIndentProcessor implements CopyPastePostProcessor<IndentTr
 
         // actual difference in indentation level
         int indent = toIndent - fromIndent;
-
+        if (useTabs)       // indent is counted in tab units
+          indent *=
+            CodeStyleSettingsManager.getSettings(project).getTabSize(psiFile.getFileType());
         // don't indent single-line text
         if (!StringUtil.startsWithWhitespace(pastedText) && !StringUtil.endsWithLineBreak(pastedText) &&
              !(StringUtil.splitByLines(pastedText).length > 1))

@@ -590,7 +590,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
 
   @Override
   @NotNull
-  public SelectionModel getSelectionModel() {
+  public SelectionModelImpl getSelectionModel() {
     return mySelectionModel;
   }
 
@@ -5433,10 +5433,17 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
 
       int oldSelectionStart = mySelectionModel.getLeadSelectionOffset();
 
-      int oldStart = mySelectionModel.getSelectionStart();
-      int oldEnd = mySelectionModel.getSelectionEnd();
-
-      moveCaretToScreenPos(x, y);
+      final int oldStart = mySelectionModel.getSelectionStart();
+      final int oldEnd = mySelectionModel.getSelectionEnd();
+      
+      // Don't move caret on mouse press above gutter line markers area (a place where break points, 'override', 'implements' etc icons
+      // are drawn) and annotations area. E.g. we don't want to change caret position if a user sets new break point (clicks
+      // at 'line markers' area).
+      if (e.getSource() != myGutterComponent
+          || (eventArea != EditorMouseEventArea.LINE_MARKERS_AREA && eventArea != EditorMouseEventArea.ANNOTATIONS_AREA))
+      {
+        moveCaretToScreenPos(x, y);
+      }
 
       if (e.isPopupTrigger()) return isNavigation;
 
@@ -5485,7 +5492,11 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
           }
         }
         else {
-          mySelectionModel.setSelection(oldSelectionStart, caretOffset);
+          int startToUse = oldSelectionStart;
+          if (mySelectionModel.isUnknownDirection() && caretOffset > startToUse) {
+            startToUse = Math.min(oldStart, oldEnd);
+          }
+          mySelectionModel.setSelection(startToUse, caretOffset);
         }
       }
       else {
@@ -5513,6 +5524,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
                 setMouseSelectionState(MOUSE_SELECTION_STATE_LINE_SELECTED);
                 mySavedSelectionStart = mySelectionModel.getSelectionStart();
                 mySavedSelectionEnd = mySelectionModel.getSelectionEnd();
+                mySelectionModel.setUnknownDirection(true);
                 break;
             }
           }

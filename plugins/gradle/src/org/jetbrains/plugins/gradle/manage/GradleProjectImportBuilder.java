@@ -28,6 +28,7 @@ import com.intellij.util.ui.UIUtil;
 import icons.GradleIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.gradle.autoimport.GradleUserProjectChangesCalculator;
 import org.jetbrains.plugins.gradle.config.GradleConfigurable;
 import org.jetbrains.plugins.gradle.config.GradleSettings;
 import org.jetbrains.plugins.gradle.model.gradle.GradleLibrary;
@@ -140,6 +141,7 @@ public class GradleProjectImportBuilder extends ProjectImportBuilder<GradleProje
         GradleSettings.applyLinkedProjectPath(myConfigurable.getLinkedProjectPath(), project);
         GradleSettings.applyPreferLocalInstallationToWrapper(myConfigurable.isPreferLocalInstallationToWrapper(), project);
         GradleSettings.applyGradleHome(myConfigurable.getGradleHomePath(), project);
+        GradleSettings.applyUseAutoImport(myConfigurable.isUseAutoImport(), project);
         // Reset gradle home for default project.
         GradleSettings.applyLinkedProjectPath(null, ProjectManager.getInstance().getDefaultProject());
 
@@ -150,7 +152,7 @@ public class GradleProjectImportBuilder extends ProjectImportBuilder<GradleProje
               ProjectRootManagerEx.getInstanceEx(project).mergeRootsChangesDuring(new Runnable() {
                 @Override
                 public void run() {
-                  myModuleManager.importModules(gradleProject.getModules(), project, true);
+                  myModuleManager.importModules(gradleProject.getModules(), project, true, true);
                 }
               }); 
             }
@@ -235,18 +237,19 @@ public class GradleProjectImportBuilder extends ProjectImportBuilder<GradleProje
             }
 
             // Register libraries.
-            myLibraryManager.importLibraries(projectWithResolvedLibraries.getLibraries(), project);
+            myLibraryManager.importLibraries(projectWithResolvedLibraries.getLibraries(), project, false);
             GradleProjectStructureHelper helper = ServiceManager.getService(project, GradleProjectStructureHelper.class);
             for (GradleModule module : projectWithResolvedLibraries.getModules()) {
               Module intellijModule = helper.findIdeModule(module);
               assert intellijModule != null;
-              myDependencyManager.importDependencies(module.getDependencies(), intellijModule);
+              myDependencyManager.importDependencies(module.getDependencies(), intellijModule, false);
             }
 
             GradleProjectStructureChangesModel changesModel = ServiceManager.getService(project, GradleProjectStructureChangesModel.class);
             changesModel.update(projectWithResolvedLibraries);
           }
         });
+        ServiceManager.getService(project, GradleUserProjectChangesCalculator.class).updateCurrentProjectState();
       }
     });
   }

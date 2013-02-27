@@ -19,6 +19,7 @@ import com.intellij.execution.*;
 import com.intellij.execution.process.ProcessAdapter;
 import com.intellij.execution.process.ProcessEvent;
 import com.intellij.execution.process.ProcessHandler;
+import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.runners.GenericProgramRunner;
 import com.intellij.execution.ui.layout.impl.DockableGridContainerFactory;
 import com.intellij.ide.DataManager;
@@ -63,7 +64,6 @@ public class RunContentManagerImpl implements RunContentManager, Disposable {
   public static final Key<Boolean> ALWAYS_USE_DEFAULT_STOPPING_BEHAVIOUR_KEY = Key.create("ALWAYS_USE_DEFAULT_STOPPING_BEHAVIOUR_KEY");
   private static final Logger LOG = Logger.getInstance("#com.intellij.execution.ui.RunContentManagerImpl");
   private static final Key<RunContentDescriptor> DESCRIPTOR_KEY = new Key<RunContentDescriptor>("Descriptor");
-  private static final Key<Boolean> MARKED_TO_BE_REUSED = Key.create("MarkedToBeReused");
 
   private final Project myProject;
   private DockableGridContainerFactory myContentFactory;
@@ -266,10 +266,15 @@ public class RunContentManagerImpl implements RunContentManager, Disposable {
   }
 
   public void showRunContent(@NotNull final Executor executor, final RunContentDescriptor descriptor) {
+    showRunContent(executor, descriptor, descriptor != null ? descriptor.getExecutionId() : 0L);
+  }
+
+  public void showRunContent(@NotNull final Executor executor, final RunContentDescriptor descriptor, long executionId) {
     if (ApplicationManager.getApplication().isUnitTestMode()) return;
 
     final ContentManager contentManager = getContentManagerForRunner(executor);
-    RunContentDescriptor oldDescriptor = chooseReuseContentForDescriptor(contentManager, descriptor);
+    RunContentDescriptor oldDescriptor =
+      chooseReuseContentForDescriptor(contentManager, descriptor, executionId, descriptor != null ? descriptor.getDisplayName() : null);
 
     final Content content;
 
@@ -279,16 +284,16 @@ public class RunContentManagerImpl implements RunContentManager, Disposable {
       getSyncPublisher().contentRemoved(oldDescriptor, executor);
       Disposer.dispose(oldDescriptor); // is of the same category, can be reused
     }
-    else if (oldAttachedContent == null || !oldAttachedContent.isValid() || oldAttachedContent.getUserData(MARKED_TO_BE_REUSED) != null ) {
+    else if (oldAttachedContent == null || !oldAttachedContent.isValid() /*|| oldAttachedContent.getUserData(MARKED_TO_BE_REUSED) != null */) {
       content = createNewContent(contentManager, descriptor, executor);
       final Icon icon = descriptor.getIcon();
       content.setIcon(icon == null ? executor.getToolWindowIcon() : icon);
     } else {
       content = oldAttachedContent;
     }
+    content.setExecutionId(executionId);
     content.setComponent(descriptor.getComponent());
     content.putUserData(DESCRIPTOR_KEY, descriptor);
-    content.putUserData(MARKED_TO_BE_REUSED, Boolean.TRUE);
     final ProcessHandler processHandler = descriptor.getProcessHandler();
     if (processHandler != null) {
       final ProcessAdapter processAdapter = new ProcessAdapter() {
@@ -306,7 +311,6 @@ public class RunContentManagerImpl implements RunContentManager, Disposable {
             public void run() {
               final Icon icon = descriptor.getIcon();
               content.setIcon(icon == null ? executor.getDisabledIcon() : IconLoader.getTransparentIcon(icon));
-              content.putUserData(MARKED_TO_BE_REUSED, null);
             }
           });
         }
@@ -344,17 +348,32 @@ public class RunContentManagerImpl implements RunContentManager, Disposable {
   }
 
   @Nullable
+  @Deprecated
   public RunContentDescriptor getReuseContent(final Executor requestor, DataContext dataContext) {
     if (ApplicationManager.getApplication().isUnitTestMode()) return null;
     return getReuseContent(requestor, GenericProgramRunner.CONTENT_TO_REUSE_DATA_KEY.getData(dataContext));
   }
 
+  @Nullable
+  @Deprecated
   public RunContentDescriptor getReuseContent(Executor requestor, @Nullable RunContentDescriptor contentToReuse) {
     if (ApplicationManager.getApplication().isUnitTestMode()) return null;
     if (contentToReuse != null) return contentToReuse;
 
     final ContentManager contentManager = getContentManagerForRunner(requestor);
-    return chooseReuseContentForDescriptor(contentManager, contentToReuse);
+    return chooseReuseContentForDescriptor(contentManager, contentToReuse, 0L, null);
+  }
+
+  @Nullable
+  @Override
+  public RunContentDescriptor getReuseContent(Executor requestor, @NotNull ExecutionEnvironment executionEnvironment) {
+    if (ApplicationManager.getApplication().isUnitTestMode()) return null;
+    RunContentDescriptor contentToReuse = executionEnvironment.getContentToReuse();
+    if (contentToReuse != null) return contentToReuse;
+
+    final ContentManager contentManager = getContentManagerForRunner(requestor);
+    return chooseReuseContentForDescriptor(contentManager, contentToReuse, executionEnvironment.getExecutionId(),
+                                           executionEnvironment.toString());
   }
 
   public RunContentDescriptor findContentDescriptor(final Executor requestor, final ProcessHandler handler) {
@@ -368,35 +387,60 @@ public class RunContentManagerImpl implements RunContentManager, Disposable {
         descriptor.setAttachedContent(attachedContent);
       }
     }
-    showRunContent(info, descriptor);
+    showRunContent(info, descriptor, descriptor != null ? descriptor.getExecutionId(): 0L);
   }
 
   @Nullable
-  private static RunContentDescriptor chooseReuseContentForDescriptor(final ContentManager contentManager,
-                                                                      final RunContentDescriptor descriptor) {
+  private static RunContentDescriptor chooseReuseContentForDescriptor(@NotNull ContentManager contentManager,
+                                                                      @Nullable RunContentDescriptor descriptor,
+                                                                      long executionId,
+                                                                      @Nullable String preferredName) {
     Content content = null;
     if (descriptor != null) {
+      //Stage one: some specific descriptors (like AnalyzeStacktrace) cannot be reused at all
       if (descriptor.isContentReuseProhibited()) {
         return null;
       }
+      //Stage two: try to get content from descriptor itself
       final Content attachedContent = descriptor.getAttachedContent();
-      if (attachedContent != null && attachedContent.isValid()) content = attachedContent;
+      if (attachedContent != null && attachedContent.isValid() && contentManager.getIndexOfContent(attachedContent) != -1) content = attachedContent;
     }
+    //Stage three: choose the content with name we prefer
     if (content == null) {
-      content = contentManager.getSelectedContent();
-      if (content != null && content.isPinned()) content = null;
+      content = getContentFromManager(contentManager, preferredName, executionId);
     }
-    if (content == null || !isTerminated(content) || content.getUserData(MARKED_TO_BE_REUSED) != null) {
+    if (content == null || !isTerminated(content) || (content.getExecutionId() == executionId && executionId != 0)) {
       return null;
     }
     final RunContentDescriptor oldDescriptor = getRunContentDescriptorByContent(content);
-    if (oldDescriptor != null && !oldDescriptor.isContentReuseProhibited()) {
+    if (oldDescriptor != null && !oldDescriptor.isContentReuseProhibited() ) {
+      //content.setExecutionId(executionId);
       return oldDescriptor;
     }
 
     return null;
   }
 
+  @Nullable
+  private static Content getContentFromManager(ContentManager contentManager, @Nullable String preferredName, long executionId) {
+    ArrayList<Content> contents = new ArrayList<Content>(Arrays.asList(contentManager.getContents()));
+    Content first = contentManager.getSelectedContent();
+    if (first != null && contents.remove(first)) {
+      contents.add(0, first);
+    }
+    for (Content c : contents) {
+      if (c == null || c.isPinned() || !isTerminated(c) || (c.getExecutionId() == executionId && executionId != 0))
+        continue;
+      if (preferredName == null) {
+        return c;
+      } else if (preferredName.equals(c.getDisplayName())) {
+        return c;
+      }
+    }
+    return preferredName != null  && !contents.isEmpty() ? getContentFromManager(contentManager, null, executionId) : null;
+  }
+
+  @NotNull
   private ContentManager getContentManagerForRunner(final Executor executor) {
     final ContentManager contentManager = myToolwindowIdToContentManagerMap.get(executor.getToolWindowId());
     if (contentManager == null) {

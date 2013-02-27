@@ -2,6 +2,7 @@
   <library name="Netty">
     <CLASSES>
       <root url="jar://$PROJECT_DIR$/lib/netty-3.5.10.Final.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/netty-3.6.2.Final.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES>

@@ -69,6 +69,7 @@ import org.jetbrains.idea.svn.actions.ShowPropertiesDiffWithLocalAction;
 import org.jetbrains.idea.svn.actions.SvnMergeProvider;
 import org.jetbrains.idea.svn.annotate.SvnAnnotationProvider;
 import org.jetbrains.idea.svn.checkin.SvnCheckinEnvironment;
+import org.jetbrains.idea.svn.checkout.SvnCheckoutProvider;
 import org.jetbrains.idea.svn.commandLine.SvnExecutableChecker;
 import org.jetbrains.idea.svn.dialogs.SvnBranchPointsCalculator;
 import org.jetbrains.idea.svn.dialogs.WCInfo;
@@ -107,8 +108,10 @@ import java.util.logging.Level;
 
 @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed"})
 public class SvnVcs extends AbstractVcs<CommittedChangeList> {
+  private static final String DO_NOT_LISTEN_TO_WC_DB = "svn.do.not.listen.to.wc.db";
   private static final String KEEP_CONNECTIONS_KEY = "svn.keep.connections";
   private static final Logger REFRESH_LOG = Logger.getInstance("#svn_refresh");
+  public static boolean ourListenToWcDb = true;
 
   private static final int ourLogUsualInterval = 20 * 1000;
   private static final int ourLogRareInterval = 30 * 1000;
@@ -140,7 +143,6 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   private EditFileProvider myEditFilesProvider;
   private SvnCommittedChangesProvider myCommittedChangesProvider;
   private final VcsShowSettingOption myCheckoutOptions;
-  private final static SSLExceptionsHelper myHelper = new SSLExceptionsHelper();
 
   private ChangeProvider myChangeProvider;
   private MergeProvider myMergeProvider;
@@ -188,6 +190,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
       return false;
     }
   };
+  private SvnCheckoutProvider myCheckoutProvider;
 
   public void checkCommandLineVersion() {
     myChecker.checkExecutableAndNotifyIfNeeded();
@@ -195,6 +198,9 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
 
   static {
     System.setProperty("svnkit.log.native.calls", "true");
+    if (Boolean.getBoolean(DO_NOT_LISTEN_TO_WC_DB)) {
+      ourListenToWcDb = false;
+    }
     final JavaSVNDebugLogger logger = new JavaSVNDebugLogger(Boolean.getBoolean(LOG_PARAMETER_NAME), Boolean.getBoolean(TRACE_NATIVE_CALLS), LOG);
     SVNDebugLog.setDefaultLog(logger);
 
@@ -275,7 +281,6 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     // remove used some time before old notification group ids
     correctNotificationIds();
     myChecker = new SvnExecutableChecker(myProject);
-    myConfiguration.getAuthenticationManager(this).setHelper(myHelper);
   }
 
   private void correctNotificationIds() {
@@ -334,13 +339,15 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     myCopiesRefreshManager.waitRefresh(new Runnable() {
       @Override
       public void run() {
-        callCleanupWorker.run();
+        ApplicationManager.getApplication().invokeLater(callCleanupWorker, ModalityState.any());
       }
     });
   }
 
   public void invokeRefreshSvnRoots() {
-    REFRESH_LOG.debug("refresh: ", new Throwable());
+    if (REFRESH_LOG.isDebugEnabled()) {
+      REFRESH_LOG.debug("refresh: ", new Throwable());
+    }
     if (myCopiesRefreshManager != null) {
       myCopiesRefreshManager.asynchRequest();
     }
@@ -950,7 +957,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     private final boolean myLoggingEnabled;
     private final boolean myLogNative;
     private final Logger myLog;
-    private final static long ourMaxFrequency = 10000;
+    private final static long ourErrorNotificationInterval = 10000;
     private long myPreviousTime = 0;
 
     public JavaSVNDebugLogger(boolean loggingEnabled, boolean logNative, Logger log) {
@@ -967,9 +974,9 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     public void log(final SVNLogType logType, final Throwable th, final Level logLevel) {
       if (th instanceof SSLHandshakeException) {
         final long time = System.currentTimeMillis();
-        if ((time - myPreviousTime) > ourMaxFrequency) {
+        if ((time - myPreviousTime) > ourErrorNotificationInterval) {
           myPreviousTime = time;
-          String info = myHelper.getAddInfo();
+          String info = SSLExceptionsHelper.getAddInfo();
           info = info == null ? "" : " (" + info + ") ";
           if (th.getCause() instanceof CertificateException) {
             PopupUtil.showBalloonForActiveComponent("Subversion: " + info + th.getCause().getMessage(), MessageType.ERROR);
@@ -1208,5 +1215,13 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   @Override
   public boolean areDirectoriesVersionedItems() {
     return true;
+  }
+
+  @Override
+  public CheckoutProvider getCheckoutProvider() {
+    if (myCheckoutProvider == null) {
+      myCheckoutProvider = new SvnCheckoutProvider();
+    }
+    return myCheckoutProvider;
   }
 }

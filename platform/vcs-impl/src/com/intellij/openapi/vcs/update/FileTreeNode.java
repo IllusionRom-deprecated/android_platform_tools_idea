@@ -19,6 +19,7 @@ import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
 import com.intellij.psi.search.scope.packageSet.NamedScopesHolder;
 import com.intellij.psi.search.scope.packageSet.PackageSetBase;
 import com.intellij.ui.SimpleTextAttributes;
@@ -55,10 +56,20 @@ public class FileTreeNode extends FileOrDirectoryTreeNode {
 
   @Override
   protected boolean acceptFilter(Pair<PackageSetBase, NamedScopesHolder> filter, boolean showOnlyFilteredItems) {
-    VirtualFile file = getFilePointer().getFile();
-    if (file != null && filter.first.contains(file, filter.second)) {
-      applyFilter(true);
-      return true;
+    try {
+      VirtualFilePointer filePointer = getFilePointer();
+      if (!filePointer.isValid()) {
+        return false;
+      }
+      VirtualFile file = filePointer.getFile();
+      if (file != null && file.isValid() && filter.first.contains(file, filter.second)) {
+        applyFilter(true);
+        return true;
+      }
+    }
+    catch (Throwable e) {
+      // TODO: catch and ignore exceptions: see to FilePatternPackageSet
+      // sometimes for new file DirectoryFileIndex.getContentRootForFile() return random path
     }
     return false;
   }
@@ -89,5 +100,4 @@ public class FileTreeNode extends FileOrDirectoryTreeNode {
   protected boolean showStatistics() {
     return false;
   }
-
 }

@@ -1,12 +1,16 @@
 package org.jetbrains.plugins.gradle.testutil
 
+import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.libraries.Library
 import org.jetbrains.annotations.NotNull
 import org.jetbrains.plugins.gradle.action.AbstractGradleSyncTreeFilterAction
+import org.jetbrains.plugins.gradle.autoimport.GradleAutoImporter
 import org.jetbrains.plugins.gradle.config.GradleColorAndFontDescriptorsProvider
+import org.jetbrains.plugins.gradle.config.GradleLocalSettings
+import org.jetbrains.plugins.gradle.config.GradleSettings
 import org.jetbrains.plugins.gradle.config.PlatformFacade
 import org.jetbrains.plugins.gradle.diff.GradleStructureChangesCalculator
 import org.jetbrains.plugins.gradle.diff.contentroot.GradleContentRootStructureChangesCalculator
@@ -15,13 +19,18 @@ import org.jetbrains.plugins.gradle.diff.dependency.GradleModuleDependencyStruct
 import org.jetbrains.plugins.gradle.diff.library.GradleLibraryStructureChangesCalculator
 import org.jetbrains.plugins.gradle.diff.module.GradleModuleStructureChangesCalculator
 import org.jetbrains.plugins.gradle.diff.project.GradleProjectStructureChangesCalculator
+import org.jetbrains.plugins.gradle.manage.GradleDependencyManager
+import org.jetbrains.plugins.gradle.manage.GradleEntityManageHelper
 import org.jetbrains.plugins.gradle.manage.GradleJarManager
+import org.jetbrains.plugins.gradle.manage.GradleLibraryManager
+import org.jetbrains.plugins.gradle.manage.GradleProjectManager
 import org.jetbrains.plugins.gradle.model.GradleEntityOwner
 import org.jetbrains.plugins.gradle.model.gradle.GradleLibrary
 import org.jetbrains.plugins.gradle.model.gradle.LibraryPathType
 import org.jetbrains.plugins.gradle.model.id.GradleEntityIdMapper
 import org.jetbrains.plugins.gradle.model.id.GradleJarId
 import org.jetbrains.plugins.gradle.model.id.GradleLibraryId
+import org.jetbrains.plugins.gradle.sync.GradleDuplicateLibrariesPreProcessor
 import org.jetbrains.plugins.gradle.sync.GradleMovedJarsPostProcessor
 import org.jetbrains.plugins.gradle.sync.GradleOutdatedLibraryVersionPostProcessor
 import org.jetbrains.plugins.gradle.sync.GradleProjectStructureChangesModel
@@ -83,9 +92,17 @@ public abstract class AbstractGradleTest {
     container.registerComponentImplementation(GradleEntityIdMapper)
     container.registerComponentImplementation(GradleProjectStructureContext)
     container.registerComponentImplementation(GradleLibraryPathTypeMapper, TestGradleLibraryPathTypeMapper)
+    container.registerComponentImplementation(GradleDependencyManager)
+    container.registerComponentImplementation(GradleLibraryManager)
     container.registerComponentImplementation(GradleJarManager, TestGradleJarManager)
+    container.registerComponentImplementation(GradleProjectManager)
+    container.registerComponentImplementation(GradleDuplicateLibrariesPreProcessor)
     container.registerComponentImplementation(GradleMovedJarsPostProcessor, TestGradleMovedJarsPostProcessor)
     container.registerComponentImplementation(GradleOutdatedLibraryVersionPostProcessor)
+    container.registerComponentImplementation(GradleAutoImporter)
+    container.registerComponentImplementation(GradleSettings)
+    container.registerComponentImplementation(GradleLocalSettings)
+    container.registerComponentImplementation(GradleEntityManageHelper)
     configureContainer(container)
     
     intellij.projectStub.getComponent = { clazz -> container.getComponentInstance(clazz) }
@@ -96,9 +113,13 @@ public abstract class AbstractGradleTest {
     for (d in GradleColorAndFontDescriptorsProvider.DESCRIPTORS) {
       treeFilters[d.key] = AbstractGradleSyncTreeFilterAction.createFilter(d.key)
     }
+
+    def settings = ServiceManager.getService(intellij.project, GradleSettings.class)
+    settings.useAutoImport = false
   }
 
   protected void clearChangePostProcessors() {
+    changesModel.preProcessors.clear()
     changesModel.postProcessors.clear()
   }
 

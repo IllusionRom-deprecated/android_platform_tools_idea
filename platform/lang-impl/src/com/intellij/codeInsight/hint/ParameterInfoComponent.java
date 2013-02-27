@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,7 @@ import com.intellij.lang.parameterInfo.ParameterInfoHandler;
 import com.intellij.lang.parameterInfo.ParameterInfoUIContextEx;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.psi.PsiElement;
-import com.intellij.ui.Gray;
-import com.intellij.ui.SideBorder;
-import com.intellij.ui.StrikeoutLabel;
+import com.intellij.ui.*;
 import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 
@@ -42,20 +40,20 @@ class ParameterInfoComponent extends JPanel{
   private final OneElementComponent[] myPanels;
 
   private static final Color BACKGROUND_COLOR = HintUtil.INFORMATION_COLOR;
-  private static final Color FOREGROUND_COLOR = Gray._0;
+  private static final Color FOREGROUND_COLOR = JBColor.foreground;
 //  private static final Color DISABLED_BACKGROUND_COLOR = HintUtil.INFORMATION_COLOR;
   private static final Color DISABLED_FOREGROUND_COLOR = Gray._128;
-  private static final Color HIGHLIGHTED_BORDER_COLOR = new Color(231, 254, 234);
+  private static final Color HIGHLIGHTED_BORDER_COLOR = new JBColor(new Color(231, 254, 234), Gray._100);
   private final Font NORMAL_FONT;
   private final Font BOLD_FONT;
 
-  private static final Border BOTTOM_BORDER = new SideBorder(Color.lightGray, SideBorder.BOTTOM);
+  private static final Border BOTTOM_BORDER = new SideBorder(JBColor.LIGHT_GRAY, SideBorder.BOTTOM);
   private static final Border BACKGROUND_BORDER = BorderFactory.createLineBorder(BACKGROUND_COLOR);
 
   protected int myWidthLimit;
 
   public ParameterInfoComponent(Object[] objects, Editor editor,@NotNull ParameterInfoHandler handler) {
-    super(new GridBagLayout());
+    super(new BorderLayout());
 
     JComponent editorComponent = editor.getComponent();
     JLayeredPane layeredPane = editorComponent.getRootPane().getLayeredPane();
@@ -66,17 +64,34 @@ class ParameterInfoComponent extends JPanel{
 
     myObjects = objects;
 
-    setLayout(new GridBagLayout());
     setBackground(BACKGROUND_COLOR);
 
     myHandler = handler;
     myPanels = new OneElementComponent[myObjects.length];
+    final JPanel panel = new JPanel(new GridBagLayout());
     for(int i = 0; i < myObjects.length; i++) {
       myPanels[i] = new OneElementComponent();
-      add(myPanels[i], new GridBagConstraints(0,i,1,1,1,0,GridBagConstraints.WEST,GridBagConstraints.HORIZONTAL,new Insets(0,0,0,0),0,0));
+      panel.add(myPanels[i], new GridBagConstraints(0,i,1,1,1,0,GridBagConstraints.WEST,GridBagConstraints.HORIZONTAL,new Insets(0,0,0,0),0,0));
     }
 
+    final JScrollPane pane = ScrollPaneFactory.createScrollPane(panel);
+    pane.setBorder(null);
+    pane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+    add(pane, BorderLayout.CENTER);
+
     myCurrentParameterIndex = -1;
+  }
+
+  @Override
+  public Dimension getPreferredSize() {
+    int size = myPanels.length;
+    final Dimension preferredSize = super.getPreferredSize();
+    if (size >= 0 && size <= 20) {
+      return preferredSize;
+    }
+    else {
+      return new Dimension(preferredSize.width + 20, 200);
+    }
   }
 
   public Object getHighlighted() {
@@ -94,13 +109,13 @@ class ParameterInfoComponent extends JPanel{
                                              boolean isDisabledBeforeHighlight,
                                              Color background) {
       myPanels[i].setup(text, highlightStartOffset, highlightEndOffset, isDisabled, strikeout, isDisabledBeforeHighlight, background);
-      myPanels[i].setBorder(isLastParameterOwner() ? BACKGROUND_BORDER : BOTTOM_BORDER);
+      myPanels[i].setBorder(isLastParameterOwner() ? BACKGROUND_BORDER : new SideBorder(new JBColor(JBColor.LIGHT_GRAY, Gray._90), SideBorder.BOTTOM));
     }
 
     @Override
     public void setupUIComponentPresentation(final String[] texts, final EnumSet<Flag>[] flags, final Color background) {
       myPanels[i].setup(texts, flags, background);
-      myPanels[i].setBorder(isLastParameterOwner() ? BACKGROUND_BORDER : BOTTOM_BORDER);
+      myPanels[i].setBorder(isLastParameterOwner() ? BACKGROUND_BORDER : new SideBorder(new JBColor(JBColor.LIGHT_GRAY, Gray._90), SideBorder.BOTTOM));
     }
 
     @Override

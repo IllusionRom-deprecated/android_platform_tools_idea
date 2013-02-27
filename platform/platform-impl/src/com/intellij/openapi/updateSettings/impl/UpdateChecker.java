@@ -217,6 +217,7 @@ public final class UpdateChecker {
     if (!toUpdate.isEmpty()) {
       try {
         final ArrayList<IdeaPluginDescriptor> process = RepositoryHelper.process(indicator);
+        final List<String> disabledPlugins = PluginManager.getDisabledPlugins();
         for (IdeaPluginDescriptor loadedPlugin : process) {
           final String idString = loadedPlugin.getPluginId().getIdString();
           if (!toUpdate.containsKey(idString)) continue;
@@ -225,7 +226,7 @@ public final class UpdateChecker {
             prepareToInstall(downloaded, loadedPlugin);
           } else if (StringUtil.compareVersionNumbers(loadedPlugin.getVersion(), installedPlugin.getVersion()) > 0) {
             updateSettings.myOutdatedPlugins.add(idString);
-            if (installedPlugin.isEnabled()) {
+            if (!disabledPlugins.contains(idString)) {
               prepareToInstall(downloaded, loadedPlugin);
             }
           }
@@ -467,7 +468,7 @@ public final class UpdateChecker {
     return result;
   }
 
-  private static boolean myUpdateInfoDialogShown = false;
+  private static boolean ourUpdateInfoDialogShown = false;
 
   public static void showUpdateResult(CheckForUpdateResult checkForUpdateResult,
                                       List<PluginDownloader> updatedPlugins,
@@ -480,21 +481,28 @@ public final class UpdateChecker {
       dialog.setModal(alwaysShowResults);
       dialog.show();
     }
-    else if (checkForUpdateResult.hasNewBuildInSelectedChannel() && !myUpdateInfoDialogShown) {
+    else if (checkForUpdateResult.hasNewBuildInSelectedChannel() && !ourUpdateInfoDialogShown) {
       UpdateInfoDialog dialog = new UpdateInfoDialog(true, checkForUpdateResult.getUpdatedChannel(), updatedPlugins, enableLink) {
         @Override
         protected void dispose() {
-          myUpdateInfoDialogShown = false;
+          ourUpdateInfoDialogShown = false;
           super.dispose();
         }
       };
       dialog.setModal(alwaysShowResults);
-      myUpdateInfoDialogShown = true;
+      ourUpdateInfoDialogShown = true;
       dialog.show();
     }
-    else if (updatedPlugins != null || alwaysShowResults && ProjectManager.getInstance().getOpenProjects().length == 0) {
-      NoUpdatesDialog dialog = new NoUpdatesDialog(true, updatedPlugins, enableLink);
+    else if ((updatedPlugins != null || alwaysShowResults && ProjectManager.getInstance().getOpenProjects().length == 0) && !ourUpdateInfoDialogShown) {
+      NoUpdatesDialog dialog = new NoUpdatesDialog(true, updatedPlugins, enableLink) {
+        @Override
+        protected void dispose() {
+          ourUpdateInfoDialogShown = false;
+          super.dispose();
+        }
+      };
       dialog.setShowConfirmation(showConfirmation);
+      ourUpdateInfoDialogShown = true;
       dialog.show();
     } else if (alwaysShowResults) {
       final String title = IdeBundle.message("updates.info.dialog.title");

@@ -120,6 +120,10 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
                             @NotNull final ExecutionEnvironment env,
                             @Nullable final RunProfileState state,
                             @Nullable final Runnable onCancelRunnable) {
+    long id = env.getExecutionId();
+    if (id == 0) {
+      id = env.assignNewExecutionId();
+    }
     RunProfile profile = env.getRunProfile();
 
     if (profile instanceof RunConfiguration) {
@@ -135,6 +139,7 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
         .getSimpleContext(BeforeRunTaskProvider.RUNNER_ID, configurationSettings.getRunnerId(), projectContext) : projectContext;
 
       if (!activeTasks.isEmpty()) {
+        final long finalId = id;
         ApplicationManager.getApplication().executeOnPooledThread(new Runnable() {
           /** @noinspection SSBasedInspection*/
           @Override
@@ -152,8 +157,7 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
                                                                               env.getConfigurationSettings(),
                                                                               null,
                                                                               env.getRunnerAndConfigurationSettings());
-              taskEnvironment
-                .putUserData(RunContentDescriptor.REUSE_CONTENT_PROHIBITED, RunConfigurationBeforeRunProvider.ID.equals(provider.getId()));
+              taskEnvironment.setExecutionId(finalId);
               if (!provider.executeTask(dataContext, runConfiguration, taskEnvironment, task)) {
                 if (onCancelRunnable != null) {
                   SwingUtilities.invokeLater(onCancelRunnable);
@@ -187,7 +191,10 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
   public void startRunProfile(@NotNull final RunProfileStarter starter, @NotNull final RunProfileState state,
                               @NotNull final Project project, @NotNull final Executor executor, @NotNull final ExecutionEnvironment env) {
     final RunContentDescriptor reuseContent =
-      ExecutionManager.getInstance(project).getContentManager().getReuseContent(executor, env.getContentToReuse());
+      ExecutionManager.getInstance(project).getContentManager().getReuseContent(executor, env);
+    if (reuseContent != null) {
+      reuseContent.setExecutionId(env.getExecutionId());
+    }
     final RunProfile profile = env.getRunProfile();
 
     project.getMessageBus().syncPublisher(EXECUTION_TOPIC).processStartScheduled(executor.getId(), env);
@@ -250,11 +257,10 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
   }
 
   @Override
-  @Deprecated
   public void restartRunProfile(@NotNull final Project project,
                                 @NotNull final Executor executor,
                                 @NotNull final ExecutionTarget target,
-                                @NotNull final RunnerAndConfigurationSettings configuration,
+                                @Nullable final RunnerAndConfigurationSettings configuration,
                                 @Nullable final ProcessHandler processHandler) {
     if (processHandler != null) {
       for (RunContentDescriptor descriptor : getContentManager().getAllDescriptors()) {
@@ -272,13 +278,18 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
   public void restartRunProfile(@NotNull final Project project,
                                 @NotNull final Executor executor,
                                 @NotNull final ExecutionTarget target,
-                                @NotNull final RunnerAndConfigurationSettings configuration,
+                                @Nullable final RunnerAndConfigurationSettings configuration,
                                 @Nullable final RunContentDescriptor currentDescriptor) {
-    if (ProgramRunnerUtil.getRunner(executor.getId(), configuration) == null) {
+    if (configuration != null && ProgramRunnerUtil.getRunner(executor.getId(), configuration) == null) {
+      LOG.error("Cannot find runner for " + configuration.getName());
+      return;
+    }
+    if (configuration == null && (currentDescriptor == null || currentDescriptor.getRestarter() == null)) {
+      LOG.error("Nothing to restart");
       return;
     }
     final List<RunContentDescriptor> descriptorsToStop = new ArrayList<RunContentDescriptor>();
-    if (configuration.isSingleton()) {
+    if (configuration != null && configuration.isSingleton()) {
       descriptorsToStop.addAll(getRunningDescriptors(configuration));
     }
     else if (currentDescriptor != null) {
@@ -286,7 +297,7 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
     }
 
     if (!descriptorsToStop.isEmpty()) {
-      if ((descriptorsToStop.size() > 1 || currentDescriptor == null || descriptorsToStop.get(0) != currentDescriptor) &&
+      if (configuration != null && (descriptorsToStop.size() > 1 || currentDescriptor == null || descriptorsToStop.get(0) != currentDescriptor) &&
           !userApprovesStop(project, configuration.getName(), descriptorsToStop.size())) {
         return;
       }
@@ -295,7 +306,7 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
       }
     }
     else {
-      ProgramRunnerUtil.executeConfiguration(project, configuration, executor, target, currentDescriptor, true);
+      start(project, configuration, executor, target, currentDescriptor);
       return;
     }
 
@@ -309,10 +320,24 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
             return;
           }
         }
-        ProgramRunnerUtil.executeConfiguration(project, configuration, executor, target, currentDescriptor, true);
+        start(project, configuration, executor, target, currentDescriptor);
       }
     };
     awaitingTerminationAlarm.addRequest(runnable, 100);
+  }
+
+  private static void start(@NotNull Project project,
+                            @Nullable RunnerAndConfigurationSettings configuration,
+                            @NotNull Executor executor,
+                            @NotNull ExecutionTarget target,
+                            @Nullable RunContentDescriptor descriptor) {
+    Runnable restarter = descriptor != null ? descriptor.getRestarter() : null;
+    if (configuration != null) {
+      ProgramRunnerUtil.executeConfiguration(project, configuration, executor, target, descriptor, true);
+    }
+    else if (restarter != null) {
+      restarter.run();
+    }
   }
 
   private static boolean userApprovesStop(Project project, String configName, int instancesCount) {
@@ -369,7 +394,7 @@ public class ExecutionManagerImpl extends ExecutionManager implements ProjectCom
   }
 
 
-  private void stop(RunContentDescriptor runContentDescriptor) {
+  private static void stop(RunContentDescriptor runContentDescriptor) {
     ProcessHandler processHandler = runContentDescriptor != null ? runContentDescriptor.getProcessHandler() : null;
     if (processHandler == null) {
       return;
