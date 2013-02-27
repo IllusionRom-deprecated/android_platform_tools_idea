@@ -32,11 +32,11 @@ import java.util.List;
 public abstract class EmmetParser {
   private final List<ZenCodingToken> myTokens;
   protected final CustomTemplateCallback myCallback;
-  private final ZenCodingGenerator myGenerator;
+  protected final ZenCodingGenerator myGenerator;
 
   private int myIndex = 0;
 
-  EmmetParser(List<ZenCodingToken> tokens, CustomTemplateCallback callback, ZenCodingGenerator generator) {
+  public EmmetParser(List<ZenCodingToken> tokens, CustomTemplateCallback callback, ZenCodingGenerator generator) {
     myTokens = tokens;
     myCallback = callback;
     myGenerator = generator;
@@ -219,7 +219,7 @@ public abstract class EmmetParser {
     if (template == null) {
       return false;
     }
-    return ZenCodingTemplate.doSetTemplate(token, template, myCallback);
+    return token.setTemplate(template, myCallback);
   }
 
   @Nullable

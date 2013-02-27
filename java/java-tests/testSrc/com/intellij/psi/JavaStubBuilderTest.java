@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.security.SecureRandom;
 
+@SuppressWarnings("SpellCheckingInspection")
 public class JavaStubBuilderTest extends LightIdeaTestCase {
   private static final StubBuilder NEW_BUILDER = new JavaLightStubBuilder();
 
@@ -63,8 +64,8 @@ public class JavaStubBuilderTest extends LightIdeaTestCase {
 
   public void testClassDeclaration() {
     doTest("package p;" +
-           "class A implements I, J { }\n" +
-           "class B<K,V extends X> extends a/*skip*/.A { class I { } }\n" +
+           "class A implements I, J<I> { }\n" +
+           "class B<K, V extends X> extends a/*skip*/.A { class I { } }\n" +
            "@java.lang.Deprecated interface I { }\n" +
            "/** @deprecated just don't use */ @interface N { }",
 
@@ -74,7 +75,7 @@ public class JavaStubBuilderTest extends LightIdeaTestCase {
            "    MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
            "    TYPE_PARAMETER_LIST:PsiTypeParameterListStub\n" +
            "    EXTENDS_LIST:PsiRefListStub[EXTENDS_LIST:]\n" +
-           "    IMPLEMENTS_LIST:PsiRefListStub[IMPLEMENTS_LIST:I, J]\n" +
+           "    IMPLEMENTS_LIST:PsiRefListStub[IMPLEMENTS_LIST:I, J<I>]\n" +
            "  CLASS:PsiClassStub[name=B fqn=p.B]\n" +
            "    MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
            "    TYPE_PARAMETER_LIST:PsiTypeParameterListStub\n" +
@@ -115,7 +116,7 @@ public class JavaStubBuilderTest extends LightIdeaTestCase {
            "}\n" +
            "interface I {\n" +
            "  void m1();\n" +
-           "  void m2() default { }\n" +
+           "  default void m2() { }\n" +
            "}",
 
            "PsiJavaFileStub []\n" +
@@ -347,27 +348,10 @@ public class JavaStubBuilderTest extends LightIdeaTestCase {
            "          THROWS_LIST:PsiRefListStub[THROWS_LIST:]\n");
   }
 
-  public void testAnnotationParameters() throws Exception {
-    doTest("@Deprecated(\"bar\")\n" +
-           "class Foo  {\n" +
-           "}",
-
-           "PsiJavaFileStub []\n" +
-           "  IMPORT_LIST:PsiImportListStub\n" +
-           "  CLASS:PsiClassStub[deprecatedA name=Foo fqn=Foo]\n" +
-           "    MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
-           "      ANNOTATION:PsiAnnotationStub[@Deprecated(\"bar\")]\n" +
-           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
-           "          NAME_VALUE_PAIR:PsiNameValuePairStubImpl\n" +
-           "    TYPE_PARAMETER_LIST:PsiTypeParameterListStub\n" +
-           "    EXTENDS_LIST:PsiRefListStub[EXTENDS_LIST:]\n" +
-           "    IMPLEMENTS_LIST:PsiRefListStub[IMPLEMENTS_LIST:]\n");
-  }
-
-  public void testAnnotation() throws Exception {
+  public void testAnnotations() {
     doTest("@Deprecated\n" +
-           "class Foo  {\n" +
-           "}",
+           "@SuppressWarnings(\"UnusedDeclaration\")\n" +
+           "class Foo { }",
 
            "PsiJavaFileStub []\n" +
            "  IMPORT_LIST:PsiImportListStub\n" +
@@ -375,9 +359,89 @@ public class JavaStubBuilderTest extends LightIdeaTestCase {
            "    MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
            "      ANNOTATION:PsiAnnotationStub[@Deprecated]\n" +
            "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@SuppressWarnings(\"UnusedDeclaration\")]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "          NAME_VALUE_PAIR:PsiNameValuePairStubImpl\n" +
            "    TYPE_PARAMETER_LIST:PsiTypeParameterListStub\n" +
            "    EXTENDS_LIST:PsiRefListStub[EXTENDS_LIST:]\n" +
            "    IMPLEMENTS_LIST:PsiRefListStub[IMPLEMENTS_LIST:]\n");
+  }
+
+  public void testTypeAnnotations() {
+    doTest("import j.u.@A C;\n" +
+           "import @A j.u.C;\n" +
+           "\n" +
+           "class C<@A T extends @A C> implements @A I<@A T> {\n" +
+           "  T<@A T1, @A ? extends @A T2> f;\n" +
+           "  void m(/*@A C this,*/ int p) throws @A E {\n" +
+           "    o.<@A1 C>m();\n" +
+           "    new <T> @A2 C();\n" +
+           "    C.@A3 B v = (@A4 C)v.new @A5 C();\n" +
+           "    m(@A6 C::m);\n" +
+           "    @A7 T @A8[] @A9[] a = new @A7 T @A8[0] @A9[0];\n" +
+           "  }\n" +
+           "}",
+
+           "PsiJavaFileStub []\n" +
+           "  IMPORT_LIST:PsiImportListStub\n" +
+           "    IMPORT_STATEMENT:PsiImportStatementStub[j.u.C]\n" +
+           "    IMPORT_STATEMENT:PsiImportStatementStub[j.u.C]\n" +
+           "  CLASS:PsiClassStub[name=C fqn=C]\n" +
+           "    MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
+           "    TYPE_PARAMETER_LIST:PsiTypeParameterListStub\n" +
+           "      TYPE_PARAMETER:PsiTypeParameter[T]\n" +
+           "        ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "          ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "        EXTENDS_BOUND_LIST:PsiRefListStub[EXTENDS_BOUNDS_LIST:@A C]\n" +
+           "          ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "            ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "    EXTENDS_LIST:PsiRefListStub[EXTENDS_LIST:]\n" +
+           "    IMPLEMENTS_LIST:PsiRefListStub[IMPLEMENTS_LIST:@A I<@A T>]\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "    FIELD:PsiFieldStub[f:T<@A T1, @A ? extends @A T2>]\n" +
+           "      MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "    METHOD:PsiMethodStub[m:void]\n" +
+           "      MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
+           "      TYPE_PARAMETER_LIST:PsiTypeParameterListStub\n" +
+           "      PARAMETER_LIST:PsiParameterListStub\n" +
+           "        PARAMETER:PsiParameterStub[p:int]\n" +
+           "          MODIFIER_LIST:PsiModifierListStub[mask=4096]\n" +
+           "      THROWS_LIST:PsiRefListStub[THROWS_LIST:@A E]\n" +
+           "        ANNOTATION:PsiAnnotationStub[@A]\n" +
+           "          ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A1]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A2]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A3]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A4]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A5]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A6]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A7]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A8]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A9]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A7]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A8]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n" +
+           "      ANNOTATION:PsiAnnotationStub[@A9]\n" +
+           "        ANNOTATION_PARAMETER_LIST:PsiAnnotationParameterListStubImpl\n");
   }
 
   public void testSOEProof() {

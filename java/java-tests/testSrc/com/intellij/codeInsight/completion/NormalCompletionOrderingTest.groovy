@@ -98,11 +98,11 @@ public class NormalCompletionOrderingTest extends CompletionSortingTestCase {
   }
 
   public void testDispreferDeclared() throws Throwable {
-    checkPreferredItems(0, "aabbb", "aaa");
+    checkPreferredItems(0, "aabbb", "Aaaaaaa", "aaa");
   }
 
   public void testDispreferDeclaredOfExpectedType() throws Throwable {
-    checkPreferredItems(0, "aabbb", "aaa");
+    checkPreferredItems(0, "aabbb", "Aaaaaaa", "aaa");
   }
 
   public void testDispreferImpls() throws Throwable {
@@ -179,6 +179,27 @@ public class NormalCompletionOrderingTest extends CompletionSortingTestCase {
 
     invokeCompletion("SameStatsForDifferentQualifiersJLabel.java");
     assertPreferredItems(0, "getComponents", "getComponent");
+  }
+
+  public void testAbandonSameStatsForDifferentQualifiers() throws Throwable {
+    invokeCompletion(getTestName(false) + ".java");
+    assertPreferredItems 0, "method1", "equals"
+    myFixture.type('eq\n2);\nf2.')
+
+    myFixture.completeBasic();
+    assertPreferredItems 0, "equals", "method2"
+    myFixture.type('me\n);\n')
+
+    for (i in 0..StatisticsManager.OBLIVION_THRESHOLD) {
+      myFixture.type('f2.')
+      myFixture.completeBasic()
+      assertPreferredItems 0, "method2", "equals"
+      myFixture.type('me\n);\n')
+    }
+
+    myFixture.type('f3.')
+    myFixture.completeBasic()
+    assertPreferredItems 0, "method3", "equals"
   }
 
   public void testDispreferFinalize() throws Throwable {
@@ -394,6 +415,8 @@ import java.lang.annotation.Target;
   public void testDoNotPreferGetClass() {
     checkPreferredItems 0, 'get', 'getClass'
     incUseCount(lookup, 1)
+    assertPreferredItems 0, 'getClass', 'get'
+    incUseCount(lookup, 1)
     assertPreferredItems 0, 'get', 'getClass'
   }
 
@@ -554,6 +577,31 @@ import java.lang.annotation.Target;
     checkPreferredItems 0, 'psiElement', 'PsiElement'
     incUseCount lookup, 1
     assertPreferredItems 0, 'psiElement', 'PsiElement'
+  }
+
+  public void testHonorRecency() {
+    invokeCompletion(getTestName(false) + ".java")
+    myFixture.completeBasic()
+    myFixture.type('setou\nz.')
+
+    myFixture.completeBasic()
+    myFixture.type('set')
+    assertPreferredItems 0, 'setOurText', 'setText'
+    myFixture.type('te')
+    assertPreferredItems 0, 'setText', 'setOurText'
+    myFixture.type('\nz.')
+
+    myFixture.completeBasic()
+    myFixture.type('set')
+    assertPreferredItems 0, 'setText', 'setOurText'
+  }
+
+  public void testEnumConstantStartMatching() {
+    checkPreferredItems(0, 'rMethod', 'Zoo.RIGHT')
+    myFixture.type('i\n;\nreturn r')
+    myFixture.completeBasic()
+    assertPreferredItems 0, 'Zoo.RIGHT', 'rMethod'
+
   }
 
 }

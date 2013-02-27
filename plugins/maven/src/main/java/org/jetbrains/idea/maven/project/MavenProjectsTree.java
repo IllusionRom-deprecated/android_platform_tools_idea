@@ -103,6 +103,11 @@ public class MavenProjectsTree {
         });
         result.myRootProjects.addAll(readProjectsRecursively(in, result));
       }
+      catch (IOException e) {
+        in.close();
+        file.delete();
+        throw e;
+      }
       catch (Throwable e) {
         throw new IOException(e);
       }
@@ -1201,7 +1206,6 @@ public class MavenProjectsTree {
 
                             Pair<Boolean, MavenProjectChanges> resolveResult = mavenProject.resolveFolders(embedder,
                                                                                                            importingSettings,
-                                                                                                           new MavenProjectReader(),
                                                                                                            console);
                             if (resolveResult.first) {
                               fireFoldersResolved(Pair.create(mavenProject, resolveResult.second));

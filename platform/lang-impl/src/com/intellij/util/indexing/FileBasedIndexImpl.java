@@ -127,6 +127,8 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   private volatile int myLocalModCount;
   private volatile int myFilesModCount;
   private final AtomicInteger myUpdatingFiles = new AtomicInteger();
+  private final ConcurrentHashSet<Project> myProjectsBeingUpdated = new ConcurrentHashSet<Project>();
+
   @SuppressWarnings({"FieldCanBeLocal", "UnusedDeclaration"}) private volatile boolean myInitialized;
   // need this variable for memory barrier
 
@@ -673,10 +675,6 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     }
   }
 
-  /**
-   * @param project it is guaranteed to return data which is up-to-date withing the project
-   *                Keys obtained from the files which do not belong to the project specified may not be up-to-date or even exist
-   */
   @Override
   @NotNull
   public <K> Collection<K> getAllKeys(@NotNull final ID<K, ?> indexId, @NotNull Project project) {
@@ -685,10 +683,6 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     return allKeys;
   }
 
-  /**
-   * @param project it is guaranteed to return data which is up-to-date withing the project
-   *                Keys obtained from the files which do not belong to the project specified may not be up-to-date or even exist
-   */
   @Override
   public <K> boolean processAllKeys(@NotNull final ID<K, ?> indexId, Processor<K> processor, @Nullable Project project) {
     try {
@@ -865,9 +859,6 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   }
 
 
-  /**
-   * @return false if ValueProcessor.process() returned false; true otherwise or if ValueProcessor was not called at all
-   */
   @Override
   public <K, V> boolean processValues(@NotNull final ID<K, V> indexId, @NotNull final K dataKey, @Nullable final VirtualFile inFile,
                                       @NotNull ValueProcessor<V> processor, @NotNull final GlobalSearchScope filter) {
@@ -1022,10 +1013,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     }
   }
 
-  void filesUpdateFinished() {
-    if (myUpdatingFiles.decrementAndGet() == 0) {
-      ++myFilesModCount;
-    }
+  void filesUpdateFinished(@NotNull Project project) {
+    myProjectsBeingUpdated.remove(project);
+    ++myFilesModCount;
   }
 
   private final Lock myCalcIndexableFilesLock = new SequenceLock();
@@ -1033,6 +1023,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   @Nullable
   public ProjectIndexableFilesFilter projectIndexableFiles(@Nullable Project project) {
     if (project == null || myUpdatingFiles.get() > 0) return null;
+    if (myProjectsBeingUpdated.contains(project)) return null;
 
     SoftReference<ProjectIndexableFilesFilter> reference = project.getUserData(ourProjectFilesSetKey);
     ProjectIndexableFilesFilter data = reference != null ? reference.get() : null;
@@ -1894,7 +1885,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       });
       IndexingStamp.flushCache(null);
       if (!contentChange) {
-        filesUpdateFinished();
+        if (myUpdatingFiles.decrementAndGet() == 0) {
+          ++myFilesModCount;
+        }
       }
     }
 
@@ -2082,7 +2075,15 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     private void forceUpdate(@Nullable Project project, @Nullable GlobalSearchScope filter, @Nullable VirtualFile restrictedTo,
                              boolean onlyRemoveOutdatedData) {
       myChangedFilesCollector.ensureAllInvalidateTasksCompleted();
+      ProjectIndexableFilesFilter indexableFilesFilter = projectIndexableFiles(project);
+
       for (VirtualFile file : getAllFilesToUpdate()) {
+        if (indexableFilesFilter != null &&
+            file instanceof VirtualFileWithId &&
+            !indexableFilesFilter.contains(((VirtualFileWithId)file).getId())) {
+          continue;
+        }
+
         if (filter == null || filter.accept(file) || Comparing.equal(file, restrictedTo)) {
           try {
             myForceUpdateSemaphore.down();
@@ -2257,8 +2258,8 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   }
 
   @NotNull
-  public CollectingContentIterator createContentIterator(@Nullable ProgressIndicator indicator) {
-    myUpdatingFiles.incrementAndGet();
+  public CollectingContentIterator createContentIterator(@Nullable ProgressIndicator indicator, @NotNull Project project) {
+    myProjectsBeingUpdated.add(project);
     return new UnindexedFilesFinder(indicator);
   }
 

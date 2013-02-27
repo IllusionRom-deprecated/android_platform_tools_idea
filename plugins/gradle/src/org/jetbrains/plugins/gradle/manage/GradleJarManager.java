@@ -35,10 +35,7 @@ import org.jetbrains.plugins.gradle.util.GradleLog;
 import org.jetbrains.plugins.gradle.util.GradleUtil;
 
 import java.io.File;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author Denis Zhdanov
@@ -54,53 +51,74 @@ public class GradleJarManager {
     myLibraryPathTypeMapper = mapper;
   }
 
-  public void importJar(@NotNull final GradleJar jar, @NotNull final Project project) {
-    GradleUtil.executeProjectChangeAction(project, jar, new Runnable() {
+  public void importJar(@NotNull final GradleJar jar, @NotNull final Project project, boolean synchronous) {
+    importJars(Collections.singleton(jar), project, synchronous);
+  }
+  
+  public void importJars(@NotNull final Collection<? extends GradleJar> jars, @NotNull final Project project, boolean synchronous) {
+    if (jars.isEmpty()) {
+      return;
+    }
+    final Map<GradleLibraryId, List<GradleJar>> jarsByLibraries = ContainerUtilRt.newHashMap();
+    for (GradleJar jar : jars) {
+      List<GradleJar> list = jarsByLibraries.get(jar.getLibraryId());
+      if (list == null) {
+        jarsByLibraries.put(jar.getLibraryId(), list = ContainerUtilRt.newArrayList());
+      }
+      list.add(jar);
+    }
+    GradleUtil.executeProjectChangeAction(project, jars, synchronous, new Runnable() {
       @Override
       public void run() {
-        LibraryTable table = myPlatformFacade.getProjectLibraryTable(project);
-        Library library = table.getLibraryByName(jar.getLibraryId().getLibraryName());
-        if (library == null) {
-          return;
-        }
-        Library.ModifiableModel model = library.getModifiableModel();
-        try {
-          OrderRootType ideJarType = myLibraryPathTypeMapper.map(jar.getPathType());
-          for (VirtualFile file : model.getFiles(ideJarType)) {
-            if (jar.getPath().equals(GradleUtil.getLocalFileSystemPath(file))) {
-              return;
-            }
-          }
-
-          VirtualFile virtualFile = LocalFileSystem.getInstance().findFileByIoFile(new File(jar.getPath()));
-          if (virtualFile == null) {
-            //GradleLog.LOG.warn(
-            //  String.format("Can't find %s of the library '%s' at path '%s'", entry.getKey(), libraryName, file.getAbsolutePath())
-            //);
+        for (Map.Entry<GradleLibraryId, List<GradleJar>> entry : jarsByLibraries.entrySet()) {
+          LibraryTable table = myPlatformFacade.getProjectLibraryTable(project);
+          Library library = table.getLibraryByName(entry.getKey().getLibraryName());
+          if (library == null) {
             return;
           }
-          if (virtualFile.isDirectory()) {
-            model.addRoot(virtualFile, ideJarType);
-          }
-          else {
-            VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(virtualFile);
-            if (jarRoot == null) {
-              GradleLog.LOG.warn(String.format(
-                "Can't parse contents of the jar file at path '%s' for the library '%s''", jar.getPath(), library.getName()
-              ));
-              return;
+          Library.ModifiableModel model = library.getModifiableModel();
+          try {
+            LocalFileSystem fileSystem = LocalFileSystem.getInstance();
+            for (GradleJar jar : entry.getValue()) {
+              OrderRootType ideJarType = myLibraryPathTypeMapper.map(jar.getPathType());
+              for (VirtualFile file : model.getFiles(ideJarType)) {
+                if (jar.getPath().equals(GradleUtil.getLocalFileSystemPath(file))) {
+                  return;
+                }
+              }
+
+              File jarFile = new File(jar.getPath());
+              VirtualFile virtualFile = fileSystem.refreshAndFindFileByIoFile(jarFile);
+              if (virtualFile == null) {
+                GradleLog.LOG.warn(
+                  String.format("Can't find a jar of the library '%s' at path '%s'", jar.getLibraryId().getLibraryName(), jar.getPath())
+                );
+                return;
+              }
+              if (virtualFile.isDirectory()) {
+                model.addRoot(virtualFile, ideJarType);
+              }
+              else {
+                VirtualFile jarRoot = JarFileSystem.getInstance().getJarRootForLocalFile(virtualFile);
+                if (jarRoot == null) {
+                  GradleLog.LOG.warn(String.format(
+                    "Can't parse contents of the jar file at path '%s' for the library '%s''", jar.getPath(), library.getName()
+                  ));
+                  return;
+                }
+                model.addRoot(jarRoot, ideJarType);
+              }
             }
-            model.addRoot(jarRoot, ideJarType);
+          }
+          finally {
+            model.commit();
           }
         }
-        finally {
-          model.commit();
-        } 
       }
     });
   }
 
-  public void removeJars(@NotNull Collection<GradleJar> jars, @NotNull Project project) {
+  public void removeJars(@NotNull Collection<? extends GradleJar> jars, @NotNull Project project, boolean synchronous) {
     if (jars.isEmpty()) {
       return;
     }
@@ -134,7 +152,7 @@ public class GradleJarManager {
       }
 
       if (!libraryJars.isEmpty()) {
-        removeLibraryJars(libraryJars, project);
+        removeLibraryJars(libraryJars, project, synchronous);
       }
     }
   }
@@ -145,8 +163,8 @@ public class GradleJarManager {
    * @param jars     jars to remove
    * @param project  current project
    */
-  private void removeLibraryJars(@NotNull final Set<GradleJar> jars, @NotNull final Project project) {
-    GradleUtil.executeProjectChangeAction(project, jars, new Runnable() {
+  private void removeLibraryJars(@NotNull final Set<GradleJar> jars, @NotNull final Project project, boolean synchronous) {
+    GradleUtil.executeProjectChangeAction(project, jars, synchronous, new Runnable() {
       @Override
       public void run() {
         LibraryTable libraryTable = myPlatformFacade.getProjectLibraryTable(project);

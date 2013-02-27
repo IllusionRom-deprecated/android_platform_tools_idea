@@ -93,7 +93,7 @@ public class UIUtil {
 
     JComponent c = (JComponent)comp;
 
-    if (isUnderAquaLookAndFeel()) {
+    if (isUnderAquaBasedLookAndFeel()) {
       c.putClientProperty("JComponent.sizeVariant",
                           componentStyle == ComponentStyle.REGULAR ? "regular" : componentStyle == ComponentStyle.SMALL ? "small" : "mini");
     }
@@ -1528,6 +1528,7 @@ public class UIUtil {
     g.setComposite(X_RENDER_ACTIVE.getValue() ? AlphaComposite.SrcOver : AlphaComposite.Src);
   }
 
+  @TestOnly
   public static void dispatchAllInvocationEvents() {
     assert SwingUtilities.isEventDispatchThread() : Thread.currentThread();
     final EventQueue eventQueue = Toolkit.getDefaultToolkit().getSystemEventQueue();

@@ -21,23 +21,25 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.fileTypes.FileTypeManager;
+import com.intellij.openapi.fileTypes.UnknownFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.LineSeparator;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
 
 public class FileContent extends DiffContent {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.diff.FileContent");
-  private final VirtualFile myFile;
+  @NotNull private final VirtualFile myFile;
   private Document myDocument;
   private final Project myProject;
   private final FileDocumentManager myDocumentManager;
-  private FileType myTypeForEmpty;
+  @Nullable  private FileType myType;
 
   public FileContent(Project project, @NotNull VirtualFile file) {
     myProject = project;
@@ -55,13 +57,15 @@ public class FileContent extends DiffContent {
     return new OpenFileDescriptor(myProject, myFile, offset);
   }
 
+  @NotNull
   public VirtualFile getFile() {
     return myFile;
   }
 
+  @Nullable 
   public FileType getContentType() {
-    if (isEmpty()) return myTypeForEmpty;
-    return DiffContentUtil.getContentType(myFile);
+    FileType type = myFile.getFileType();
+    return isUnknown(type) ? myType : type;
   }
 
   public byte[] getBytes() throws IOException {
@@ -71,17 +75,15 @@ public class FileContent extends DiffContent {
 
   public boolean isBinary() {
     if (myFile.isDirectory()) return false;
-    if (isEmpty()) return myTypeForEmpty.isBinary();
+    if (myType != null && !myType.isBinary()) {
+      return false;                                      
+    }
     return myFile.getFileType().isBinary();
   }
 
   public static FileContent createFromTempFile(Project project, String name, String ext, @NotNull byte[] content) throws IOException {
-    final File tempFile;
-    if (content.length == 0) {
-      tempFile = FileUtil.createTempFile(name, "txt");
-      FileUtil.writeToFile(tempFile, "Does not exist");
-    } else {
-      tempFile = FileUtil.createTempFile(name, ext);
+    File tempFile = FileUtil.createTempFile(name, "." + ext);
+    if (content.length != 0) {
       FileUtil.writeToFile(tempFile, content);
     }
     tempFile.deleteOnExit();
@@ -92,16 +94,25 @@ public class FileContent extends DiffContent {
     }
     if (file != null) {
       final FileContent fileContent = new FileContent(project, file);
-      if (content.length == 0) {
-        fileContent.setIsEmpty(true);
-        fileContent.myTypeForEmpty = FileTypeManager.getInstance().getFileTypeByFileName(name + "." + ext);
-      }
-      else {
-        FileTypeManager.getInstance().detectFileTypeFromContent(file);
-      }
+      fileContent.myType = detectType(file);
       return fileContent;
     }
     throw new IOException("Can not create temp file for revision content");
+  }
+
+  @Nullable  
+  private static FileType detectType(@NotNull VirtualFile file) {
+    FileType type = FileTypeManager.getInstance().getFileTypeByFile(file);
+    if (isUnknown(type)) {
+      type = FileTypeManager.getInstance().detectFileTypeFromContent(file);
+    }
+    // the type is left null intentionally: according to the contract of #getContentType, 
+    // if file type is null it may be taken from another diff content
+    return isUnknown(type) ? null : type;   
+  }
+
+  private static boolean isUnknown(@NotNull FileType type) {
+    return type.equals(UnknownFileType.INSTANCE);
   }
 
   @NotNull

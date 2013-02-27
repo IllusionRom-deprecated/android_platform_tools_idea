@@ -19,6 +19,7 @@ import com.intellij.codeInsight.TargetElementUtil
 import com.intellij.codeInsight.completion.impl.CompletionServiceImpl
 import com.intellij.codeInsight.editorActions.CompletionAutoPopupHandler
 import com.intellij.codeInsight.lookup.Lookup
+import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.lookup.impl.LookupImpl
 import com.intellij.codeInsight.template.TemplateManager
@@ -977,14 +978,6 @@ class Foo {
     assert myFixture.lookupElementStrings.containsAll(['private', 'protected'])
   }
 
-  public void testArrays() {
-    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
-    type 'Arrays.'
-    myFixture.checkResult "class Foo {{ Arrays.<caret> }}"
-    assert 'Arrays.asList' in myFixture.lookupElementStrings
-  }
-
-
   public void testExactMatchesFirst() {
     myFixture.configureByText("a.java", """
 public class UTest {
@@ -1068,26 +1061,6 @@ public class UTest {
     assert myFixture.lookupElementStrings == ['iterator']
   }
 
-  public void testTypingNonImportedClassName() {
-    myFixture.addClass("package foo; public class Foo239 {} ")
-    myFixture.addClass("class Foo239Util {} ")
-    myFixture.addClass("class Foo239Util2 {} ")
-
-    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
-    type 'Foo239 '
-    assert myFixture.file.text.contains('Foo239 ')
-    
-    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
-    type 'Foo239'
-    edt { myFixture.performEditorAction IdeActions.ACTION_EDITOR_MOVE_CARET_DOWN }
-    type ' '
-    assert myFixture.file.text.contains('Foo239Util2 ')
-
-    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
-    type 'new Foo239('
-    assert myFixture.file.text.contains('new Foo239()')
-  }
-
   public void testTypingFirstVarargDot() {
     myFixture.configureByText "a.java", "class Foo { void foo(Foo<caret>[] a) { }; class Bar {}}"
     type '.'
@@ -1147,18 +1120,35 @@ class Foo {{
     assert end == myFixture.editor.caretModel.logicalPosition
   }
 
-  public void testNonImportedClass() {
+  public void "test two non-imported classes when space selects first autopopup item"() {
     myFixture.addClass("package foo; public class Abcdefg {}")
     myFixture.configureByText 'a.java', 'class Foo extends <caret>'
     type 'Abcde '
     myFixture.checkResult 'import foo.Abcdefg;\n\nclass Foo extends Abcdefg <caret>'
   }
 
-  public void testTwoNonImportedClasses() {
+  public void "test two non-imported classes when space does not select first autopopup item"() {
+    CodeInsightSettings.instance.SELECT_AUTOPOPUP_SUGGESTIONS_BY_CHARS = false
+
     myFixture.addClass("package foo; public class Abcdefg {}")
     myFixture.addClass("package bar; public class Abcdefg {}")
     myFixture.configureByText 'a.java', 'class Foo extends <caret>'
-    type 'Abcde '
+    type 'Abcde'
+    assert lookup.items.size() == 2
+    edt { myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_CARET_DOWN) }
+    type ' '
+    myFixture.checkResult '''import bar.Abcdefg;
+
+class Foo extends Abcdefg <caret>'''
+  }
+
+  public void testTwoNonImportedClasses_() {
+    myFixture.addClass("package foo; public class Abcdefg {}")
+    myFixture.addClass("package bar; public class Abcdefg {}")
+    myFixture.configureByText 'a.java', 'class Foo extends <caret>'
+    type 'Abcde'
+    assert lookup.items.size() == 1
+    type ' '
     myFixture.checkResult 'class Foo extends Abcdefg <caret>'
   }
 
@@ -1206,11 +1196,17 @@ class Foo {{
   }
 
   public void testAmbiguousClassQualifier() {
-    myFixture.addClass("package foo; public class Util { public static void foo() {} }")
+    myFixture.addClass("package foo; public class Util<T> { public static void foo() {}; public static final int CONSTANT = 2; }")
     myFixture.addClass("package bar; public class Util { public static void bar() {} }")
     myFixture.configureByText 'a.java', 'class Foo {{ <caret> }}'
     type 'Util.'
-    assert myFixture.lookupElementStrings == ['Util.bar', 'Util.foo']
+    assert myFixture.lookupElementStrings == ['Util.bar', 'Util.CONSTANT', 'Util.foo']
+
+    def p = LookupElementPresentation.renderElement(myFixture.lookupElements[1])
+    assert p.itemText == 'Util.CONSTANT'
+    assert p.tailText == ' (foo)'
+    assert p.typeText == 'int'
+
     type 'fo\n'
     myFixture.checkResult '''import foo.Util;
 
@@ -1219,6 +1215,8 @@ class Foo {{
   }
 
   public void testPackageQualifier() {
+    CodeInsightSettings.instance.SELECT_AUTOPOPUP_SUGGESTIONS_BY_CHARS = false
+
     myFixture.addClass("package com.too; public class Util {}")
     myFixture.configureByText 'a.java', 'class Foo { void foo(Object command) { <caret> }}'
     type 'com.t'
@@ -1310,14 +1308,6 @@ class Foo {
     assert myFixture.lookupElementStrings == ['class']
     myFixture.type('\b\n')
     myFixture.checkResult('class <caret>')
-  }
-
-  public void "test check for class existing globally when typing comma"() {
-    myFixture.addClass('package p; public class XYZ {}')
-    myFixture.addClass('public class XYZAspect {}')
-    myFixture.configureByText 'a.java', 'class Foo extends Map<caret>'
-    type '<XYZ, XYZ>'
-    myFixture.checkResult 'class Foo extends Map<XYZ, XYZ><caret>'
   }
 
   void joinCompletion() {

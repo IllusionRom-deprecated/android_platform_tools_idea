@@ -32,7 +32,12 @@ public class LambdaHighlightingUtil {
     final List<MethodSignature> signatures = LambdaUtil.findFunctionCandidates(psiClass);
     if (signatures == null) return "Target type of a lambda conversion must be an interface";
     if (signatures.isEmpty()) return "No target method found";
-    return signatures.size() == 1 ? null : "Multiple non-overriding abstract methods found";
+    if (signatures.size() == 1) {
+      final MethodSignature functionalMethod = signatures.get(0);
+      if (functionalMethod.getTypeParameters().length > 0) return "Target method is generic";
+      return null;
+    }
+    return "Multiple non-overriding abstract methods found";
   }
 
   public static String checkReturnTypeCompatible(PsiLambdaExpression lambdaExpression, PsiType functionalInterfaceReturnType) {
@@ -40,11 +45,11 @@ public class LambdaHighlightingUtil {
       final PsiElement body = lambdaExpression.getBody();
       if (body instanceof PsiCodeBlock) {
         if (!LambdaUtil.getReturnExpressions(lambdaExpression).isEmpty()) return "Unexpected return value";
-      } else if (body instanceof PsiExpression) {
-        /*final PsiType type = ((PsiExpression)body).getType();
+      } else if (body instanceof PsiReferenceExpression || body instanceof PsiLiteralExpression) {
+        final PsiType type = ((PsiExpression)body).getType();
         if (type != PsiType.VOID) {
           return "Incompatible return type " + (type == PsiType.NULL || type == null ? "<null>" : type.getPresentableText()) +" in lambda expression";
-        }*/
+        }
       }
     } else if (functionalInterfaceReturnType != null) {
       final List<PsiExpression> returnExpressions = LambdaUtil.getReturnExpressions(lambdaExpression);
@@ -98,12 +103,12 @@ public class LambdaHighlightingUtil {
       final PsiType substitution = resolveResult.getSubstitutor().substitute(parameter);
       if (substitution instanceof PsiWildcardType && !((PsiWildcardType)substitution).isBounded()) {
         for (PsiType paramType : methodSignature.getParameterTypes()) {
-          if (LambdaUtil.depends(paramType, parameter, new LambdaUtil.TypeParamsChecker((PsiMethod)null, aClass) {
+          if (LambdaUtil.depends(paramType, new LambdaUtil.TypeParamsChecker((PsiMethod)null, aClass) {
             @Override
             public boolean startedInference() {
               return true;
             }
-          })) {
+          }, parameter)) {
             depends = true;
             break;
           }

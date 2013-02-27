@@ -21,12 +21,11 @@ package com.intellij.codeInsight.daemon.impl;
 
 import com.intellij.codeHighlighting.TextEditorHighlightingPass;
 import com.intellij.codeInsight.highlighting.BraceMatchingUtil;
-import com.intellij.lang.LanguageParserDefinitions;
+import com.intellij.lang.*;
 import com.intellij.openapi.editor.*;
 import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.editor.ex.EditorEx;
-import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.highlighter.HighlighterIterator;
 import com.intellij.openapi.editor.markup.CustomHighlighterRenderer;
 import com.intellij.openapi.editor.markup.HighlighterTargetArea;
@@ -40,19 +39,25 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.TokenSet;
 import com.intellij.util.DocumentUtil;
+import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.ContainerUtilRt;
 import com.intellij.util.containers.IntStack;
 import com.intellij.util.text.CharArrayUtil;
+import gnu.trove.TIntIntHashMap;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentMap;
 
 public class IndentsPass extends TextEditorHighlightingPass implements DumbAware {
+  private static final ConcurrentMap<IElementType, String> COMMENT_PREFIXES       = ContainerUtil.newConcurrentMap();
+  private static final String                              NO_COMMENT_INFO_MARKER = "hopefully, noone uses this string as a comment prefix";
+
   private static final Key<List<RangeHighlighter>> INDENT_HIGHLIGHTERS_IN_EDITOR_KEY = Key.create("INDENT_HIGHLIGHTERS_IN_EDITOR_KEY");
   private static final Key<Long>                   LAST_TIME_INDENTS_BUILT           = Key.create("LAST_TIME_INDENTS_BUILT");
 
@@ -89,8 +94,9 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
 
       final CharSequence chars = doc.getCharsSequence();
       do {
-        int pos = doc.getLineStartOffset(startLine);
-        off = CharArrayUtil.shiftForward(chars, pos, " \t");
+        int start = doc.getLineStartOffset(startLine);
+        int end = doc.getLineEndOffset(startLine);
+        off = CharArrayUtil.shiftForward(chars, start, end, " \t");
         startLine--;
       }
       while (startLine > 1 && off < doc.getTextLength() && chars.charAt(off) == '\n');
@@ -209,6 +215,7 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
 
   @Override
   public void doCollectInformation(@NotNull ProgressIndicator progress) {
+    assert myDocument != null;
     final Long stamp = myEditor.getUserData(LAST_TIME_INDENTS_BUILT);
     if (stamp != null && stamp.longValue() == nowStamp()) return;
 
@@ -228,6 +235,7 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
 
   private long nowStamp() {
     if (!myEditor.getSettings().isIndentGuidesShown()) return -1;
+    assert myDocument != null;
     return myDocument.getModificationStamp();
   }
 
@@ -271,6 +279,7 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
     }
 
     final int startRangeIndex = curRange;
+    assert myDocument != null;
     DocumentUtil.executeInBulk(myDocument, myRanges.size() > 10000, new Runnable() {
       @Override
       public void run() {
@@ -279,7 +288,7 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
         }
       }
     });
-    
+
 
     myEditor.putUserData(INDENT_HIGHLIGHTERS_IN_EDITOR_KEY, newHighlighters);
     myEditor.putUserData(LAST_TIME_INDENTS_BUILT, nowStamp());
@@ -289,7 +298,10 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
   private List<IndentGuideDescriptor> buildDescriptors() {
     if (!myEditor.getSettings().isIndentGuidesShown()) return Collections.emptyList();
 
-    int[] lineIndents = calcIndents();
+    IndentsCalculator calculator = new IndentsCalculator();
+    calculator.calculate();
+    int[] lineIndents = calculator.lineIndents;
+    TIntIntHashMap effectiveCommentColumns = calculator.indentAfterUncomment;
 
     List<IndentGuideDescriptor> descriptors = new ArrayList<IndentGuideDescriptor>();
 
@@ -298,6 +310,7 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
 
     lines.push(0);
     indents.push(0);
+    assert myDocument != null;
     final CharSequence chars = myDocument.getCharsSequence();
     for (int line = 1; line < lineIndents.length; line++) {
       ProgressManager.checkCanceled();
@@ -307,7 +320,20 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
         ProgressManager.checkCanceled();
         final int level = indents.pop();
         int startLine = lines.pop();
-        descriptors.add(createDescriptor(level, startLine, line, chars));
+        if (level > 0) {
+          boolean addDescriptor = effectiveCommentColumns.contains(startLine); // Indent started at comment
+          if (!addDescriptor) {
+            for (int i = startLine; i < line; i++) {
+              if (level != lineIndents[i] && level != effectiveCommentColumns.get(i)) {
+                addDescriptor = true;
+                break;
+              }
+            }
+          }
+          if (addDescriptor) {
+            descriptors.add(createDescriptor(level, startLine, line, chars));
+          }
+        }
       }
 
       int prevLine = line - 1;
@@ -322,8 +348,8 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
     while (!indents.empty()) {
       ProgressManager.checkCanceled();
       final int level = indents.pop();
+      int startLine = lines.pop();
       if (level > 0) {
-        int startLine = lines.pop();
         descriptors.add(createDescriptor(level, startLine, myDocument.getLineCount(), chars));
       }
     }
@@ -341,87 +367,63 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
       return true;
     }
     int startOffset = document.getLineStartOffset(line);
-    return CharArrayUtil.shiftForward(chars, startOffset, " \t") >= myDocument.getLineEndOffset(line);
+    int endOffset = document.getLineEndOffset(line);
+    return CharArrayUtil.shiftForward(chars, startOffset, endOffset, " \t") >= myDocument.getLineEndOffset(line);
   }
 
-  private int[] calcIndents() {
-    final Document doc = myDocument;
-    CharSequence chars = doc.getCharsSequence();
-    int[] lineIndents = new int[doc.getLineCount()];
-    TokenSet comments = LanguageParserDefinitions.INSTANCE.forLanguage(myFile.getLanguage()).getCommentTokens();
-
-    int prevColumn = -1;
-    final EditorHighlighter highlighter = myEditor.getHighlighter();
-    final FileType fileType = myFile.getFileType();
-
-    for (int line = 0; line < lineIndents.length; line++) {
-      ProgressManager.checkCanceled();
-      int lineStart = doc.getLineStartOffset(line);
-      int lineEnd = doc.getLineEndOffset(line);
-
-      int nonWhitespaceOffset = CharArrayUtil.shiftForward(chars, lineStart, " \t");
-      if (nonWhitespaceOffset < lineEnd) {
-        final int column = myEditor.calcColumnNumber(nonWhitespaceOffset, line);
-        if (column != prevColumn) {
-          final HighlighterIterator it = highlighter.createIterator(nonWhitespaceOffset);
-          if (comments.contains(it.getTokenType())) {
-            final int commentIndentStartOffset = CharArrayUtil.shiftForwardUntil(chars, Math.max(it.getStart(), lineStart), " \t");
-            if (commentIndentStartOffset < it.getEnd() && commentIndentStartOffset < lineEnd) {
-              final int indentOffsetInsideComment = CharArrayUtil.shiftForward(chars, commentIndentStartOffset, " \t");
-              if (indentOffsetInsideComment < it.getEnd() && indentOffsetInsideComment < lineEnd) {
-                lineIndents[line] = myEditor.calcColumnNumber(indentOffsetInsideComment, line);
-                continue;
-              }
-            }
-            continue;
-          }
-        }
-
-        lineIndents[line] = column;
-        prevColumn = column;
-      }
-      else {
-        lineIndents[line] = -1;
-      }
+  /**
+   * We want to treat comments specially in a way to skip comment prefix on line indent calculation.
+   * <p/>
+   * Example:
+   * <pre>
+   *   if (true) {
+   *     int i1;
+   * //    int i2;
+   *     int i3;
+   *   }
+   * </pre>
+   * We want to use 'int i2;' start offset as the third line indent (though it has non-white space comment prefix (//)
+   * at the first column.
+   * <p/>
+   * This method tries to parse comment prefix for the language implied by the given comment type. It uses
+   * {@link #NO_COMMENT_INFO_MARKER} as an indicator that that information is unavailable
+   * 
+   * @param commentType  target comment type
+   * @return             prefix of the comment denoted by the given type if any;
+   *                     {@link #NO_COMMENT_INFO_MARKER} otherwise
+   */
+  @NotNull
+  private static String getCommentPrefix(@NotNull IElementType commentType) {
+    Commenter c = LanguageCommenters.INSTANCE.forLanguage(commentType.getLanguage());
+    if (!(c instanceof CodeDocumentationAwareCommenter)) {
+      COMMENT_PREFIXES.put(commentType, NO_COMMENT_INFO_MARKER);
+      return NO_COMMENT_INFO_MARKER;
+    }
+    CodeDocumentationAwareCommenter commenter = (CodeDocumentationAwareCommenter)c;
+    
+    IElementType lineCommentType = commenter.getLineCommentTokenType();
+    String lineCommentPrefix = commenter.getLineCommentPrefix();
+    if (lineCommentType != null) {
+      COMMENT_PREFIXES.put(lineCommentType, lineCommentPrefix == null ? NO_COMMENT_INFO_MARKER : lineCommentPrefix);
     }
 
-    int topIndent = 0;
-    for (int line = 0; line < lineIndents.length; line++) {
-      ProgressManager.checkCanceled();
-      if (lineIndents[line] >= 0) {
-        topIndent = lineIndents[line];
-      }
-      else {
-        int startLine = line;
-        while (line < lineIndents.length && lineIndents[line] < 0) {
-          //noinspection AssignmentToForLoopParameter
-          line++;
-        }
-
-        int bottomIndent = line < lineIndents.length ? lineIndents[line] : topIndent;
-
-        int indent = Math.min(topIndent, bottomIndent);
-        if (bottomIndent < topIndent) {
-          int nonWhitespaceOffset = CharArrayUtil.shiftForward(chars, doc.getLineStartOffset(line), " \t");
-          HighlighterIterator iterator = highlighter.createIterator(nonWhitespaceOffset);
-          if (BraceMatchingUtil.isRBraceToken(iterator, chars, fileType)) {
-            indent = topIndent;
-          }
-        }
-
-        for (int blankLine = startLine; blankLine < line; blankLine++) {
-          assert lineIndents[blankLine] == -1;
-          lineIndents[blankLine] = Math.min(topIndent, indent);
-        }
-
-        //noinspection AssignmentToForLoopParameter
-        line--; // will be incremented back at the end of the loop;
-      }
+    IElementType blockCommentType = commenter.getBlockCommentTokenType();
+    String blockCommentPrefix = commenter.getBlockCommentPrefix();
+    if (blockCommentType != null) {
+      COMMENT_PREFIXES.put(blockCommentType, blockCommentPrefix == null ? NO_COMMENT_INFO_MARKER : blockCommentPrefix);
     }
 
-    return lineIndents;
+    IElementType docCommentType = commenter.getDocumentationCommentTokenType();
+    String docCommentPrefix = commenter.getDocumentationCommentPrefix();
+    if (docCommentType != null) {
+      COMMENT_PREFIXES.put(docCommentType, docCommentPrefix == null ? NO_COMMENT_INFO_MARKER : docCommentPrefix);
+    }
+
+    COMMENT_PREFIXES.putIfAbsent(commentType, NO_COMMENT_INFO_MARKER);
+    return COMMENT_PREFIXES.get(commentType);
   }
 
+  @NotNull
   private static RangeHighlighter createHighlighter(MarkupModel mm, TextRange range) {
     final RangeHighlighter highlighter =
       mm.addRangeHighlighter(range.getStartOffset(), range.getEndOffset(), 0, null, HighlighterTargetArea.EXACT_RANGE);
@@ -429,8 +431,146 @@ public class IndentsPass extends TextEditorHighlightingPass implements DumbAware
     return highlighter;
   }
 
-  private static int compare(TextRange r, RangeHighlighter h) {
+  private static int compare(@NotNull TextRange r, @NotNull RangeHighlighter h) {
     int answer = r.getStartOffset() - h.getStartOffset();
     return answer != 0 ? answer : r.getEndOffset() - h.getEndOffset();
+  }
+
+  private class IndentsCalculator {
+
+    @NotNull public final Map<Language, TokenSet> myComments = ContainerUtilRt.newHashMap();
+
+    /**
+     * We need to treat specially commented lines. Consider a situation like below:
+     * <pre>
+     *   void test() {
+     *     if (true) {
+     *       int i;
+     *  //     int j;
+     *     }
+     *   }
+     * </pre>
+     * We don't want to show indent guide after 'int i;' line because un-commented line below ('int j;') would have the same indent
+     * level. That's why we remember 'indents after un-comment' at this collection.
+     */
+    @NotNull public final TIntIntHashMap/* line -> indent column after un-comment */ indentAfterUncomment = new TIntIntHashMap();
+
+    @NotNull public final int[]        lineIndents;
+    @NotNull public final CharSequence myChars;
+
+    IndentsCalculator() {
+      assert myDocument != null;
+      lineIndents = new int[myDocument.getLineCount()];
+      myChars = myDocument.getCharsSequence();
+    }
+
+    /**
+     * Calculates line indents for the {@link #myDocument target document}.
+     */
+    void calculate() {
+      final FileType fileType = myFile.getFileType();
+      int prevLineIndent = -1;
+
+      for (int line = 0; line < lineIndents.length; line++) {
+        ProgressManager.checkCanceled();
+        int lineStart = myDocument.getLineStartOffset(line);
+        int lineEnd = myDocument.getLineEndOffset(line);
+        final int nonWhitespaceOffset = CharArrayUtil.shiftForward(myChars, lineStart, lineEnd, " \t");
+        final int column;
+        if (nonWhitespaceOffset == lineEnd) {
+          lineIndents[line] = -1; // Blank line marker
+        }
+        else {
+          column = myEditor.calcColumnNumber(nonWhitespaceOffset, line);
+          if (prevLineIndent > 0 && prevLineIndent > column) {
+            lineIndents[line] = calcIndent(line, nonWhitespaceOffset, lineEnd, column);
+          }
+          else {
+            lineIndents[line] = column;
+          }
+          prevLineIndent = lineIndents[line];
+        }
+      }
+
+      int topIndent = 0;
+      for (int line = 0; line < lineIndents.length; line++) {
+        ProgressManager.checkCanceled();
+        if (lineIndents[line] >= 0) {
+          topIndent = lineIndents[line];
+        }
+        else {
+          int startLine = line;
+          while (line < lineIndents.length && lineIndents[line] < 0) {
+            //noinspection AssignmentToForLoopParameter
+            line++;
+          }
+
+          int bottomIndent = line < lineIndents.length ? lineIndents[line] : topIndent;
+
+          int indent = Math.min(topIndent, bottomIndent);
+          if (bottomIndent < topIndent) {
+            int lineStart = myDocument.getLineStartOffset(line);
+            int lineEnd = myDocument.getLineEndOffset(line);
+            int nonWhitespaceOffset = CharArrayUtil.shiftForward(myChars, lineStart, lineEnd, " \t");
+            HighlighterIterator iterator = myEditor.getHighlighter().createIterator(nonWhitespaceOffset);
+            if (BraceMatchingUtil.isRBraceToken(iterator, myChars, fileType)) {
+              indent = topIndent;
+            }
+          }
+
+          for (int blankLine = startLine; blankLine < line; blankLine++) {
+            assert lineIndents[blankLine] == -1;
+            lineIndents[blankLine] = Math.min(topIndent, indent);
+          }
+
+          //noinspection AssignmentToForLoopParameter
+          line--; // will be incremented back at the end of the loop;
+        }
+      }
+    }
+
+    /**
+     * Tries to calculate given line's indent column assuming that there might be a comment at the given indent offset
+     * (see {@link #getCommentPrefix(IElementType)}).
+     *
+     * @param line            target line
+     * @param indentOffset    start indent offset to use for the given line
+     * @param lineEndOffset   given line's end offset
+     * @param fallbackColumn  column to return if it's not possible to apply comment-specific indent calculation rules 
+     * @return given line's indent column to use
+     */
+    private int calcIndent(int line, int indentOffset, int lineEndOffset, int fallbackColumn) {
+      final HighlighterIterator it = myEditor.getHighlighter().createIterator(indentOffset);
+      IElementType tokenType = it.getTokenType();
+      Language language = tokenType.getLanguage();
+      TokenSet comments = myComments.get(language);
+      if (comments == null) {
+        ParserDefinition definition = LanguageParserDefinitions.INSTANCE.forLanguage(language);
+        if (definition != null) {
+          comments = definition.getCommentTokens();
+        }
+        if (comments == null) {
+          return fallbackColumn;
+        }
+        else {
+          myComments.put(language, comments);
+        }
+      }
+      if (comments.contains(tokenType) && indentOffset == it.getStart()) {
+        String prefix = COMMENT_PREFIXES.get(tokenType);
+        if (prefix == null) {
+          prefix = getCommentPrefix(tokenType);
+        }
+        if (!NO_COMMENT_INFO_MARKER.equals(prefix)) {
+          final int indentInsideCommentOffset = CharArrayUtil.shiftForward(myChars, indentOffset + prefix.length(), lineEndOffset, " \t");
+          if (indentInsideCommentOffset < lineEndOffset) {
+            int indent = myEditor.calcColumnNumber(indentInsideCommentOffset, line);
+            indentAfterUncomment.put(line, indent - prefix.length());
+            return indent;
+          }
+        }
+      }
+      return fallbackColumn;
+    }
   }
 }

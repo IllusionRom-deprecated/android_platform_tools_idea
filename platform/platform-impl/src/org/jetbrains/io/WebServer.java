@@ -15,17 +15,13 @@
  */
 package org.jetbrains.io;
 
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.util.Computable;
-import com.intellij.openapi.util.ShutDownTracker;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.util.Consumer;
 import com.intellij.util.concurrency.Semaphore;
-import com.intellij.util.containers.ContainerUtil;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.group.ChannelGroup;
 import org.jboss.netty.channel.group.DefaultChannelGroup;
@@ -40,22 +36,19 @@ import org.jetbrains.ide.PooledThreadExecutor;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.jboss.netty.channel.Channels.pipeline;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
-public class WebServer {
-  private static final String START_TIME_PATH = "/startTime";
+public class WebServer implements Disposable {
+  static final String START_TIME_PATH = "/startTime";
 
-  private final List<ChannelFutureListener> closingListeners = ContainerUtil.createLockFreeCopyOnWriteList();
   private final ChannelGroup openChannels = new DefaultChannelGroup("web-server");
 
-  private static final Logger LOG = Logger.getInstance(WebServer.class);
+  static final Logger LOG = Logger.getInstance(WebServer.class);
 
   @NonNls
   private static final String PROPERTY_ONLY_ANY_HOST = "rpc.onlyAnyHost";
@@ -71,26 +64,18 @@ public class WebServer {
     return !openChannels.isEmpty();
   }
 
-  public void start(int port, Consumer<ChannelPipeline>... pipelineConsumers) {
-    start(port, new Computable.PredefinedValueComputable<Consumer<ChannelPipeline>[]>(pipelineConsumers));
+  public void start(int port) {
+    start(port, 1, false);
   }
 
-  public void start(int port, int portsCount, Consumer<ChannelPipeline>... pipelineConsumers) {
-    start(port, portsCount, false, new Computable.PredefinedValueComputable<Consumer<ChannelPipeline>[]>(pipelineConsumers));
-  }
-
-  public void start(int port, Computable<Consumer<ChannelPipeline>[]> pipelineConsumers) {
-    start(port, 1, false, pipelineConsumers);
-  }
-
-  public int start(int firstPort, int portsCount, boolean tryAnyPort, Computable<Consumer<ChannelPipeline>[]> pipelineConsumers) {
+  public int start(int firstPort, int portsCount, boolean tryAnyPort) {
     if (isRunning()) {
       throw new IllegalStateException("server already started");
     }
 
     ServerBootstrap bootstrap = new ServerBootstrap(channelFactory);
     bootstrap.setOption("child.tcpNoDelay", true);
-    bootstrap.setPipelineFactory(new ChannelPipelineFactoryImpl(pipelineConsumers, new DefaultHandler(openChannels)));
+    bootstrap.setPipelineFactory(new ChannelPipelineFactoryImpl(new PortUnificationServerHandler(openChannels)));
     return bind(firstPort, portsCount, tryAnyPort, bootstrap);
   }
 
@@ -102,7 +87,7 @@ public class WebServer {
     final Semaphore semaphore = new Semaphore();
     semaphore.down(); // must call to down() here to ensure that down was called _before_ up()
     bootstrap.setPipeline(
-      pipeline(new HttpResponseDecoder(), new HttpChunkAggregator(1048576), new HttpRequestEncoder(), new SimpleChannelUpstreamHandler() {
+      pipeline(new HttpResponseDecoder(), new HttpRequestEncoder(), new SimpleChannelUpstreamHandler() {
         @Override
         public void messageReceived(ChannelHandlerContext context, MessageEvent e) throws Exception {
           try {
@@ -170,7 +155,7 @@ public class WebServer {
     return true;
   }
 
-  private static String getApplicationStartTime() {
+  static String getApplicationStartTime() {
     return Long.toString(ApplicationManager.getApplication().getStartTime());
   }
 
@@ -259,109 +244,31 @@ public class WebServer {
     }
   }
 
-  public void stop() {
+  @Override
+  public void dispose() {
     try {
-      for (ChannelFutureListener listener : closingListeners) {
-        try {
-          listener.operationComplete(null);
-        }
-        catch (Exception e) {
-          LOG.error(e);
-        }
-      }
+      openChannels.close().awaitUninterruptibly();
     }
     finally {
-      try {
-        openChannels.close().awaitUninterruptibly();
-      }
-      finally {
-        channelFactory.releaseExternalResources();
-      }
+      channelFactory.releaseExternalResources();
     }
+    LOG.info("web server stopped");
   }
 
-  public void addClosingListener(ChannelFutureListener listener) {
-    closingListeners.add(listener);
-  }
-
-  public Runnable createShutdownTask() {
-    return new Runnable() {
-      @Override
-      public void run() {
-        if (isRunning()) {
-          stop();
-        }
-      }
-    };
-  }
-
-  public void addShutdownHook() {
-    ShutDownTracker.getInstance().registerShutdownTask(createShutdownTask());
-  }
-
-  public static void removePluggableHandlers(ChannelPipeline pipeline) {
-    for (String name : pipeline.getNames()) {
-      if (name.startsWith("pluggable_")) {
-        pipeline.remove(name);
-      }
-    }
+  public static void replaceDefaultHandler(@NotNull ChannelHandlerContext context, @NotNull SimpleChannelUpstreamHandler messageChannelHandler) {
+    context.getPipeline().replace(DelegatingHttpRequestHandler.class, "replacedDefaultHandler", messageChannelHandler);
   }
 
   private static class ChannelPipelineFactoryImpl implements ChannelPipelineFactory {
-    private final Computable<Consumer<ChannelPipeline>[]> pipelineConsumers;
-    private final DefaultHandler defaultHandler;
+    private final ChannelHandler defaultHandler;
 
-    public ChannelPipelineFactoryImpl(Computable<Consumer<ChannelPipeline>[]> pipelineConsumers, DefaultHandler defaultHandler) {
-      this.pipelineConsumers = pipelineConsumers;
+    public ChannelPipelineFactoryImpl(ChannelHandler defaultHandler) {
       this.defaultHandler = defaultHandler;
     }
 
     @Override
     public ChannelPipeline getPipeline() throws Exception {
-      ChannelPipeline pipeline = pipeline(new HttpRequestDecoder(), new HttpChunkAggregator(1048576), new HttpResponseEncoder());
-      for (Consumer<ChannelPipeline> consumer : pipelineConsumers.compute()) {
-        try {
-          consumer.consume(pipeline);
-        }
-        catch (Throwable e) {
-          LOG.error(e);
-        }
-      }
-      pipeline.addLast("defaultHandler", defaultHandler);
-      return pipeline;
-    }
-  }
-
-  @ChannelHandler.Sharable
-  private static class DefaultHandler extends SimpleChannelUpstreamHandler {
-    private final ChannelGroup openChannels;
-
-    public DefaultHandler(ChannelGroup openChannels) {
-      this.openChannels = openChannels;
-    }
-
-    @Override
-    public void channelOpen(ChannelHandlerContext context, ChannelStateEvent e) {
-      openChannels.add(e.getChannel());
-    }
-
-    @Override
-    public void messageReceived(ChannelHandlerContext context, MessageEvent e) throws Exception {
-      if (e.getMessage() instanceof HttpRequest) {
-        HttpRequest message = (HttpRequest)e.getMessage();
-        HttpResponse response;
-        if (new QueryStringDecoder(message.getUri()).getPath().equals(START_TIME_PATH)) {
-          response = new DefaultHttpResponse(HTTP_1_1, OK);
-          response.setHeader("Access-Control-Allow-Origin", "*");
-          response.setContent(ChannelBuffers.copiedBuffer(getApplicationStartTime(), CharsetUtil.US_ASCII));
-        }
-        else {
-          response = new DefaultHttpResponse(HTTP_1_1, NOT_FOUND);
-        }
-        Responses.addServer(response);
-        Responses.addDate(response);
-        context.getChannel().write(response).addListener(ChannelFutureListener.CLOSE);
-      }
+      return pipeline(defaultHandler);
     }
   }
 }

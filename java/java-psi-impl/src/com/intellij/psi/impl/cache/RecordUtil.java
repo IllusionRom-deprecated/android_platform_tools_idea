@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,8 +59,8 @@ public class RecordUtil {
 
   public static boolean isDeprecatedByDocComment(@NotNull LighterAST tree, @NotNull LighterASTNode comment) {
     // todo[r.sh] parse doc comments, implement tree lookup
-    final String text = LightTreeUtil.toFilteredString(tree, comment, null);
-    return text != null && text.contains(DEPRECATED_TAG);
+    String text = LightTreeUtil.toFilteredString(tree, comment, null);
+    return text.contains(DEPRECATED_TAG);
   }
 
   public static int packModifierList(@NotNull LighterAST tree, @NotNull LighterASTNode modList, @NotNull StubElement parent) {
@@ -146,6 +146,7 @@ public class RecordUtil {
     return packed;
   }
 
+  @NotNull
   public static String intern(@NotNull CharTable table, @NotNull LighterASTNode node) {
     assert node instanceof LighterASTTokenNode : node;
     return table.intern(((LighterASTTokenNode)node).getText()).toString();

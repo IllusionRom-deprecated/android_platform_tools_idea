@@ -160,7 +160,7 @@ public class GroovyPsiElementFactoryImpl extends GroovyPsiElementFactory {
 
   @NotNull
   public GrExpression createExpressionFromText(@NotNull String text, PsiElement context) {
-    GroovyFile file = createGroovyFileChecked(text, false, context);
+    GroovyFile file = createGroovyFile(text, false, context);
     GrTopStatement[] topStatements = file.getTopStatements();
     if (topStatements.length == 0 || !(topStatements[0] instanceof GrExpression)) {
       throw new IncorrectOperationException("incorrect expression = '" + text + "'");
@@ -421,8 +421,10 @@ public class GroovyPsiElementFactoryImpl extends GroovyPsiElementFactory {
   }
 
   public PsiElement createModifierFromText(String name) {
-    final GroovyFileBase file = createGroovyFileChecked(name + "\"foo\"() {}");
-    return file.getTopLevelDefinitions()[0].getFirstChild().getFirstChild();
+    final GroovyFileBase file = createGroovyFileChecked(name + " foo() {}");
+    final GrTopLevelDefinition[] definitions = file.getTopLevelDefinitions();
+    if (definitions.length != 1) throw new IncorrectOperationException(name);
+    return definitions[0].getFirstChild().getFirstChild();
   }
 
   public GrCodeBlock createMethodBodyFromText(String text) {
@@ -485,7 +487,7 @@ public class GroovyPsiElementFactoryImpl extends GroovyPsiElementFactory {
 
   @NotNull
   public GrMethod createMethodFromText(@NotNull String methodText, @Nullable PsiElement context) {
-    GroovyFile file = createGroovyFileChecked(methodText, false, context);
+    GroovyFile file = createGroovyFile(methodText, false, context);
 
     GrTopStatement[] definitions = file.getTopStatements();
     if (definitions.length != 1) {
