@@ -62,13 +62,6 @@ public class PlatformUtils {
     return APPCODE_PREFIX.equals(getPlatformPrefix());
   }
 
-  // We'll be calling this a lot, so don't compute each time
-  private static boolean ourAndroidIde = Boolean.valueOf(ANDROID_PREFIX.equals(getPlatformPrefix()));
-
-  public static boolean isAndroidIde() {
-    return ourAndroidIde;
-  }
-
   public static boolean isPyCharm() {
     return PYCHARM_PREFIX.equals(getPlatformPrefix());
   }
