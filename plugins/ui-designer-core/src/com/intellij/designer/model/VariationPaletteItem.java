@@ -1,18 +1,3 @@
-/*
- * Copyright 2000-2013 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package com.intellij.designer.model;
 
 import com.intellij.designer.palette.PaletteItem;
@@ -23,16 +8,13 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-import static com.intellij.designer.model.MetaManager.*;
-
 /**
  * Implementation of a {@link PaletteItem} which delegates to another {@linkplain PaletteItem}
  * but which possibly overrides the title, icon and or creation properties.
  */
-class VariationPaletteItem implements PaletteItem {
+final class VariationPaletteItem implements PaletteItem {
   private final PaletteItem myDefaultItem;
   private final MetaModel myModel;
-  private final Element myElement;
   private final String myTitle;
   private final String myIconPath;
   private final String myTooltip;
@@ -42,30 +24,30 @@ class VariationPaletteItem implements PaletteItem {
   VariationPaletteItem(PaletteItem defaultItem, MetaModel model, Element element) {
     myDefaultItem = defaultItem;
     myModel = model;
-    myElement = element;
 
-    String title = myElement.getAttributeValue(ATTR_TITLE);
+    String title = element.getAttributeValue("title");
     if (StringUtil.isEmpty(title)) {
       title = myDefaultItem.getTitle();
     }
     myTitle = title;
 
-    String iconPath = myElement.getAttributeValue(ATTR_ICON);
+    String iconPath = element.getAttributeValue("icon");
     if (StringUtil.isEmpty(iconPath)) {
       myIcon = myDefaultItem.getIcon();
     }
     myIconPath = iconPath;
 
-    String tooltip = myElement.getAttributeValue(ATTR_TOOLTIP);
+    String tooltip = element.getAttributeValue("tooltip");
     if (StringUtil.isEmpty(tooltip)) {
       tooltip = myDefaultItem.getTooltip();
     }
     myTooltip = tooltip;
 
-    Element creation = myElement.getChild(CREATION);
+    Element creation = element.getChild("creation");
     if (creation != null) {
       myCreation = creation.getTextTrim();
-    } else {
+    }
+    else {
       myCreation = myModel.getCreation();
     }
   }

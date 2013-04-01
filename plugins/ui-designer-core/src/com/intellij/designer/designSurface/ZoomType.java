@@ -16,21 +16,33 @@
 package com.intellij.designer.designSurface;
 
 public enum ZoomType {
-  /** Zoom in */
+  /**
+   * Zoom in
+   */
   IN,
 
-  /** Zoom out */
+  /**
+   * Zoom out
+   */
   OUT,
 
-  /** Zoom to actual size (100%) */
+  /**
+   * Zoom to actual size (100%)
+   */
   ACTUAL,
 
-  /** Zoom to fit (the screen view port) */
+  /**
+   * Zoom to fit (the screen view port)
+   */
   FIT,
 
-  /** Zoom to fit, but do not zoom more than 100% */
+  /**
+   * Zoom to fit, but do not zoom more than 100%
+   */
   FIT_INTO,
 
-  /** Zoom to match the exact device size (depends on the monitor dpi) */
-  SCREEN;
+  /**
+   * Zoom to match the exact device size (depends on the monitor dpi)
+   */
+  SCREEN
 }

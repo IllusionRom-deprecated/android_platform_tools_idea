@@ -15,8 +15,6 @@
  */
 package com.intellij.designer.designSurface;
 
-import org.jetbrains.annotations.NotNull;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -25,50 +23,41 @@ import java.awt.image.BufferedImage;
  * @author Alexander Lobas
  */
 public class RootView extends JComponent {
-  protected final int myX;
-  protected final int myY;
+  protected int myX;
+  protected int myY;
   protected BufferedImage myImage;
-  protected boolean myAlphaChannelImage;
 
-  public RootView(int x, int y, @NotNull BufferedImage image, boolean alphaChannelImage) {
-    this(x, y);
-    setImage(image, alphaChannelImage);
+  public RootView(int x, int y, BufferedImage image) {
+    updateLocation(x, y);
+    setImage(image);
   }
 
   public RootView(int x, int y) {
+    updateLocation(x, y);
+  }
+
+  public void updateLocation(int x, int y) {
     myX = x;
     myY = y;
   }
 
-  @NotNull
   public BufferedImage getImage() {
     return myImage;
   }
 
-  public boolean isAlphaChannelImage() {
-    return myAlphaChannelImage;
+  public final void setImage(BufferedImage image) {
+    setImage(image, myX, myY, image.getWidth(), image.getHeight());
   }
 
-  public void setImage(@NotNull BufferedImage image, boolean alphaChannelImage) {
+  public void setImage(BufferedImage image, int x, int y, int width, int height) {
     myImage = image;
-    myAlphaChannelImage = alphaChannelImage;
-    updateSize();
+    setBounds(x, y, width, height);
     repaint();
-  }
-
-  protected void updateSize() {
-    if (myImage != null) {
-      setBounds(myX, myY, myImage.getWidth(), myImage.getHeight());
-    }
   }
 
   @Override
   public void paintComponent(Graphics g) {
     super.paintComponent(g);
-    paintImage(g);
-  }
-
-  protected void paintImage(Graphics g) {
     g.drawImage(myImage, 0, 0, null);
   }
 }

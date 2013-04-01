@@ -156,7 +156,7 @@ public class StackingPopupDispatcherImpl extends StackingPopupDispatcher impleme
   }
 
   public boolean dispatchKeyEvent(final KeyEvent e) {
-    final boolean closeRequest = e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_ESCAPE && e.getModifiers() == 0;
+    final boolean closeRequest = AbstractPopup.isCloseRequest(e);
 
     JBPopup popup;
 
@@ -165,20 +165,7 @@ public class StackingPopupDispatcherImpl extends StackingPopupDispatcher impleme
     } else {
       popup = getFocusedPopup();
     }
-
-    if (popup == null) return false;
-
-
-    if (closeRequest) {
-      if (popup.isCancelKeyEnabled()) {
-        popup.cancel();
-        return true;
-      }
-    } else {
-      return popup.dispatchKeyEvent(e);
-    }
-
-    return false;
+    return popup != null && popup.dispatchKeyEvent(e);
   }
 
 

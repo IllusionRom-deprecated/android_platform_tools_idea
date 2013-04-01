@@ -78,7 +78,6 @@ import java.util.zip.ZipInputStream;
 public class PluginManager {
 
   @NonNls private static final String PROPERTY_PLUGIN_PATH = "plugin.path";
-  private static final Object PLUGIN_CLASSES_LOCK = new Object();
   @NonNls public static final String INSTALLED_TXT = "installed.txt";
   private static String myPluginError = null;
   private static List<String> myPlugins2Disable = null;
@@ -102,7 +101,7 @@ public class PluginManager {
   public static final float PLUGINS_PROGRESS_MAX_VALUE = 0.3f;
 
   private static IdeaPluginDescriptorImpl[] ourPlugins;
-  private static Map<String, PluginId> ourPluginClasses;
+  private static final PluginClassCache ourPluginClasses = new PluginClassCache();
   private static final String DISABLE = "disable";
   private static final String ENABLE = "enable";
   private static final String EDIT = "edit";
@@ -132,19 +131,25 @@ public class PluginManager {
   }
 
   private static void logPlugins() {
-    List<String> loaded = new ArrayList<String>();
+    List<String> loadedBundled = new ArrayList<String>();
     List<String> disabled = new ArrayList<String>();
+    List<String> loadedCustom = new ArrayList<String>();
+
     for (IdeaPluginDescriptorImpl descriptor : ourPlugins) {
       final String version = descriptor.getVersion();
       String s = descriptor.getName() + (version != null ? " (" + version + ")" : "");
       if (descriptor.isEnabled()) {
-        loaded.add(s);
+        if (descriptor.isBundled()) loadedBundled.add(s);
+        else loadedCustom.add(s);
       }
       else {
         disabled.add(s);
       }
     }
-    getLogger().info("Loaded plugins:" + StringUtil.join(loaded, ", "));
+    getLogger().info("Loaded bundled plugins: " + StringUtil.join(loadedBundled, ", "));
+    if (!loadedCustom.isEmpty()) {
+      getLogger().info("Loaded custom plugins: " + StringUtil.join(loadedCustom, ", "));
+    }
     if (!disabled.isEmpty()) {
       getLogger().info("Disabled plugins: " + StringUtil.join(disabled, ", "));
     }
@@ -164,6 +169,7 @@ public class PluginManager {
     try {
       //noinspection HardCodedStringLiteral
       ThreadGroup threadGroup = new ThreadGroup("Idea Thread Group") {
+        @Override
         public void uncaughtException(Thread t, Throwable e) {
           if (!(e instanceof ProcessCanceledException)) {
             getLogger().error(e);
@@ -172,6 +178,7 @@ public class PluginManager {
       };
 
       Runnable runnable = new Runnable() {
+        @Override
         public void run() {
           try {
             ClassloaderUtil.clearJarURLCache();
@@ -402,7 +409,7 @@ public class PluginManager {
   private static <T extends IdeaPluginDescriptor> void addModulesAsDependents(final Map<PluginId, T> map) {
     for (String module : ourAvailableModules) {
       // fake plugin descriptors to satisfy dependencies
-      map.put(PluginId.getId(module), (T) new IdeaPluginDescriptorImpl(null));
+      map.put(PluginId.getId(module), (T) new IdeaPluginDescriptorImpl());
     }
   }
 
@@ -443,9 +450,8 @@ public class PluginManager {
   }
 
   public static boolean isIncompatible(final IdeaPluginDescriptor descriptor) {
-    BuildNumber buildNumber;
     try {
-      buildNumber = getBuildNumber();
+      BuildNumber buildNumber = getBuildNumber();
       if (!StringUtil.isEmpty(descriptor.getSinceBuild())) {
         BuildNumber sinceBuild = BuildNumber.fromString(descriptor.getSinceBuild(), descriptor.getName());
         if (sinceBuild.compareTo(buildNumber) > 0) {
@@ -475,6 +481,7 @@ public class PluginManager {
     */
     final Comparator<PluginId> idComparator = builder.comparator();
     return new Comparator<IdeaPluginDescriptor>() {
+      @Override
       public int compare(IdeaPluginDescriptor o1, IdeaPluginDescriptor o2) {
         return idComparator.compare(o1.getPluginId(), o2.getPluginId());
       }
@@ -486,15 +493,18 @@ public class PluginManager {
     // this magic ensures that the dependent plugins always follow their dependencies in lexicographic order
     // needed to make sure that extensions are always in the same order
     Collections.sort(ids, new Comparator<PluginId>() {
+      @Override
       public int compare(PluginId o1, PluginId o2) {
         return o2.getIdString().compareTo(o1.getIdString());
       }
     });
     return GraphGenerator.create(CachingSemiGraph.create(new GraphGenerator.SemiGraph<PluginId>() {
+      @Override
       public Collection<PluginId> getNodes() {
         return ids;
       }
 
+      @Override
       public Iterator<PluginId> getIn(PluginId pluginId) {
         final IdeaPluginDescriptor descriptor = idToDescriptorMap.get(pluginId);
         ArrayList<PluginId> plugins = new ArrayList<PluginId>();
@@ -725,10 +735,12 @@ public class PluginManager {
     for (final Iterator<IdeaPluginDescriptorImpl> it = result.iterator(); it.hasNext();) {
       final IdeaPluginDescriptorImpl pluginDescriptor = it.next();
       checkDependants(pluginDescriptor, new Function<PluginId, IdeaPluginDescriptor>() {
+        @Override
         public IdeaPluginDescriptor fun(final PluginId pluginId) {
           return idToDescriptorMap.get(pluginId);
         }
       }, new Condition<PluginId>() {
+        @Override
         public boolean value(final PluginId pluginId) {
           if (!idToDescriptorMap.containsKey(pluginId)) {
             pluginDescriptor.setEnabled(false);
@@ -891,8 +903,8 @@ public class PluginManager {
        Arrays.sort(files, new Comparator<File>() {
          @Override
          public int compare(File o1, File o2) {
-           if (o2.getName().startsWith((file.getName()))) return Integer.MAX_VALUE;
-           if (o1.getName().startsWith((file.getName()))) return -Integer.MAX_VALUE;
+           if (o2.getName().startsWith(file.getName())) return Integer.MAX_VALUE;
+           if (o1.getName().startsWith(file.getName())) return -Integer.MAX_VALUE;
            if (o2.getName().startsWith("resources")) return -Integer.MAX_VALUE;
            if (o1.getName().startsWith("resources")) return Integer.MAX_VALUE;
            return 0;
@@ -1026,9 +1038,9 @@ public class PluginManager {
   }
 
   @Nullable
-  private static ClassLoader createPluginClassLoader(final File[] classPath,
-                                                     final ClassLoader[] parentLoaders,
-                                                     IdeaPluginDescriptor pluginDescriptor) {
+  private static ClassLoader createPluginClassLoader(@NotNull File[] classPath,
+                                                     @NotNull ClassLoader[] parentLoaders,
+                                                     @NotNull IdeaPluginDescriptor pluginDescriptor) {
 
     if (pluginDescriptor.getUseIdeaClassLoader()) {
       try {
@@ -1106,13 +1118,8 @@ public class PluginManager {
     return null;
   }
 
-  public static void addPluginClass(String className, PluginId pluginId) {
-    synchronized(PLUGIN_CLASSES_LOCK) {
-      if (ourPluginClasses == null) {
-        ourPluginClasses = new THashMap<String, PluginId>();
-      }
-      ourPluginClasses.put(className, pluginId);
-    }
+  public static void addPluginClass(@NotNull String className, PluginId pluginId, boolean loaded) {
+    ourPluginClasses.addPluginClass(className, pluginId, loaded);
   }
 
   public static boolean isPluginClass(String className) {
@@ -1120,10 +1127,8 @@ public class PluginManager {
   }
 
   @Nullable
-  public static PluginId getPluginByClassName(String className) {
-    synchronized (PLUGIN_CLASSES_LOCK) {
-      return ourPluginClasses != null ? ourPluginClasses.get(className) : null;
-    }
+  public static PluginId getPluginByClassName(@NotNull String className) {
+    return ourPluginClasses.getPluginByClassName(className);
   }
 
   public static boolean disablePlugin(String id) {
@@ -1206,6 +1211,7 @@ public class PluginManager {
     if (pluginId != null && !ApplicationManager.getApplication().isHeadlessEnvironment()) {
       final boolean success = disablePlugin(pluginId.getIdString());
       SwingUtilities.invokeLater(new Runnable() {
+        @Override
         public void run() {
           JOptionPane.showMessageDialog(JOptionPane.getRootFrame(),
                                         "Incompatible plugin detected: " + pluginId.getIdString() +
@@ -1227,26 +1233,32 @@ public class PluginManager {
   }
 
   private static class IdeaLogProvider implements LogProvider {
+    @Override
     public void error(String message) {
       getLogger().error(message);
     }
 
+    @Override
     public void error(String message, Throwable t) {
       getLogger().error(message, t);
     }
 
+    @Override
     public void error(Throwable t) {
       getLogger().error(t);
     }
 
+    @Override
     public void warn(String message) {
       getLogger().info(message);
     }
 
+    @Override
     public void warn(String message, Throwable t) {
       getLogger().info(message, t);
     }
 
+    @Override
     public void warn(Throwable t) {
       getLogger().info(t);
     }
@@ -1260,48 +1272,7 @@ public class PluginManager {
     return LoggerHolder.ourLogger;
   }
 
-  private static class ClassCounter {
-    private final String myPluginId;
-    private int myCount;
-
-    private ClassCounter(String pluginId) {
-      myPluginId = pluginId;
-      myCount = 1;
-    }
-
-    private void increment() {
-      myCount++;
-    }
-
-    @Override
-    public String toString() {
-      return myPluginId + " loaded " + myCount + " classes";
-    }
-  }
-
   public static void dumpPluginClassStatistics() {
-    if (!Boolean.valueOf(System.getProperty("idea.is.internal")).booleanValue() || ourPluginClasses == null) return;
-    Map<String, ClassCounter> pluginToClassMap = new HashMap<String, ClassCounter>();
-    synchronized (PLUGIN_CLASSES_LOCK) {
-      for (Map.Entry<String, PluginId> entry : ourPluginClasses.entrySet()) {
-        String id = entry.getValue().toString();
-        final ClassCounter counter = pluginToClassMap.get(id);
-        if (counter != null) {
-          counter.increment();
-        }
-        else {
-          pluginToClassMap.put(id, new ClassCounter(id));
-        }
-      }
-    }
-    List<ClassCounter> counters = new ArrayList<ClassCounter>(pluginToClassMap.values());
-    Collections.sort(counters, new Comparator<ClassCounter>() {
-      public int compare(ClassCounter o1, ClassCounter o2) {
-        return o2.myCount - o1.myCount;
-      }
-    });
-    for (ClassCounter counter : counters) {
-      getLogger().info(counter.toString());
-    }
+    ourPluginClasses.dumpPluginClassStatistics();
   }
 }

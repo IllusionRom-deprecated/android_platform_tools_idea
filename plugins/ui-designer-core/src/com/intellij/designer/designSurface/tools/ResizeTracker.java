@@ -204,30 +204,29 @@ public class ResizeTracker extends InputTool {
 
   @Override
   public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
-    int modifiers = event.getModifiers();
-    boolean changedModifiers = modifiers != myModifiers;
-
+    boolean changedModifiers = event.getModifiers() != myModifiers;
     super.keyPressed(event, area);
 
     if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
       myToolProvider.loadDefaultTool();
     }
-
-    if (changedModifiers && myContext != null) {
-      updateContext();
-      showFeedback();
-      updateCommand();
+    else if (changedModifiers) {
+      handleKeyEvent();
     }
   }
 
   @Override
   public void keyReleased(KeyEvent event, EditableArea area) throws Exception {
-    int modifiers = event.getModifiers();
-    boolean changedModifiers = modifiers != myModifiers;
-
+    boolean changedModifiers = event.getModifiers() != myModifiers;
     super.keyReleased(event, area);
 
-    if (changedModifiers && myContext != null) {
+    if (changedModifiers) {
+      handleKeyEvent();
+    }
+  }
+
+  private void handleKeyEvent() {
+    if (myContext != null) {
       updateContext();
       showFeedback();
       updateCommand();

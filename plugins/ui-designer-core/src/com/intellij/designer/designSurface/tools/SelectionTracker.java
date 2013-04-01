@@ -27,7 +27,7 @@ import java.awt.event.MouseEvent;
  * @author Alexander Lobas
  */
 public class SelectionTracker extends TargetingTool {
-  private final RadComponent myComponent;
+  protected final RadComponent myComponent;
   private boolean mySelected;
 
   public SelectionTracker(RadComponent component) {
@@ -80,7 +80,6 @@ public class SelectionTracker extends TargetingTool {
   @Override
   public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
     super.keyPressed(event, area);
-
     if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
       myToolProvider.loadDefaultTool();
     }
@@ -95,7 +94,7 @@ public class SelectionTracker extends TargetingTool {
   }
 
   public static void performSelection(InputTool tool, RadComponent component) {
-    if (SystemInfo.isMac ? tool.myInputEvent.isMetaDown() : tool.myInputEvent.isControlDown()) {
+    if ((SystemInfo.isMac ? tool.myInputEvent.isMetaDown() : tool.myInputEvent.isControlDown())) {
       if (tool.myArea.isSelected(component)) {
         tool.myArea.deselect(component);
       }

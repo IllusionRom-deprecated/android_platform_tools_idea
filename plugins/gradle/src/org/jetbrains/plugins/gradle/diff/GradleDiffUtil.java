@@ -1,5 +1,6 @@
 package org.jetbrains.plugins.gradle.diff;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.LibraryOrderEntry;
@@ -33,6 +34,8 @@ import java.util.Map;
  */
 public class GradleDiffUtil {
 
+  private static final Logger LOG = Logger.getInstance("#" + GradleDiffUtil.class.getName());
+
   private GradleDiffUtil() {
   }
 
@@ -42,7 +45,7 @@ public class GradleDiffUtil {
    * <p/>
    * Example: particular module has been added at the gradle side. We want to mark that module, its content root(s), dependencies etc
    * as gradle-local changes.
-   * 
+   *
    * @param entity   target gradle-local entity
    * @param context  changes calculation context to use
    */
@@ -66,7 +69,7 @@ public class GradleDiffUtil {
 
       @Override
       public void visit(@NotNull GradleContentRoot contentRoot) {
-        context.register(new GradleContentRootPresenceChange(contentRoot, null)); 
+        context.register(new GradleContentRootPresenceChange(contentRoot, null));
       }
 
       @Override
@@ -182,8 +185,11 @@ public class GradleDiffUtil {
   {
     Map<Object, I> ideEntitiesByKeys = new HashMap<Object, I>();
     for (I entity : ideEntities) {
-      final I previous = ideEntitiesByKeys.put(calculator.getIdeKey(entity), entity);
-      assert previous == null;
+      Object key = calculator.getIdeKey(entity);
+      final I previous = ideEntitiesByKeys.put(key, entity);
+      if (previous != null) {
+        LOG.warn("Duplicate setup for library " + key);
+      }
     }
     for (G gradleEntity: gradleEntities) {
       I ideEntity = ideEntitiesByKeys.remove(calculator.getGradleKey(gradleEntity, context));

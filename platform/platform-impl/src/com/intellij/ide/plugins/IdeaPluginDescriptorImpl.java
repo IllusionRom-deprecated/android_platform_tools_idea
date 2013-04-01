@@ -95,27 +95,36 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
 
   private List<String> myModules = null;
 
-  public IdeaPluginDescriptorImpl(File pluginPath) {
+  public IdeaPluginDescriptorImpl(@NotNull File pluginPath) {
     myPath = pluginPath;
   }
 
-  public void setPath(File path) {
+  IdeaPluginDescriptorImpl() {
+  }
+
+  public void setPath(@NotNull File path) {
     myPath = path;
   }
 
+  @Override
   public File getPath() {
     return myPath;
   }
 
-  protected static StringInterner ourInterner = new StringInterner();
+  private static final StringInterner ourInterner = new StringInterner();
 
-  public void readExternal(Document document, final URL url) throws InvalidDataException, FileNotFoundException {
+  @NotNull
+  public static String intern(@NotNull String s) {
+    return ourInterner.intern(s);
+  }
+
+  public void readExternal(@NotNull Document document, @NotNull URL url) throws InvalidDataException, FileNotFoundException {
     document = JDOMXIncluder.resolve(document, url.toExternalForm());
     JDOMUtil.internElement(document.getRootElement(), ourInterner);
     readExternal(document.getRootElement());
   }
 
-  public void readExternal(final URL url) throws InvalidDataException, FileNotFoundException {
+  public void readExternal(@NotNull URL url) throws InvalidDataException, FileNotFoundException {
     try {
       Document document = JDOMUtil.loadDocument(url);
       readExternal(document, url);
@@ -131,13 +140,13 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     }
   }
 
-  private void readExternal(Element element) {
+  private void readExternal(@NotNull Element element) {
     final PluginBean pluginBean = XmlSerializer.deserialize(element, PluginBean.class);
 
     url = pluginBean.url;
     myName = pluginBean.name;
     String idString = pluginBean.id;
-    if (idString == null || idString.length() == 0) {
+    if (idString == null || idString.isEmpty()) {
       idString = myName;
     }
     myId = PluginId.getId(idString);
@@ -172,18 +181,19 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
       myVendorLogoPath = pluginBean.vendor.logo;
     }
 
-    Set<PluginId> dependentPlugins = new HashSet<PluginId>();
-    Set<PluginId> optionalDependentPlugins = new HashSet<PluginId>();
+    // preserve items order as specified in xml (filterBadPlugins will not fail if module comes first)
+    Set<PluginId> dependentPlugins = new LinkedHashSet<PluginId>();
+    Set<PluginId> optionalDependentPlugins = new LinkedHashSet<PluginId>();
     myOptionalConfigs = new HashMap<PluginId, String>();
     if (pluginBean.dependencies != null) {
       for (PluginDependency dependency : pluginBean.dependencies) {
         String text = dependency.pluginId;
-        if (text != null && text.length() > 0) {
+        if (text != null && !text.isEmpty()) {
           final PluginId id = PluginId.getId(text);
           dependentPlugins.add(id);
           if (dependency.optional) {
             optionalDependentPlugins.add(id);
-            if (dependency.configFile != null && dependency.configFile.length() > 0) {
+            if (dependency.configFile != null && !dependency.configFile.isEmpty()) {
               myOptionalConfigs.put(id, dependency.configFile);  
             }
           }
@@ -241,58 +251,70 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
   void registerExtensions() {
     if (myExtensions != null || myExtensionsPoints != null) {
       Extensions.getRootArea().getExtensionPoint(Extensions.AREA_LISTENER_EXTENSION_POINT).registerExtension(new AreaListener() {
+        @Override
         public void areaCreated(String areaClass, AreaInstance areaInstance) {
           if (PluginManager.shouldSkipPlugin(IdeaPluginDescriptorImpl.this)) return;
           final ExtensionsArea area = Extensions.getArea(areaInstance);
           area.registerAreaExtensionsAndPoints(IdeaPluginDescriptorImpl.this, myExtensionsPoints, myExtensions);
         }
 
+        @Override
         public void areaDisposing(String areaClass, AreaInstance areaInstance) {
         }
       });
     }
   }
 
+  @Override
   public String getDescription() {
     return myDescription.getValue();
   }
 
+  @Override
   public String getChangeNotes() {
     return myChangeNotes;
   }
 
+  @Override
   public String getName() {
     return myName;
   }
 
+  @Override
   @NotNull
   public PluginId[] getDependentPluginIds() {
     return myDependencies;
   }
 
 
+  @Override
   @NotNull
   public PluginId[] getOptionalDependentPluginIds() {
     return myOptionalDependencies;
   }
 
+  @Override
   public String getVendor() {
     return myVendor;
   }
 
+  @Override
   public String getVersion() {
     return myVersion;
   }
 
+  @Override
   public String getResourceBundleBaseName() {
     return myResourceBundleBaseName;
   }
 
+  @Override
   public String getCategory() {
     return myCategory;
   }
 
   @SuppressWarnings({"HardCodedStringLiteral"})
+  @NotNull
   public List<File> getClassPath() {
     if (myPath.isDirectory()) {
       final List<File> result = new ArrayList<File>();
@@ -324,34 +346,41 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     }
   }
 
+  @Override
   @Nullable
   public List<Element> getActionsDescriptionElements() {
     return myActionsElements;
   }
 
+  @Override
   @NotNull
   public ComponentConfig[] getAppComponents() {
     return myAppComponents;
   }
 
+  @Override
   @NotNull
   public ComponentConfig[] getProjectComponents() {
     return myProjectComponents;
   }
 
+  @Override
   @NotNull
   public ComponentConfig[] getModuleComponents() {
     return myModuleComponents;
   }
 
+  @Override
   public String getVendorEmail() {
     return myVendorEmail;
   }
 
+  @Override
   public String getVendorUrl() {
     return myVendorUrl;
   }
 
+  @Override
   public String getUrl() {
     return url;
   }
@@ -391,11 +420,13 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     return myName != null ? myName.hashCode() : 0;
   }
 
+  @Override
   @NotNull
   public HelpSetPath[] getHelpSets() {
     return myHelpSets;
   }
 
+  @Override
   public PluginId getPluginId() {
     return myId;
   }
@@ -420,6 +451,7 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     myDownloadCounter = dwnlds;
   }
 
+  @Override
   public String getDownloads(){
     return myDownloadCounter;
   }
@@ -454,14 +486,17 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     url = val;
   }
 
+  @Override
   public ClassLoader getPluginClassLoader() {
     return myLoader != null ? myLoader : getClass().getClassLoader();
   }
 
+  @Override
   public String getVendorLogoPath() {
     return myVendorLogoPath;
   }
 
+  @Override
   public boolean getUseIdeaClassLoader() {
     return myUseIdeaClassLoader;
   }
@@ -503,18 +538,22 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     myDependencies = deps;
   }
 
+  @Override
   public boolean isEnabled() {
     return myEnabled;
   }
 
+  @Override
   public void setEnabled(final boolean enabled) {
     myEnabled = enabled;
   }
 
+  @Override
   public String getSinceBuild() {
     return mySinceBuild;
   }
 
+  @Override
   public String getUntilBuild() {
     return myUntilBuild;
   }
@@ -561,11 +600,11 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
   private static ComponentConfig[] mergeComponents(ComponentConfig[] first, ComponentConfig[] second) {
     if (first == null) {
       return second;
-    } else if (second == null) {
-      return first;
-    } else {
-      return ArrayUtil.mergeArrays(first, second);
     }
+    if (second == null) {
+      return first;
+    }
+    return ArrayUtil.mergeArrays(first, second);
   }
 
   public Boolean getSkipped() {
@@ -576,6 +615,7 @@ public class IdeaPluginDescriptorImpl implements IdeaPluginDescriptor {
     mySkipped = skipped;
   }
 
+  @Override
   public boolean isBundled() {
     return getPath().getAbsolutePath().startsWith(PathManager.getPreinstalledPluginsPath());
   }

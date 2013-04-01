@@ -19,6 +19,7 @@ import com.intellij.designer.componentTree.ComponentTree;
 import com.intellij.designer.componentTree.ComponentTreeBuilder;
 import com.intellij.designer.designSurface.DesignerEditorPanel;
 import com.intellij.designer.propertyTable.PropertyTablePanel;
+import com.intellij.designer.propertyTable.RadPropertyTable;
 import com.intellij.icons.AllIcons;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -76,6 +77,14 @@ public final class DesignerToolWindowManager extends AbstractToolWindowManager {
 
   public static DesignerToolWindowManager getInstance(Project project) {
     return project.getComponent(DesignerToolWindowManager.class);
+  }
+
+  public ComponentTree getComponentTree() {
+    return myComponentTree;
+  }
+
+  public RadPropertyTable getPropertyTable() {
+    return myPropertyTablePanel.getPropertyTable();
   }
 
   public void expandFromState() {
@@ -148,9 +157,9 @@ public final class DesignerToolWindowManager extends AbstractToolWindowManager {
 
     DesignerCustomizations customization = getCustomizations();
     ToolWindowAnchor anchor = customization != null ? customization.getPaletteAnchor() : ToolWindowAnchor.LEFT;
-    myToolWindow =
-      ToolWindowManager.getInstance(myProject)
-        .registerToolWindow(DesignerBundle.message("designer.toolwindow.name"), false, anchor, myProject, true);
+
+    myToolWindow = ToolWindowManager.getInstance(myProject).registerToolWindow(DesignerBundle.message("designer.toolwindow.name"),
+                                                                               false, anchor, myProject, true);
     myToolWindow.setIcon(UIDesignerNewIcons.ToolWindow);
     myToolWindow.getComponent().putClientProperty(ToolWindowContentUi.HIDE_ID_LABEL, "true");
 

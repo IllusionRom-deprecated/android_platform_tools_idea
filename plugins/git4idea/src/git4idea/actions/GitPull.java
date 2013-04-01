@@ -31,20 +31,16 @@ import git4idea.commands.GitStandardProgressAnalyzer;
 import git4idea.commands.GitTask;
 import git4idea.commands.GitTaskResultHandlerAdapter;
 import git4idea.i18n.GitBundle;
-import git4idea.jgit.GitHttpAdapter;
 import git4idea.merge.GitMergeUtil;
 import git4idea.merge.GitPullDialog;
 import git4idea.repo.GitRemote;
 import git4idea.repo.GitRepository;
 import git4idea.repo.GitRepositoryManager;
-import git4idea.update.GitFetcher;
 import git4idea.util.GitUIUtil;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Git "pull" action
@@ -69,7 +65,6 @@ public class GitPull extends GitRepositoryAction {
     }
     final Label beforeLabel = LocalHistory.getInstance().putSystemLabel(project, "Before update");
     
-    final AtomicReference<GitLineHandler> handlerReference = new AtomicReference<GitLineHandler>();
     new Task.Backgroundable(project, GitBundle.message("pulling.title", dialog.getRemote()), true) {
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
@@ -86,18 +81,8 @@ public class GitPull extends GitRepositoryAction {
           return;
         }
 
-        if (GitHttpAdapter.shouldUseJGit(url)) {
-          boolean fetchSuccessful = new GitFetcher(project, indicator, true).fetchRootsAndNotify(Collections.singleton(repository),
-                                                                                                 "Pull failed", false);
-          if (!fetchSuccessful) {
-            return; 
-          }
-          handlerReference.set(dialog.pullOrMergeHandler(false)); 
-        } else {
-          handlerReference.set(dialog.pullOrMergeHandler(true));
-        }
-        
-        
+        final GitLineHandler handler = dialog.makeHandler(url);
+
         final VirtualFile root = dialog.gitRoot();
         affectedRoots.add(root);
         String revision = repository.getCurrentRevision();
@@ -106,7 +91,7 @@ public class GitPull extends GitRepositoryAction {
         }
         final GitRevisionNumber currentRev = new GitRevisionNumber(revision);
     
-        GitTask pullTask = new GitTask(project, handlerReference.get(), GitBundle.message("pulling.title", dialog.getRemote()));
+        GitTask pullTask = new GitTask(project, handler, GitBundle.message("pulling.title", dialog.getRemote()));
         pullTask.setProgressIndicator(indicator);
         pullTask.setProgressAnalyzer(new GitStandardProgressAnalyzer());
         pullTask.execute(true, false, new GitTaskResultHandlerAdapter() {
@@ -120,7 +105,7 @@ public class GitPull extends GitRepositoryAction {
     
           @Override
           protected void onFailure() {
-            GitUIUtil.notifyGitErrors(project, "Error pulling " + dialog.getRemote(), "", handlerReference.get().errors());
+            GitUIUtil.notifyGitErrors(project, "Error pulling " + dialog.getRemote(), "", handler.errors());
             repositoryManager.updateRepository(root);
           }
         });

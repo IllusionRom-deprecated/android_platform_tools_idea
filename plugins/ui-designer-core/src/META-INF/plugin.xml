@@ -26,5 +26,4 @@
   <extensionPoints>
     <extensionPoint qualifiedName="Designer.customizations" interface="com.intellij.designer.DesignerCustomizations"/>
   </extensionPoints>
-
 </idea-plugin>

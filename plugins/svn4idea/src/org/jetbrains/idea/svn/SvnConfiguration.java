@@ -17,6 +17,8 @@
 
 package org.jetbrains.idea.svn;
 
+import com.intellij.openapi.application.Application;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -24,11 +26,14 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.changes.VcsAnnotationRefresher;
 import org.jdom.Attribute;
 import org.jdom.DataConversionException;
 import org.jdom.Element;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.idea.svn.config.ProxyGroup;
 import org.jetbrains.idea.svn.config.SvnServerFileKeys;
 import org.jetbrains.idea.svn.dialogs.SvnAuthenticationProvider;
 import org.jetbrains.idea.svn.dialogs.SvnInteractiveAuthenticationProvider;
@@ -48,6 +53,9 @@ import org.tmatesoft.svn.core.wc.SVNWCUtil;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
 import java.util.*;
 
 @State(
@@ -166,6 +174,47 @@ public class SvnConfiguration implements PersistentStateComponent<Element> {
     myConfigFile.save();
   }
 
+  public static void putProxyIntoServersFile(final File configDir, final String host, final Proxy proxyInfo) {
+    final IdeaSVNConfigFile configFile = new IdeaSVNConfigFile(new File(configDir, SERVERS_FILE_NAME));
+    configFile.updateGroups();
+
+    String groupName = SvnAuthenticationManager.getGroupForHost(host, configFile);
+
+    if (StringUtil.isEmptyOrSpaces(groupName)) {
+      groupName = StringUtil.replace(host, " ", "_");
+      final Map<String,ProxyGroup> groups = configFile.getAllGroups();
+      while (true) {
+        if (! groups.containsKey(groupName)) break;
+        groupName += "1";
+      }
+    }
+
+    final HashMap<String, String> map = new HashMap<String, String>();
+    final InetSocketAddress address = ((InetSocketAddress) proxyInfo.address());
+    map.put(SvnAuthenticationManager.HTTP_PROXY_HOST, address.getHostName());
+    map.put(SvnAuthenticationManager.HTTP_PROXY_PORT, String.valueOf(address.getPort()));
+    configFile.addGroup(groupName, host + "*", map);
+    configFile.save();
+  }
+
+  public static boolean putProxyCredentialsIntoServerFile(@NotNull final File configDir, @NotNull final String host,
+                                                          @NotNull final PasswordAuthentication authentication) {
+    final IdeaSVNConfigFile configFile = new IdeaSVNConfigFile(new File(configDir, SERVERS_FILE_NAME));
+    configFile.updateGroups();
+
+    String groupName = SvnAuthenticationManager.getGroupForHost(host, configFile);
+    // no proxy defined in group -> no sense in password
+    if (StringUtil.isEmptyOrSpaces(groupName)) return false;
+    final Map<String, String> properties = configFile.getAllGroups().get(groupName).getProperties();
+    if (StringUtil.isEmptyOrSpaces(properties.get(SvnAuthenticationManager.HTTP_PROXY_HOST))) return false;
+    if (StringUtil.isEmptyOrSpaces(properties.get(SvnAuthenticationManager.HTTP_PROXY_PORT))) return false;
+
+    configFile.setValue(groupName, SvnAuthenticationManager.HTTP_PROXY_USERNAME, authentication.getUserName());
+    configFile.setValue(groupName, SvnAuthenticationManager.HTTP_PROXY_PASSWORD, String.valueOf(authentication.getPassword()));
+    configFile.save();
+    return true;
+  }
+
   public static SvnConfiguration getInstance(final Project project) {
     return ServiceManager.getService(project, SvnConfiguration.class);
   }
@@ -281,17 +330,31 @@ public class SvnConfiguration implements PersistentStateComponent<Element> {
   }
 
   public static SvnAuthenticationManager createForTmpDir(final Project project, final File dir) {
+    return createForTmpDir(project, dir, null);
+  }
+
+  public static SvnAuthenticationManager createForTmpDir(final Project project, final File dir,
+                                                         @Nullable final SvnInteractiveAuthenticationProvider provider) {
     final SvnVcs vcs = SvnVcs.getInstance(project);
-    //final SvnAuthenticationManager manager = new SvnAuthenticationManager(project, dir);
 
     final SvnAuthenticationManager interactive = new SvnAuthenticationManager(project, dir);
     interactive.setRuntimeStorage(RUNTIME_AUTH_CACHE);
-    final SvnInteractiveAuthenticationProvider interactiveProvider = new SvnInteractiveAuthenticationProvider(vcs, interactive);
+    final SvnInteractiveAuthenticationProvider interactiveProvider = provider == null ?
+                                                                     new SvnInteractiveAuthenticationProvider(vcs, interactive) : provider;
     interactive.setAuthenticationProvider(interactiveProvider);
 
-    //manager.setAuthenticationProvider(new SvnAuthenticationProvider(vcs, interactiveProvider, RUNTIME_AUTH_CACHE));
-    //manager.setRuntimeStorage(RUNTIME_AUTH_CACHE);
     return interactive;
+  }
+
+  public SvnAuthenticationManager getManager(final AuthManagerType type, final SvnVcs vcs) {
+    if (AuthManagerType.active.equals(type)) {
+      return getInteractiveManager(vcs);
+    } else if (AuthManagerType.passive.equals(type)) {
+      return getPassiveAuthenticationManager(vcs.getProject());
+    } else if (AuthManagerType.usual.equals(type)) {
+      return getAuthenticationManager(vcs);
+    }
+    throw new IllegalArgumentException();
   }
 
   public SvnAuthenticationManager getAuthenticationManager(final SvnVcs svnVcs) {
@@ -565,7 +628,7 @@ public class SvnConfiguration implements PersistentStateComponent<Element> {
   public void clearAuthenticationDirectory(@Nullable Project project) {
     final File authDir = new File(getConfigurationDirectory(), "auth");
     if (authDir.exists()) {
-      ProgressManager.getInstance().runProcessWithProgressSynchronously(new Runnable() {
+      final Runnable process = new Runnable() {
         public void run() {
           final ProgressIndicator ind = ProgressManager.getInstance().getProgressIndicator();
           if (ind != null) {
@@ -585,7 +648,13 @@ public class SvnConfiguration implements PersistentStateComponent<Element> {
             FileUtil.delete(dir);
           }
         }
-      }, "button.text.clear.authentication.cache", false, project);
+      };
+      final Application application = ApplicationManager.getApplication();
+      if (application.isUnitTestMode() || ! application.isDispatchThread()) {
+        process.run();
+      } else {
+        ProgressManager.getInstance().runProcessWithProgressSynchronously(process, "button.text.clear.authentication.cache", false, project);
+      }
     }
   }
   
@@ -600,6 +669,11 @@ public class SvnConfiguration implements PersistentStateComponent<Element> {
   public void clearCredentials(final String kind, final String realm) {
     RUNTIME_AUTH_CACHE.putData(kind, realm, null);
   }
+
+  public void clearRuntimeStorage() {
+    RUNTIME_AUTH_CACHE.clear();
+  }
+
 
   public int getMaxAnnotateRevisions() {
     return myMaxAnnotateRevisions;

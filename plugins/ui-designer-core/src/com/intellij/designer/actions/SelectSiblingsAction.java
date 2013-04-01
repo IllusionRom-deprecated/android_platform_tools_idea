@@ -20,7 +20,6 @@ import com.intellij.designer.model.RadComponent;
 import com.intellij.designer.model.RadComponentVisitor;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.util.containers.HashSet;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,17 +37,8 @@ public class SelectSiblingsAction extends AnAction {
   public void actionPerformed(AnActionEvent e) {
     RadComponent rootComponent = myArea.getRootComponent();
     if (rootComponent != null) {
-      final Set<RadComponent> parents = new HashSet<RadComponent>();
-      List<RadComponent> selection = myArea.getSelection();
-      for (RadComponent selected : selection) {
-        RadComponent parent = selected.getParent();
-        if (parent != null) {
-          parents.add(parent);
-        }
-      }
+      final Set<RadComponent> parents = RadComponent.getParents(myArea.getSelection());
       final List<RadComponent> components = new ArrayList<RadComponent>();
-      components.addAll(selection);
-
       rootComponent.accept(new RadComponentVisitor() {
         @Override
         public void endVisit(RadComponent component) {

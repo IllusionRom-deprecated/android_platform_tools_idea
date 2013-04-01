@@ -20,6 +20,7 @@ import com.intellij.diagnostic.PluginException;
 import com.intellij.ide.plugins.PluginManager;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.util.lang.UrlClassLoader;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import sun.misc.CompoundEnumeration;
 
@@ -42,8 +43,8 @@ public class PluginClassLoader extends UrlClassLoader {
   private final String myPluginVersion;
   private final File myLibDirectory;
 
-  public PluginClassLoader(final List<URL> urls,
-                           final ClassLoader[] parents,
+  public PluginClassLoader(@NotNull List<URL> urls,
+                           @NotNull ClassLoader[] parents,
                            final PluginId pluginId,
                            final String version,
                            final File pluginRoot) {
@@ -59,7 +60,7 @@ public class PluginClassLoader extends UrlClassLoader {
 
   // Changed sequence in which classes are searched, this is essential if plugin uses library,
   // a different version of which is used in IDEA.
-  public Class loadClass(final String name, final boolean resolve) throws ClassNotFoundException {
+  public Class loadClass(@NotNull String name, final boolean resolve) throws ClassNotFoundException {
     Class c = loadClassInsideSelf(name);
 
     if (c == null) {
@@ -73,7 +74,7 @@ public class PluginClassLoader extends UrlClassLoader {
       return c;
     }
 
-    PluginManager.addPluginClass(name, myPluginId);
+    PluginManager.addPluginClass(name, myPluginId, false);
     throw new ClassNotFoundException(name + " " + this);
   }
 
@@ -92,7 +93,7 @@ public class PluginClassLoader extends UrlClassLoader {
   }
 
   @Nullable
-  private synchronized Class loadClassInsideSelf(final String name) {
+  private synchronized Class loadClassInsideSelf(@NotNull String name) {
     Class c = findLoadedClass(name);
     if (c != null) {
       return c;
@@ -108,10 +109,14 @@ public class PluginClassLoader extends UrlClassLoader {
       throw new PluginException(e, myPluginId);
     }
     if (c != null) {
-      PluginManager.addPluginClass(c.getName(), myPluginId);
+      PluginManager.addPluginClass(c.getName(), myPluginId, true);
     }
 
     return c;
+  }
+
+  public boolean hasLoadedClass(String name) {
+    return findLoadedClass(name) != null;
   }
 
   public URL findResource(final String name) {

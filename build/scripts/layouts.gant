@@ -182,8 +182,15 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
       dir("javaFX") {
         dir("lib") {
           jar("javaFX.jar") {
-            module("javaFX")
-            module("javaFX-CE")
+            noResources("javaFX")
+            noResources("javaFX-CE")
+          }
+          resources(["javaFX", "javaFX-CE"])
+          jar("javaFX-jps-plugin.jar") {
+            module("javaFX-jps-plugin")
+          }
+          jar("common-javaFX-plugin.jar") {
+            module("common-javaFX-plugin")
           }
         }
       }
@@ -300,6 +307,9 @@ public def layoutCommunityPlugins(String home) {
     }
 
     layoutPlugin("svn4idea") {
+      jar("bindSvn.jar") {
+        module("bindSvn")
+      }
       fileset(dir: "$home/plugins/svn4idea/lib", excludes: "**/svnkitsrc.zip")
     }
 
@@ -423,6 +433,9 @@ public def layoutCommunityPlugins(String home) {
         jar("devkit-jps-plugin.jar") {
           module("devkit-jps-plugin")
         }
+      }
+      fileset(dir: "${home}/plugins/devkit/lib") {
+        include(name: "**/*.jar")
       }
     }
     layoutPlugin("eclipse") {

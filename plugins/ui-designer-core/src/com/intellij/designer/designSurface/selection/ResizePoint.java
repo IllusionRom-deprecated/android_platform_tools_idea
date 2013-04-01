@@ -43,6 +43,7 @@ public abstract class ResizePoint extends ComponentDecorator {
   public InputTool findTargetTool(DecorationLayer layer, RadComponent component, int x, int y) {
     Point location = getLocation(layer, component);
     Rectangle bounds = new Rectangle(location.x, location.y, getSize(), getSize());
+
     int neighborhood = getNeighborhoodSize();
     if (neighborhood > 0) {
       bounds.grow(neighborhood, neighborhood);

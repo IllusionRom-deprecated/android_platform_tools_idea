@@ -15,8 +15,12 @@
  */
 package com.intellij.designer.designSurface;
 
-/** Interface implemented by a design view native component which implements zooming */
+/**
+ * Interface implemented by a design view native component which implements zooming.
+ */
 public interface ScalableComponent {
-  /** Returns the scale to apply to coordinates in this view */
+  /**
+   * Returns the scale to apply to coordinates in this view.
+   */
   double getScale();
 }

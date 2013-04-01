@@ -35,16 +35,6 @@ public interface PaletteItem {
   boolean isEnabled();
 
   /**
-   * @return the creation data to be used by {@link MetaModel#getCreation()}
-   */
-  String getCreation();
-
-  /**
-   * Returns the associated {@link MetaModel}, if known
-   */
-  MetaModel getMetaModel();
-
-  /**
    * Returns null or empty if this item is not deprecated, and otherwise returns the version
    * the item was deprecated in.
    *
@@ -60,4 +50,14 @@ public interface PaletteItem {
    */
   @Nullable
   String getDeprecatedHint();
+
+  /**
+   * @return the creation data to be used by {@link com.intellij.designer.model.MetaModel#getCreation()}
+   */
+  String getCreation();
+
+  /**
+   * Returns the associated {@link com.intellij.designer.model.MetaModel}, if known
+   */
+  MetaModel getMetaModel();
 }

@@ -16,20 +16,23 @@
 package com.intellij.designer;
 
 import com.intellij.openapi.extensions.ExtensionPointName;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindowAnchor;
 import org.jetbrains.annotations.NotNull;
 
 public abstract class DesignerCustomizations {
   public static final ExtensionPointName<DesignerCustomizations> EP_NAME = ExtensionPointName.create("Designer.customizations");
 
-  /** Default location of the palette */
+  /**
+   * Default location of the palette
+   */
   @NotNull
   public ToolWindowAnchor getPaletteAnchor() {
     return ToolWindowAnchor.RIGHT;
   }
 
-  /** Default location of the designer/structure window */
+  /**
+   * Default location of the designer/structure window
+   */
   @NotNull
   public ToolWindowAnchor getStructureAnchor() {
     return ToolWindowAnchor.LEFT;

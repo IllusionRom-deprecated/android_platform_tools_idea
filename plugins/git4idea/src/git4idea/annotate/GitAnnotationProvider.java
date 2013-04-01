@@ -126,6 +126,7 @@ public class GitAnnotationProvider implements AnnotationProvider, VcsCacheableAn
       command.run();
     }
     if (exception[0] != null) {
+      LOG.warn(exception[0]);
       throw new VcsException("Failed to annotate: " + exception[0], exception[0]);
     }
     return annotation[0];
@@ -146,7 +147,6 @@ public class GitAnnotationProvider implements AnnotationProvider, VcsCacheableAn
                                      final List<VcsFileRevision> revisions,
                                      final VirtualFile file) throws VcsException {
     GitSimpleHandler h = new GitSimpleHandler(myProject, GitUtil.getGitRoot(repositoryFilePath), GitCommand.BLAME);
-    h.setNoSSH(true);
     h.setStdoutSuppressed(true);
     h.setCharset(file.getCharset());
     h.addParameters("-p", "-l", "-t", "-w");
@@ -173,7 +173,8 @@ public class GitAnnotationProvider implements AnnotationProvider, VcsCacheableAn
         commitHash = null;
       }
       s.spaceToken(); // skip revision line number
-      int lineNum = Integer.parseInt(s.spaceToken());
+      String s1 = s.spaceToken();
+      int lineNum = Integer.parseInt(s1);
       s.nextLine();
       // parse commit information
       CommitInfo commit = commits.get(commitHash);

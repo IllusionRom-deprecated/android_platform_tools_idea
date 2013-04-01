@@ -64,8 +64,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 import java.awt.*;
@@ -158,12 +156,6 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     myLayeredPane = new MyLayeredPane();
 
     mySurfaceArea = new ComponentEditableArea(myLayeredPane) {
-      @NotNull
-      @Override
-      public DesignerEditor getDesigner() {
-        return myEditor;
-      }
-
       @Override
       protected void fireSelectionChanged() {
         super.fireSelectionChanged();
@@ -231,7 +223,7 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     myToolProvider = new ToolProvider() {
       @Override
       public void loadDefaultTool() {
-        setActiveTool(new SelectionTool());
+        setActiveTool(createDefaultTool());
       }
 
       @Override
@@ -287,6 +279,26 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
       @Override
       public void showError(@NonNls String message, Throwable e) {
         DesignerEditorPanel.this.showError(message, e);
+      }
+
+      @Override
+      public boolean isZoomSupported() {
+        return DesignerEditorPanel.this.isZoomSupported();
+      }
+
+      @Override
+      public void zoom(@NotNull ZoomType type) {
+        DesignerEditorPanel.this.zoom(type);
+      }
+
+      @Override
+      public void setZoom(double zoom) {
+        DesignerEditorPanel.this.setZoom(zoom);
+      }
+
+      @Override
+      public double getZoom() {
+        return DesignerEditorPanel.this.getZoom();
       }
     };
 
@@ -363,35 +375,6 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
 
   protected DesignerActionPanel createActionPanel() {
     return new DesignerActionPanel(this, myGlassLayer);
-  }
-
-  protected void viewZoomed() {
-    // Hide quickfix light bulbs; position can be obsolete after the zoom level has changed
-    myQuickFixManager.hideHint();
-  }
-
-  /** Size of the scene, in scroll pane view port pixels */
-  @NotNull
-  protected Dimension getSceneSize(Component target) {
-    int width = 0;
-    int height = 0;
-
-    if (myRootComponent != null) {
-      Rectangle bounds = myRootComponent.getBounds(target);
-      width = Math.max(width, (int)bounds.getMaxX());
-      height = Math.max(height, (int)bounds.getMaxY());
-
-      for (RadComponent component : myRootComponent.getChildren()) {
-        Rectangle childBounds = component.getBounds(target);
-        width = Math.max(width, (int)childBounds.getMaxX());
-        height = Math.max(height, (int)childBounds.getMaxY());
-      }
-    }
-
-    width += 50;
-    height += 40;
-
-    return new Dimension(width, height);
   }
 
   @Nullable
@@ -799,14 +782,20 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
 
   public abstract List<PaletteGroup> getPaletteGroups();
 
-  /** Returns a suitable version label from the version attribute from a {@link PaletteItem} version */
+  /**
+   * Returns a suitable version label from the version attribute from a {@link PaletteItem} version
+   */
   @NotNull
   public String getVersionLabel(@Nullable String version) {
     return StringUtil.notNullize(version);
   }
 
-  public boolean isDeprecated(@NotNull String deprecatedIn) {
+  public boolean isDeprecated(@Nullable String deprecatedIn) {
     return !StringUtil.isEmpty(deprecatedIn);
+  }
+
+  protected InputTool createDefaultTool() {
+    return new SelectionTool();
   }
 
   @NotNull
@@ -876,25 +865,23 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
   //
   //////////////////////////////////////////////////////////////////////////////////////////
 
-
-  /** Returns true if zooming is supported by this designer */
   public boolean isZoomSupported() {
     return false;
   }
 
-  /**
-   * Zoom the editable area.
-   */
   public void zoom(@NotNull ZoomType type) {
   }
 
-  /** Sets the zoom level. Note that this should be 1, not 100 (percent), for an image at its actual size */
   public void setZoom(double zoom) {
   }
 
-  /** Returns the current zoom level. Note that this is 1, not 100 (percent) for an image at its actual size */
   public double getZoom() {
     return 1;
+  }
+
+  protected void viewZoomed() {
+    // Hide quickfix light bulbs; position can be obsolete after the zoom level has changed
+    myQuickFixManager.hideHint();
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////
@@ -975,6 +962,32 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
     }
   }
 
+  /**
+   * Size of the scene, in scroll pane view port pixels.
+   */
+  @NotNull
+  protected Dimension getSceneSize(Component target) {
+    int width = 0;
+    int height = 0;
+
+    if (myRootComponent != null) {
+      Rectangle bounds = myRootComponent.getBounds(target);
+      width = Math.max(width, (int)bounds.getMaxX());
+      height = Math.max(height, (int)bounds.getMaxY());
+
+      for (RadComponent component : myRootComponent.getChildren()) {
+        Rectangle childBounds = component.getBounds(target);
+        width = Math.max(width, (int)childBounds.getMaxX());
+        height = Math.max(height, (int)childBounds.getMaxY());
+      }
+    }
+
+    width += 50;
+    height += 40;
+
+    return new Dimension(width, height);
+  }
+
   private final class MyLayeredPane extends JBLayeredPane implements Scrollable {
     public void doLayout() {
       for (int i = getComponentCount() - 1; i >= 0; i--) {
@@ -989,8 +1002,8 @@ public abstract class DesignerEditorPanel extends JPanel implements DataProvider
 
     public Dimension getPreferredSize() {
       Rectangle bounds = myScrollPane.getViewport().getBounds();
-
       Dimension size = getSceneSize(this);
+
       size.width = Math.max(size.width, bounds.width);
       size.height = Math.max(size.height, bounds.height);
 

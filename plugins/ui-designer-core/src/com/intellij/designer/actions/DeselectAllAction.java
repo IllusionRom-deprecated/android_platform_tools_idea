@@ -16,11 +16,8 @@
 package com.intellij.designer.actions;
 
 import com.intellij.designer.designSurface.EditableArea;
-import com.intellij.designer.model.RadComponent;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-
-import java.util.Collections;
 
 public class DeselectAllAction extends AnAction {
   private final EditableArea myArea;
@@ -32,6 +29,6 @@ public class DeselectAllAction extends AnAction {
 
   @Override
   public void actionPerformed(AnActionEvent e) {
-    myArea.setSelection(Collections.<RadComponent>emptyList());
+    myArea.deselectAll();
   }
 }

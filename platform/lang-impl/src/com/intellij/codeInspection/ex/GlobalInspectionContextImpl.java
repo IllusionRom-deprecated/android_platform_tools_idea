@@ -54,8 +54,10 @@ import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.psi.search.scope.packageSet.NamedScope;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.ui.content.*;
+import com.intellij.util.Function;
 import com.intellij.util.Processor;
 import com.intellij.util.TripleFunction;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.HashMap;
 import com.intellij.util.ui.UIUtil;
 import gnu.trove.THashMap;
@@ -66,13 +68,11 @@ import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.TestOnly;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class GlobalInspectionContextImpl extends UserDataHolderBase implements GlobalInspectionContext {
   private static final Logger LOG = Logger.getInstance("#com.intellij.codeInspection.ex.GlobalInspectionContextImpl");
@@ -115,6 +115,8 @@ public class GlobalInspectionContextImpl extends UserDataHolderBase implements G
 
   private AnalysisUIOptions myUIOptions;
   @NonNls static final String LOCAL_TOOL_ATTRIBUTE = "is_local_tool";
+
+  private boolean myUseProgressIndicatorInTests = false;
 
   public GlobalInspectionContextImpl(Project project, NotNullLazyValue<ContentManager> contentManager) {
     myProject = project;
@@ -499,7 +501,7 @@ public class GlobalInspectionContextImpl extends UserDataHolderBase implements G
 
   public void performInspectionsWithProgress(@NotNull final AnalysisScope scope, @NotNull final InspectionManager manager) {
     final PsiManager psiManager = PsiManager.getInstance(myProject);
-    myProgressIndicator = ApplicationManager.getApplication().isUnitTestMode() ? new EmptyProgressIndicator() : ProgressManager.getInstance().getProgressIndicator();
+    myProgressIndicator = getProgressIndicator();
     //init manager in read action
     RefManagerImpl refManager = (RefManagerImpl)getRefManager();
     try {
@@ -532,6 +534,16 @@ public class GlobalInspectionContextImpl extends UserDataHolderBase implements G
       refManager.inspectionReadActionFinished();
       psiManager.finishBatchFilesProcessingMode();
     }
+  }
+
+  private ProgressIndicator getProgressIndicator() {
+    return ApplicationManager.getApplication().isUnitTestMode() && !myUseProgressIndicatorInTests
+           ? new EmptyProgressIndicator() : ProgressManager.getInstance().getProgressIndicator();
+  }
+
+  @TestOnly
+  public void setUseProgressIndicatorInTests(boolean useProgressIndicatorInTests) {
+    myUseProgressIndicatorInTests = useProgressIndicatorInTests;
   }
 
   private void runTools(@NotNull AnalysisScope scope, @NotNull final InspectionManager manager) {
@@ -733,19 +745,24 @@ public class GlobalInspectionContextImpl extends UserDataHolderBase implements G
   protected List<ToolsImpl> getUsedTools() {
     InspectionProfileImpl profile = new InspectionProfileImpl((InspectionProfileImpl)getCurrentProfile());
     List<ToolsImpl> tools = profile.getAllEnabledInspectionTools(myProject);
-    THashSet<ToolsImpl> set = null;
+    Set<InspectionProfileEntry> dependentTools = new LinkedHashSet<InspectionProfileEntry>();
     for (ToolsImpl tool : tools) {
-      String id = tool.getTool().getMainToolId();
-      if (id != null) {
-        InspectionProfileEntry mainTool = profile.getInspectionTool(id);
-        LOG.assertTrue(mainTool != null, "Can't find main tool: " + id);
-        if (set == null) {
-          set = new THashSet<ToolsImpl>(tools, TOOLS_HASHING_STRATEGY);
-        }
-        set.add(new ToolsImpl(mainTool, mainTool.getDefaultLevel(), true));
-      }
+      profile.collectDependentInspections(tool.getTool(), dependentTools);
     }
-    return set == null ? tools : new ArrayList<ToolsImpl>(set);
+
+    if (!dependentTools.isEmpty()) {
+      THashSet<ToolsImpl> set = new THashSet<ToolsImpl>(tools, TOOLS_HASHING_STRATEGY);
+      set.addAll(ContainerUtil.map(dependentTools, new Function<InspectionProfileEntry, ToolsImpl>() {
+        @Override
+        public ToolsImpl fun(InspectionProfileEntry entry) {
+          return new ToolsImpl(entry, entry.getDefaultLevel(), true, true);
+        }
+      }));
+      return new ArrayList<ToolsImpl>(set);
+    }
+    else {
+      return tools;
+    }
   }
 
   private void classifyTool(List<Tools> outGlobalTools,

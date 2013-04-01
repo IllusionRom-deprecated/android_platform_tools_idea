@@ -54,6 +54,7 @@ public class PaletteToolWindowManager extends AbstractToolWindowManager {
   protected void initToolWindow() {
     DesignerCustomizations customization = getCustomizations();
     ToolWindowAnchor anchor = customization != null ? customization.getPaletteAnchor() : ToolWindowAnchor.RIGHT;
+
     myToolWindow = ToolWindowManager.getInstance(myProject).registerToolWindow("Palette\t", false, anchor, myProject, true);
     myToolWindow.setIcon(AllIcons.Toolwindows.ToolWindowPalette);
 

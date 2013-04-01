@@ -74,7 +74,8 @@ public class JavaBuilderUtil {
 
       final Mappings globalMappings = context.getProjectDescriptor().dataManager.getMappings();
 
-      if (!context.isProjectRebuild()) {
+      final boolean errorsDetected = Utils.errorsDetected(context);
+      if (!isForcedRecompilationAllJavaModules(context)) {
         if (context.shouldDifferentiate(chunk)) {
           context.processMessage(new ProgressMessage("Checking dependencies... [" + chunk.getName() + "]"));
           final Set<File> allCompiledFiles = getAllCompiledFilesContainer(context);
@@ -138,7 +139,7 @@ public class JavaBuilderUtil {
               for (File file : newlyAffectedFiles) {
                 FSOperations.markDirtyIfNotDeleted(context, file);
               }
-              additionalPassRequired = context.isMake() && chunkContainsAffectedFiles(context, chunk, newlyAffectedFiles);
+              additionalPassRequired = isCompileJavaIncrementally(context) && chunkContainsAffectedFiles(context, chunk, newlyAffectedFiles);
             }
           }
           else {
@@ -146,19 +147,23 @@ public class JavaBuilderUtil {
             LOG.info("Non-incremental mode: " + messageText);
             context.processMessage(new ProgressMessage(messageText));
 
-            additionalPassRequired = context.isMake();
+            additionalPassRequired = isCompileJavaIncrementally(context);
             FSOperations.markDirtyRecursively(context, chunk);
           }
         }
         else {
-          globalMappings.differentiateOnNonIncrementalMake(delta, removedPaths, filesToCompile);
+          if (!errorsDetected) { // makes sense only if we are going to integrate changes
+            globalMappings.differentiateOnNonIncrementalMake(delta, removedPaths, filesToCompile);
+          }
         }
       }
       else {
-        globalMappings.differentiateOnRebuild(delta);
+        if (!errorsDetected) { // makes sense only if we are going to integrate changes
+          globalMappings.differentiateOnRebuild(delta);
+        }
       }
 
-      if (Utils.errorsDetected(context)) {
+      if (errorsDetected) {
         // important: perform dependency analysis and mark found dependencies even if there were errors during the first phase of make.
         // Integration of changes should happen only if the corresponding phase of make succeeds
         // In case of errors this wil ensure that all dependencies marked after the first phase
@@ -182,6 +187,17 @@ public class JavaBuilderUtil {
     finally {
       context.processMessage(new ProgressMessage("")); // clean progress messages
     }
+  }
+
+  public static boolean isForcedRecompilationAllJavaModules(CompileContext context) {
+    CompileScope scope = context.getScope();
+    return scope.isBuildForcedForAllTargets(JavaModuleBuildTargetType.PRODUCTION) && scope.isBuildForcedForAllTargets(
+      JavaModuleBuildTargetType.TEST);
+  }
+
+  public static boolean isCompileJavaIncrementally(CompileContext context) {
+    CompileScope scope = context.getScope();
+    return scope.isBuildIncrementally(JavaModuleBuildTargetType.PRODUCTION) || scope.isBuildIncrementally(JavaModuleBuildTargetType.TEST);
   }
 
   private static List<Pair<File, JpsModule>> checkAffectedFilesInCorrectModules(CompileContext context,

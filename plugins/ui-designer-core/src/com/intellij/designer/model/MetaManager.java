@@ -18,7 +18,6 @@ package com.intellij.designer.model;
 import com.intellij.designer.palette.DefaultPaletteItem;
 import com.intellij.designer.palette.PaletteGroup;
 import com.intellij.designer.palette.PaletteItem;
-import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
 import org.jdom.Attribute;
@@ -41,13 +40,6 @@ public abstract class MetaManager extends ModelLoader {
   private static final String ITEM = "item";
   private static final String TAG = "tag";
   private static final String WRAP_IN = "wrap-in";
-  public static final String CREATION = "creation";
-  public static final String ATTR_TITLE = "title";
-  public static final String ATTR_ICON = "icon";
-  public static final String ATTR_TOOLTIP = "tooltip";
-  public static final String ATTR_VERSION = "version";
-  public static final String ATTR_DEPRECATED = "deprecated";
-  public static final String ATTR_DEPRECATED_HINT = "deprecatedHint";
 
   private final Map<String, MetaModel> myTag2Model = new HashMap<String, MetaModel>();
   private final Map<String, MetaModel> myTarget2Model = new HashMap<String, MetaModel>();
@@ -121,7 +113,7 @@ public abstract class MetaManager extends ModelLoader {
 
     Element presentation = element.getChild("presentation");
     if (presentation != null) {
-      meta.setPresentation(presentation.getAttributeValue(ATTR_TITLE), presentation.getAttributeValue(ATTR_ICON));
+      meta.setPresentation(presentation.getAttributeValue("title"), presentation.getAttributeValue("icon"));
     }
 
     Element palette = element.getChild("palette");
@@ -129,7 +121,7 @@ public abstract class MetaManager extends ModelLoader {
       meta.setPaletteItem(createPaletteItem(palette));
     }
 
-    Element creation = element.getChild(CREATION);
+    Element creation = element.getChild("creation");
     if (creation != null) {
       meta.setCreation(creation.getTextTrim());
     }
@@ -203,11 +195,10 @@ public abstract class MetaManager extends ModelLoader {
 
     for (Object child : element.getChildren(ITEM)) {
       Element itemElement = (Element)child;
-      String tag = itemElement.getAttributeValue(TAG);
-      MetaModel model = getModelByTag(tag);
+      MetaModel model = getModelByTag(itemElement.getAttributeValue(TAG));
       PaletteItem paletteItem = model.getPaletteItem();
-      List children = itemElement.getChildren();
-      if (children != null && !children.isEmpty()) {
+
+      if (!itemElement.getChildren().isEmpty()) {
         // Replace the palette item shown in the palette; it might provide a custom
         // title, icon or creation logic (and this is done here rather than in the
         // default palette item, since when loading elements back from XML, there's
@@ -217,17 +208,16 @@ public abstract class MetaManager extends ModelLoader {
         // those which set orientation="vertical". In the future, consider generalizing
         // this such that the {@link MetaModel} can hold multiple {@link PaletteItem}
         // instances, and perform attribute matching.
-        if (itemElement.getAttribute(ATTR_TITLE) != null) {
+        if (itemElement.getAttribute("title") != null) {
           paletteItem = new VariationPaletteItem(paletteItem, model, itemElement);
         }
         group.addItem(paletteItem);
 
         for (Object grandChild : itemElement.getChildren(ITEM)) {
-          Element variationElement = (Element)grandChild;
-          PaletteItem variationItem = new VariationPaletteItem(paletteItem, model, variationElement);
-          group.addItem(variationItem);
+          group.addItem(new VariationPaletteItem(paletteItem, model, (Element)grandChild));
         }
-      } else {
+      }
+      else {
         group.addItem(paletteItem);
       }
     }

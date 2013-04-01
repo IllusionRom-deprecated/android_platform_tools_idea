@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -402,29 +402,26 @@ public class DeclarationParser {
     return Pair.create(modList, isEmpty);
   }
 
-  private PsiBuilder.Marker parseMethodFromLeftParenth(final PsiBuilder builder, final PsiBuilder.Marker declaration,
-                                                       final boolean anno, final boolean constructor) {
+  private PsiBuilder.Marker parseMethodFromLeftParenth(PsiBuilder builder, PsiBuilder.Marker declaration, boolean anno, boolean constructor) {
     parseParameterList(builder);
 
-    eatBrackets(builder, constructor, "expected.semicolon");
+    eatBrackets(builder, constructor ? "expected.semicolon" : null);
 
     myParser.getReferenceParser().parseReferenceList(builder, JavaTokenType.THROWS_KEYWORD, JavaElementType.THROWS_LIST, JavaTokenType.COMMA);
 
-    final boolean hasDefault = expect(builder, JavaTokenType.DEFAULT_KEYWORD);
-    if (hasDefault && anno) {
+    if (anno && expect(builder, JavaTokenType.DEFAULT_KEYWORD)) {
       parseAnnotationValue(builder);
     }
 
-    final IElementType tokenType = builder.getTokenType();
-    final boolean hasError = tokenType != JavaTokenType.SEMICOLON && tokenType != JavaTokenType.LBRACE;
-    if (hasError) {
-      final PsiBuilder.Marker error = builder.mark();
+    IElementType tokenType = builder.getTokenType();
+    if (tokenType != JavaTokenType.SEMICOLON && tokenType != JavaTokenType.LBRACE) {
+      PsiBuilder.Marker error = builder.mark();
       // heuristic: going to next line obviously means method signature is over, starting new method (actually, another one completion hack)
-      final CharSequence text = builder.getOriginalText();
+      CharSequence text = builder.getOriginalText();
       Loop:
       while (true) {
         for (int i = builder.getCurrentOffset() - 1; i >= 0; i--) {
-          final char ch = text.charAt(i);
+          char ch = text.charAt(i);
           if (ch == '\n') break Loop;
           else if (ch != ' ' && ch != '\t') break;
         }
@@ -433,11 +430,10 @@ public class DeclarationParser {
       error.error(JavaErrorMessages.message("expected.lbrace.or.semicolon"));
     }
 
-    if (hasDefault && !anno && !hasError && builder.getTokenType() != JavaTokenType.LBRACE) {
-      error(builder, JavaErrorMessages.message("expected.lbrace"));
-    }
-    if (!expect(builder, JavaTokenType.SEMICOLON) && builder.getTokenType() == JavaTokenType.LBRACE) {
-      myParser.getStatementParser().parseCodeBlock(builder);
+    if (!expect(builder, JavaTokenType.SEMICOLON)) {
+      if (builder.getTokenType() == JavaTokenType.LBRACE) {
+        myParser.getStatementParser().parseCodeBlock(builder);
+      }
     }
 
     done(declaration, anno ? JavaElementType.ANNOTATION_METHOD : JavaElementType.METHOD);
@@ -445,24 +441,24 @@ public class DeclarationParser {
   }
 
   @NotNull
-  public PsiBuilder.Marker parseParameterList(final PsiBuilder builder) {
-    return parseElementList(builder, ListType.NORMAL);
+  public PsiBuilder.Marker parseParameterList(PsiBuilder builder) {
+    return parseElementList(builder, ListType.METHOD);
   }
 
   @NotNull
-  public PsiBuilder.Marker parseResourceList(final PsiBuilder builder) {
+  public PsiBuilder.Marker parseResourceList(PsiBuilder builder) {
     return parseElementList(builder, ListType.RESOURCE);
   }
 
   @NotNull
-  public PsiBuilder.Marker parseLambdaParameterList(final PsiBuilder builder, final boolean typed) {
+  public PsiBuilder.Marker parseLambdaParameterList(PsiBuilder builder, boolean typed) {
     return parseElementList(builder, typed ? ListType.LAMBDA_TYPED : ListType.LAMBDA_UNTYPED);
   }
 
-  private enum ListType { NORMAL, RESOURCE, LAMBDA_TYPED, LAMBDA_UNTYPED }
+  private enum ListType {METHOD, RESOURCE, LAMBDA_TYPED, LAMBDA_UNTYPED}
 
   @NotNull
-  private PsiBuilder.Marker parseElementList(final PsiBuilder builder, final ListType type) {
+  private PsiBuilder.Marker parseElementList(PsiBuilder builder, ListType type) {
     final boolean lambda = (type == ListType.LAMBDA_TYPED || type == ListType.LAMBDA_UNTYPED);
     final boolean resources = (type == ListType.RESOURCE);
     final PsiBuilder.Marker elementList = builder.mark();
@@ -563,29 +559,25 @@ public class DeclarationParser {
   }
 
   @Nullable
-  public PsiBuilder.Marker parseParameter(final PsiBuilder builder, final boolean ellipsis, final boolean disjunctiveType) {
+  public PsiBuilder.Marker parseParameter(PsiBuilder builder, boolean ellipsis, boolean disjunctiveType) {
     return parseListElement(builder, true, ellipsis, disjunctiveType, false);
   }
 
   @Nullable
-  public PsiBuilder.Marker parseResource(final PsiBuilder builder) {
+  public PsiBuilder.Marker parseResource(PsiBuilder builder) {
     return parseListElement(builder, true, false, false, true);
   }
 
   @Nullable
-  public PsiBuilder.Marker parseLambdaParameter(final PsiBuilder builder, final boolean typed) {
+  public PsiBuilder.Marker parseLambdaParameter(PsiBuilder builder, boolean typed) {
     return parseListElement(builder, typed, true, false, false);
   }
 
   @Nullable
-  private PsiBuilder.Marker parseListElement(final PsiBuilder builder,
-                                             final boolean typed,
-                                             final boolean ellipsis,
-                                             final boolean disjunctiveType,
-                                             final boolean resource) {
-    final PsiBuilder.Marker param = builder.mark();
+  private PsiBuilder.Marker parseListElement(PsiBuilder builder, boolean typed, boolean ellipsis, boolean disjunctiveType, boolean resource) {
+    PsiBuilder.Marker param = builder.mark();
 
-    final Pair<PsiBuilder.Marker, Boolean> modListInfo = parseModifierList(builder);
+    Pair<PsiBuilder.Marker, Boolean> modListInfo = parseModifierList(builder);
 
     ReferenceParser.TypeInfo typeInfo = null;
     if (typed) {
@@ -608,7 +600,7 @@ public class DeclarationParser {
 
     if (expect(builder, JavaTokenType.IDENTIFIER)) {
       if (!resource) {
-        eatBrackets(builder, typeInfo != null && typeInfo.isVarArg, "expected.rparen");
+        eatBrackets(builder, typeInfo != null && typeInfo.isVarArg ? "expected.rparen" : null);
         done(param, JavaElementType.PARAMETER);
         return param;
       }
@@ -630,8 +622,7 @@ public class DeclarationParser {
   }
 
   @Nullable
-  private PsiBuilder.Marker parseFieldOrLocalVariable(final PsiBuilder builder, final PsiBuilder.Marker declaration,
-                                                             final int declarationStart, final Context context) {
+  private PsiBuilder.Marker parseFieldOrLocalVariable(PsiBuilder builder, PsiBuilder.Marker declaration, int declarationStart, Context context) {
     final IElementType varType;
     if (context == Context.CLASS || context == Context.ANNOTATION_INTERFACE) {
       varType = JavaElementType.FIELD;
@@ -653,7 +644,7 @@ public class DeclarationParser {
     while (true) {
       shouldRollback = true;
 
-      if (!eatBrackets(builder, false, null)) {
+      if (!eatBrackets(builder, null)) {
         unclosed = true;
       }
 
@@ -715,26 +706,33 @@ public class DeclarationParser {
     return declaration;
   }
 
-  private static boolean eatBrackets(final PsiBuilder builder, final boolean isError,
-                                     @Nullable @PropertyKey(resourceBundle = JavaErrorMessages.BUNDLE) String errorKey) {
-    if (builder.getTokenType() != JavaTokenType.LBRACKET) return true;
+  private boolean eatBrackets(PsiBuilder builder, @Nullable @PropertyKey(resourceBundle = JavaErrorMessages.BUNDLE) String errorKey) {
+    IElementType tokenType = builder.getTokenType();
+    if (tokenType != JavaTokenType.LBRACKET && tokenType != JavaTokenType.AT) return true;
 
-    final PsiBuilder.Marker marker = isError ? builder.mark() : null;
+    PsiBuilder.Marker marker = errorKey != null ? builder.mark() : null;
 
-    boolean result = true;
-    while (expect(builder, JavaTokenType.LBRACKET)) {
-      if (!expect(builder, JavaTokenType.RBRACKET)) {
-        if (!isError) error(builder, JavaErrorMessages.message("expected.rbracket"));
-        result = false;
+    int count = 0;
+    while (true) {
+      parseAnnotations(builder);
+      if (!expect(builder, JavaTokenType.LBRACKET)) {
         break;
       }
+      ++count;
+      if (!expect(builder, JavaTokenType.RBRACKET)) {
+        break;
+      }
+      ++count;
     }
 
-    if (marker != null && errorKey != null) {
+    boolean paired = count % 2 == 0;
+    if (marker != null) {
       marker.error(JavaErrorMessages.message(errorKey));
     }
-
-    return result;
+    else if (!paired) {
+      error(builder, JavaErrorMessages.message("expected.rbracket"));
+    }
+    return paired;
   }
 
   @Nullable

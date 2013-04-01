@@ -47,7 +47,9 @@ public class MarqueeTracker extends InputTool {
     setDisabledCursor(Cursors.getNoCursor());
   }
 
-  /** Set whether the background should be selected if none of its children are included */
+  /**
+   * Set whether the background should be selected if none of its children are included.
+   */
   public void setSelectBackground(boolean selectBackground) {
     mySelectBackground = selectBackground;
   }
@@ -79,7 +81,8 @@ public class MarqueeTracker extends InputTool {
       myState = STATE_NONE;
       eraseFeedback();
       performMarqueeSelect();
-    } else if (mySelectBackground) {
+    }
+    else if (mySelectBackground) {
       performMarqueeSelect();
     }
   }
@@ -97,9 +100,7 @@ public class MarqueeTracker extends InputTool {
 
   @Override
   public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
-    int modifiers = event.getModifiers();
-    boolean changedModifiers = modifiers != myModifiers;
-
+    boolean changedModifiers = event.getModifiers() != myModifiers;
     super.keyPressed(event, area);
 
     if (changedModifiers) {
@@ -109,9 +110,7 @@ public class MarqueeTracker extends InputTool {
 
   @Override
   public void keyReleased(KeyEvent event, EditableArea area) throws Exception {
-    int modifiers = event.getModifiers();
-    boolean changedModifiers = modifiers != myModifiers;
-
+    boolean changedModifiers = event.getModifiers() != myModifiers;
     super.keyReleased(event, area);
 
     if (changedModifiers) {
@@ -165,10 +164,10 @@ public class MarqueeTracker extends InputTool {
       int deltaX = Math.abs(myStartScreenX - myCurrentScreenX);
       int deltaY = Math.abs(myStartScreenY - myCurrentScreenY);
       return new Rectangle(myStartScreenX - deltaX, myStartScreenY - deltaY, 2 * deltaX, 2 * deltaY);
-    } else {
-      // Select diagonally from upper left to lower right
-      return new Rectangle(myStartScreenX, myStartScreenY, 0, 0).union(new Rectangle(myCurrentScreenX, myCurrentScreenY, 0, 0));
     }
+
+    // Select diagonally from upper left to lower right
+    return new Rectangle(myStartScreenX, myStartScreenY, 0, 0).union(new Rectangle(myCurrentScreenX, myCurrentScreenY, 0, 0));
   }
 
   private void performMarqueeSelect() {
@@ -180,28 +179,25 @@ public class MarqueeTracker extends InputTool {
       rootComponent.accept(new RadComponentVisitor() {
         @Override
         public void endVisit(RadComponent component) {
-          if (selectionRectangle.contains(component.getBounds(myArea.getNativeComponent()))
-              && !component.isBackground()) {
+          if (selectionRectangle.contains(component.getBounds(myArea.getNativeComponent())) && !component.isBackground()) {
             newSelection.add(component);
           }
         }
       }, true);
-    }
 
-    if (newSelection.isEmpty() && mySelectBackground && rootComponent != null) {
-      rootComponent.accept(new RadComponentVisitor() {
-        @Override
-        public void endVisit(RadComponent component) {
-          if (!newSelection.isEmpty()) {
+      if (newSelection.isEmpty() && mySelectBackground) {
+        rootComponent.accept(new RadComponentVisitor() {
+          @Override
+          public void endVisit(RadComponent component) {
             // Only select the bottom-most background
-            return;
+            if (newSelection.isEmpty() &&
+                component.getBounds(myArea.getNativeComponent()).contains(selectionRectangle.x, selectionRectangle.y) &&
+                component.isBackground()) {
+              newSelection.add(component);
+            }
           }
-          if (component.getBounds(myArea.getNativeComponent()).contains(selectionRectangle.x, selectionRectangle.y)
-              && component.isBackground()) {
-            newSelection.add(component);
-          }
-        }
-      }, true);
+        }, true);
+      }
     }
 
     if (mySelectionMode == TOGGLE_MODE) {

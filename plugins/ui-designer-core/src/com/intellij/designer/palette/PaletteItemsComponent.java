@@ -42,6 +42,8 @@ import java.awt.event.MouseListener;
  * @author Alexander Lobas
  */
 public class PaletteItemsComponent extends JBList {
+  private static final SimpleTextAttributes DEPRECATED_ATTRIBUTES = new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null);
+
   private final PaletteGroup myGroup;
   private final DesignerEditorPanel myDesigner;
   private int myBeforeClickSelectedRow = -1;
@@ -81,26 +83,21 @@ public class PaletteItemsComponent extends JBList {
         }
 
         String title = item.getTitle();
-        SimpleTextAttributes style = SimpleTextAttributes.REGULAR_ATTRIBUTES;
-        String deprecatedIn = item.getDeprecatedIn();
-        @SuppressWarnings("ConstantConditions")
-        boolean deprecated = !StringUtil.isEmpty(deprecatedIn) && myDesigner.isDeprecated(deprecatedIn);
-        if (deprecated) {
-          style = new SimpleTextAttributes(SimpleTextAttributes.STYLE_STRIKEOUT, null);
-        }
-
-        append(title, style);
-
         String tooltip = item.getTooltip();
         String version = myDesigner.getVersionLabel(item.getVersion());
+        String deprecatedIn = item.getDeprecatedIn();
+        boolean deprecated = myDesigner.isDeprecated(deprecatedIn);
+
+        append(title, deprecated ? DEPRECATED_ATTRIBUTES : SimpleTextAttributes.REGULAR_ATTRIBUTES);
+
         if (!version.isEmpty()) {
-          version = "<sup><i>" +  version + "</i></sup>";
+          version = "<sup><i>" + version + "</i></sup>";
         }
         if (tooltip != null) {
           String deprecatedMessage = "";
           if (deprecated) {
-            deprecatedMessage = String.format("<b>This item is deprecated in version \"%1$s\".<br>",
-                                              myDesigner.getVersionLabel(deprecatedIn));
+            deprecatedMessage =
+              String.format("<b>This item is deprecated in version \"%1$s\".<br>", myDesigner.getVersionLabel(deprecatedIn));
             String hint = item.getDeprecatedHint();
             if (!StringUtil.isEmpty(hint)) {
               deprecatedMessage += hint;

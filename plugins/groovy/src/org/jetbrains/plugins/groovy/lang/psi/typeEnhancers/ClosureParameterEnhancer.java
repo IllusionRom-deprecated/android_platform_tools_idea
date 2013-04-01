@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,10 +47,10 @@ import static com.intellij.psi.CommonClassNames.JAVA_IO_FILE;
  * @author peter
  */
 public class ClosureParameterEnhancer extends AbstractClosureParameterEnhancer {
-  private final Map<String, String> simpleTypes = new HashMap<String, String>();
-  private final Set<String> iterations = new HashSet<String>();
+  private static final Map<String, String> simpleTypes = new HashMap<String, String>();
+  private static final Set<String> iterations = new HashSet<String>();
 
-  public ClosureParameterEnhancer() {
+  static {
     simpleTypes.put("times", "java.lang.Integer");
     simpleTypes.put("upto", "java.lang.Integer");
     simpleTypes.put("downto", "java.lang.Integer");
@@ -103,17 +103,25 @@ public class ClosureParameterEnhancer extends AbstractClosureParameterEnhancer {
     iterations.add("findIndexValues");
     iterations.add("findIndexOf");
     iterations.add("count");
-
   }
 
   @Override
   @Nullable
   protected PsiType getClosureParameterType(GrClosableBlock closure, int index) {
+    if (org.jetbrains.plugins.groovy.lang.psi.util.PsiUtil.isCompileStatic(closure)) {
+      return null;
+    }
+
+    return inferType(closure, index);
+  }
+
+  @Nullable
+  public static PsiType inferType(@NotNull GrClosableBlock closure, int index) {
     PsiElement parent = closure.getParent();
     if (parent instanceof GrStringInjection && index == 0) {
       return TypesUtil.createTypeByFQClassName("java.io.StringWriter", closure);
     }
-    
+
     if (parent instanceof GrArgumentList) parent = parent.getParent();
     if (!(parent instanceof GrMethodCall)) {
       return null;

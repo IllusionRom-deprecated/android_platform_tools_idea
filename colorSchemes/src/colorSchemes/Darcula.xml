@@ -4,7 +4,7 @@
   <option name="EDITOR_FONT_SIZE" value="12" />
   <option name="EDITOR_FONT_NAME" value="Menlo" />
   <colors>
-    <option name="ADDED_LINES_COLOR" value="3f6232" />
+    <option name="ADDED_LINES_COLOR" value="295622" />
     <option name="ANNOTATIONS_COLOR" value="8b999f" />
     <option name="CARET_COLOR" value="bbbbbb" />
     <option name="CARET_ROW_COLOR" value="323232" />
@@ -29,17 +29,17 @@
     <option name="INDENT_GUIDE" value="373737" />
     <option name="LINE_NUMBERS_COLOR" value="888888" />
     <option name="METHOD_SEPARATORS_COLOR" value="4d4d4d" />
-    <option name="MODIFIED_LINES_COLOR" value="3c4b4e" />
+    <option name="MODIFIED_LINES_COLOR" value="415f69" />
     <option name="NOTIFICATION_BACKGROUND" value="5c5c42" />
     <option name="READONLY_FRAGMENT_BACKGROUND" value="" />
     <option name="RECURSIVE_CALL_ATTRIBUTES" value="574300" />
-    <option name="RIGHT_MARGIN_COLOR" value="4d4d4d" />
+    <option name="RIGHT_MARGIN_COLOR" value="323232" />
     <option name="SELECTED_INDENT_GUIDE" value="505050" />
     <option name="SELECTED_TEARLINE_COLOR" value="787878" />
     <option name="SELECTION_BACKGROUND" value="214283" />
     <option name="SELECTION_FOREGROUND" value="" />
     <option name="TEARLINE_COLOR" value="555555" />
-    <option name="WHITESPACES" value="404040" />
+    <option name="WHITESPACES" value="505050" />
   </colors>
   <attributes>
     <option name="ANNOTATION_ATTRIBUTE_NAME_ATTRIBUTES">
@@ -171,14 +171,24 @@
         <option name="FOREGROUND" value="a6a6a6" />
       </value>
     </option>
+    <option name="CSS.COLOR">
+      <value>
+        <option name="FOREGROUND" value="6897bb" />
+      </value>
+    </option>
+    <option name="CSS.COMMENT">
+      <value>
+        <option name="FOREGROUND" value="808080" />
+      </value>
+    </option>
     <option name="CSS.FUNCTION">
       <value>
-        <option name="FOREGROUND" value="da4939" />
+        <option name="FOREGROUND" value="ffc66d" />
       </value>
     </option>
     <option name="CSS.IDENT">
       <value>
-        <option name="FOREGROUND" value="e8bf6a" />
+        <option name="FOREGROUND" value="ffc66d" />
       </value>
     </option>
     <option name="CSS.IMPORTANT">
@@ -189,8 +199,7 @@
     </option>
     <option name="CSS.KEYWORD">
       <value>
-        <option name="FOREGROUND" value="cc7833" />
-        <option name="EFFECT_TYPE" value="1" />
+        <option name="FOREGROUND" value="cc7832" />
       </value>
     </option>
     <option name="CSS.NUMBER">
@@ -200,12 +209,12 @@
     </option>
     <option name="CSS.PROPERTY_NAME">
       <value>
-        <option name="FOREGROUND" value="da4939" />
+        <option name="FOREGROUND" value="9876aa" />
       </value>
     </option>
     <option name="CSS.PROPERTY_VALUE">
       <value>
-        <option name="FOREGROUND" value="a5c261" />
+        <option name="FOREGROUND" value="a9b7c6" />
       </value>
     </option>
     <option name="CSS.STRING">
@@ -215,7 +224,7 @@
     </option>
     <option name="CSS.TAG_NAME">
       <value>
-        <option name="FOREGROUND" value="e8bf6a" />
+        <option name="FOREGROUND" value="cc7832" />
       </value>
     </option>
     <option name="CSS.URL">
@@ -472,7 +481,6 @@
     <option name="ENUM_CONST">
       <value>
         <option name="FOREGROUND" value="9373a5" />
-        <option name="FONT_TYPE" value="1" />
         <option name="EFFECT_TYPE" value="-1" />
       </value>
     </option>
@@ -669,7 +677,6 @@
     <option name="IVAR">
       <value>
         <option name="FOREGROUND" value="9373a5" />
-        <option name="FONT_TYPE" value="1" />
         <option name="EFFECT_TYPE" value="-1" />
       </value>
     </option>
@@ -890,25 +897,17 @@
     <option name="MACRONAME">
       <value>
         <option name="FOREGROUND" value="908b25" />
-        <option name="FONT_TYPE" value="1" />
         <option name="EFFECT_TYPE" value="-1" />
       </value>
     </option>
-    <option name="MAKO.SUBSTITUTION">
-      <value>
-        <option name="BACKGROUND" value="232364" />
-        <option name="EFFECT_TYPE" value="-1" />
-      </value>
-    </option>
-    <option name="MAKO.TAG">
+    <option name="MACRO_PARAMETER">
       <value>
         <option name="EFFECT_TYPE" value="-1" />
       </value>
     </option>
     <option name="MATCHED_BRACE_ATTRIBUTES">
       <value>
-        <option name="FOREGROUND" value="ffffff" />
-        <option name="FONT_TYPE" value="1" />
+        <option name="FOREGROUND" value="ff8647" />
       </value>
     </option>
     <option name="MESSAGE_ARGUMENT">
@@ -939,16 +938,52 @@
         <option name="FOREGROUND" value="6897bb" />
       </value>
     </option>
+    <option name="OC.CPP_KEYWORD">
+      <value>
+        <option name="FOREGROUND" value="cc7832" />
+      </value>
+    </option>
+    <option name="OC.DIRECTIVE">
+      <value>
+        <option name="FOREGROUND" value="80b000" />
+        <option name="EFFECT_TYPE" value="-1" />
+      </value>
+    </option>
+    <option name="OC.KEYWORD">
+      <value>
+        <option name="FOREGROUND" value="cc7832" />
+      </value>
+    </option>
+    <option name="OC.NUMBER">
+      <value>
+        <option name="FOREGROUND" value="6897bb" />
+      </value>
+    </option>
     <option name="OC.PROPERTY">
       <value>
         <option name="FOREGROUND" value="cdbcac" />
         <option name="EFFECT_TYPE" value="-1" />
       </value>
     </option>
+    <option name="OC.SELFSUPERTHIS">
+      <value>
+        <option name="FOREGROUND" value="cc7832" />
+      </value>
+    </option>
+    <option name="OC.STRING">
+      <value>
+        <option name="FOREGROUND" value="a5c25c" />
+      </value>
+    </option>
     <option name="OC.STRUCT_FIELD">
       <value>
         <option name="FOREGROUND" value="9373a5" />
         <option name="EFFECT_TYPE" value="-1" />
+      </value>
+    </option>
+    <option name="OC_FORMAT_TOKEN">
+      <value>
+        <option name="FOREGROUND" value="cc7832" />
       </value>
     </option>
     <option name="PHP_CONSTANT">
@@ -994,40 +1029,6 @@
       <value>
         <option name="FOREGROUND" value="219598" />
         <option name="EFFECT_TYPE" value="-1" />
-      </value>
-    </option>
-    <option name="PY.CLASS_DEFINITION">
-      <value>
-        <option name="FONT_TYPE" value="1" />
-        <option name="EFFECT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="PY.DECORATOR">
-      <value>
-        <option name="FOREGROUND" value="bbb529" />
-        <option name="EFFECT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="PY.FUNC_DEFINITION">
-      <value>
-        <option name="FONT_TYPE" value="1" />
-        <option name="EFFECT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="PY.KEYWORD">
-      <value>
-        <option name="FOREGROUND" value="cc7832" />
-        <option name="FONT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="PY.KEYWORD_ARGUMENT">
-      <value>
-        <option name="FOREGROUND" value="aa4926" />
-      </value>
-    </option>
-    <option name="PY.STRING.B">
-      <value>
-        <option name="FOREGROUND" value="a5c261" />
       </value>
     </option>
     <option name="REGEXP.BRACES">
@@ -1088,31 +1089,6 @@
     <option name="REQUIRE_GEM_CALL">
       <value>
         <option name="FONT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="REST.BOLD">
-      <value>
-        <option name="FONT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="REST.FIXED">
-      <value>
-        <option name="BACKGROUND" value="a3a08" />
-      </value>
-    </option>
-    <option name="REST.INLINE">
-      <value>
-        <option name="BACKGROUND" value="236423" />
-      </value>
-    </option>
-    <option name="REST.INTERPRETED">
-      <value>
-        <option name="BACKGROUND" value="15463c" />
-      </value>
-    </option>
-    <option name="REST.ITALIC">
-      <value>
-        <option name="FONT_TYPE" value="2" />
       </value>
     </option>
     <option name="RHTML_COMMENT_ID">
@@ -1409,39 +1385,6 @@
         <option name="FOREGROUND" value="cc7833" />
       </value>
     </option>
-    <option name="SQL_COLUMN">
-      <value>
-        <option name="FOREGROUND" value="d0d0ff" />
-        <option name="FONT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="SQL_KEYWORD">
-      <value>
-        <option name="FOREGROUND" value="cc7832" />
-        <option name="FONT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="SQL_NUMBER">
-      <value>
-        <option name="FOREGROUND" value="6897bb" />
-      </value>
-    </option>
-    <option name="SQL_STRING">
-      <value>
-        <option name="FOREGROUND" value="a5c261" />
-        <option name="FONT_TYPE" value="1" />
-      </value>
-    </option>
-    <option name="SQL_SYNTETIC_ENTITY">
-      <value>
-        <option name="FOREGROUND" value="ffc66d" />
-      </value>
-    </option>
-    <option name="SQL_TABLE">
-      <value>
-        <option name="FOREGROUND" value="da4939" />
-      </value>
-    </option>
     <option name="STATIC_FIELD_ATTRIBUTES">
       <value>
         <option name="FOREGROUND" value="9876aa" />
@@ -1542,6 +1485,11 @@
     <option name="Type parameter">
       <value>
         <option name="FOREGROUND" value="247877" />
+      </value>
+    </option>
+    <option name="UNMATCHED_BRACE_ATTRIBUTES">
+      <value>
+        <option name="FOREGROUND" value="d1243b" />
       </value>
     </option>
     <option name="Unresolved reference access">

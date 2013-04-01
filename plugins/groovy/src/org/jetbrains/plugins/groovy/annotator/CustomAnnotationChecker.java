@@ -53,13 +53,10 @@ public abstract class CustomAnnotationChecker {
 
   @Nullable
   public static String isAnnotationApplicable(@NotNull GrAnnotation annotation, final PsiElement parent) {
-    PsiElement owner = parent.getParent();
-
-    final PsiElement ownerToUse = parent instanceof PsiModifierList ? owner : parent;
-
-    String[] elementTypeFields = GrAnnotationImpl.getApplicableElementTypeFields(ownerToUse);
-    if (elementTypeFields != null && !GrAnnotationImpl.isAnnotationApplicableTo(annotation, false, elementTypeFields)) {
-      final String annotationTargetText = JavaErrorMessages.message("annotation.target." + elementTypeFields[0]);
+    PsiElement ownerToUse = parent instanceof PsiModifierList ? parent.getParent() : parent;
+    PsiAnnotation.TargetType[] elementTypeFields = GrAnnotationImpl.getApplicableElementTypeFields(ownerToUse);
+    if (elementTypeFields.length != 0 && !GrAnnotationImpl.isAnnotationApplicableTo(annotation, elementTypeFields)) {
+      String annotationTargetText = JavaErrorMessages.message("annotation.target." + elementTypeFields[0]);
       GrCodeReferenceElement ref = annotation.getClassReference();
       return JavaErrorMessages.message("annotation.not.applicable", ref.getText(), annotationTargetText);
     }
@@ -192,5 +189,11 @@ public abstract class CustomAnnotationChecker {
 
     final PsiType componentType = ((PsiArrayType)type).getComponentType();
     return checkAnnoTypeAssignable(componentType, rtype, context, skipArrays);
+  }
+
+  public static void highlightErrors(AnnotationHolder holder, Map<PsiElement, String> errors) {
+    for (Map.Entry<PsiElement, String> entry : errors.entrySet()) {
+      holder.createErrorAnnotation(entry.getKey(), entry.getValue());
+    }
   }
 }

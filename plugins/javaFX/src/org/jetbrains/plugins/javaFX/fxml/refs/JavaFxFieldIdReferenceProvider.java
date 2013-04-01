@@ -17,6 +17,8 @@ package org.jetbrains.plugins.javaFX.fxml.refs;
 
 import com.intellij.psi.*;
 import com.intellij.psi.xml.XmlAttributeValue;
+import com.intellij.psi.xml.XmlFile;
+import com.intellij.psi.xml.XmlTag;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.ProcessingContext;
 import org.jetbrains.annotations.NotNull;
@@ -27,16 +29,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
-* User: anna
-* Date: 1/17/13
-*/
-class JavaFxFieldIdReferenceProvider extends JavaFxControllerBasedReferenceProvider {
+ * User: anna
+ * Date: 1/17/13
+ */
+public class JavaFxFieldIdReferenceProvider extends JavaFxControllerBasedReferenceProvider {
   @Override
   protected PsiReference[] getReferencesByElement(@NotNull final PsiClass aClass,
                                                   final XmlAttributeValue xmlAttributeValue,
                                                   ProcessingContext context) {
     final PsiField field = aClass.findFieldByName(xmlAttributeValue.getValue(), false);
-    return new PsiReference[] {new JavaFxControllerFieldRef(xmlAttributeValue, field, aClass)};
+    return new PsiReference[]{new JavaFxControllerFieldRef(xmlAttributeValue, field, aClass)};
   }
 
   public static class JavaFxControllerFieldRef extends PsiReferenceBase<XmlAttributeValue> {
@@ -45,16 +47,38 @@ class JavaFxFieldIdReferenceProvider extends JavaFxControllerBasedReferenceProvi
     private final PsiClass myAClass;
 
     public JavaFxControllerFieldRef(XmlAttributeValue xmlAttributeValue, PsiField field, PsiClass aClass) {
-      super(xmlAttributeValue);
+      super(xmlAttributeValue, true);
       myXmlAttributeValue = xmlAttributeValue;
       myField = field;
       myAClass = aClass;
     }
 
+    public XmlAttributeValue getXmlAttributeValue() {
+      return myXmlAttributeValue;
+    }
+
+    public PsiClass getAClass() {
+      return myAClass;
+    }
+
     @Nullable
     @Override
     public PsiElement resolve() {
-      return myField != null ? myField : myXmlAttributeValue;
+      if (myField != null) {
+        return myField;
+      }
+      else {
+        if (myAClass != null) {
+          final XmlFile xmlFile = (XmlFile)myXmlAttributeValue.getContainingFile();
+          final XmlTag rootTag = xmlFile.getRootTag();
+          if (rootTag != null) {
+            if (!JavaFxPsiUtil.isOutOfHierarchy(myXmlAttributeValue)) {
+              return null;
+            }
+          }
+        }
+        return myXmlAttributeValue;
+      }
     }
 
     @NotNull

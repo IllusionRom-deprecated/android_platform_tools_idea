@@ -24,13 +24,10 @@ import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.SideBorder;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.event.KeyEvent;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Alexander Lobas
@@ -44,7 +41,7 @@ public class DesignerActionPanel implements DataProvider {
   private final DefaultActionGroup myPopupGroup = new DefaultActionGroup();
   private final DefaultActionGroup myDynamicPopupGroup = new DefaultActionGroup();
 
-  protected JComponent myToolbar;
+  protected final JComponent myToolbar;
   protected final DesignerEditorPanel myDesigner;
   private final CommonEditActionsProvider myCommonEditActionsProvider;
   private final JComponent myShortcuts;
@@ -89,9 +86,11 @@ public class DesignerActionPanel implements DataProvider {
     ActionManager actionManager = ActionManager.getInstance();
     ActionToolbar actionToolbar = actionManager.createActionToolbar(TOOLBAR, myActionGroup, true);
     actionToolbar.setLayoutPolicy(ActionToolbar.WRAP_LAYOUT_POLICY);
+
     JComponent toolbar = actionToolbar.getComponent();
     toolbar.setBorder(IdeBorderFactory.createBorder(SideBorder.BOTTOM));
     toolbar.setVisible(false);
+
     return toolbar;
   }
 
@@ -112,9 +111,11 @@ public class DesignerActionPanel implements DataProvider {
     selectParent.registerCustomShortcutSet(KeyEvent.VK_ESCAPE, 0, null);
 
     EditableArea area = designer.getSurfaceArea();
+
     AnAction selectSiblings = new SelectSiblingsAction(area);
     AnAction selectSameType = new SelectSameTypeAction(area);
     AnAction deselectAllAction = new DeselectAllAction(area);
+
     SelectAllAction selectAllAction = new SelectAllAction(area);
     registerAction(selectAllAction, "$SelectAll");
 
@@ -189,7 +190,7 @@ public class DesignerActionPanel implements DataProvider {
   }
 
   private void updateSelectionActions(List<RadComponent> selection) {
-    boolean update = isVisible(myDynamicGroup);
+    boolean oldVisible = isVisible(myDynamicGroup);
 
     if (myDynamicGroup.getChildrenCount() > 0) {
       for (AnAction action : myDynamicGroup.getChildActionsOrStubs()) {
@@ -198,21 +199,19 @@ public class DesignerActionPanel implements DataProvider {
       myDynamicGroup.removeAll();
     }
 
-    addSelectionActions(selection, myDynamicGroup, myShortcuts);
+    addSelectionActions(selection, myDynamicGroup);
 
-    update |= isVisible(myDynamicGroup);
-
-    if (update) {
+    if (oldVisible || isVisible(myDynamicGroup)) {
       update();
     }
   }
 
-  protected void addSelectionActions(List<RadComponent> selection, DefaultActionGroup group, JComponent shortcuts) {
+  protected void addSelectionActions(List<RadComponent> selection, DefaultActionGroup group) {
     for (RadComponent parent : RadComponent.getParents(selection)) {
-      parent.getLayout().addSelectionActions(myDesigner, group, shortcuts, selection);
+      parent.getLayout().addSelectionActions(myDesigner, group, myShortcuts, selection);
     }
     for (RadComponent component : selection) {
-      component.addSelectionActions(myDesigner, group, shortcuts, selection);
+      component.addSelectionActions(myDesigner, group, myShortcuts, selection);
     }
   }
 

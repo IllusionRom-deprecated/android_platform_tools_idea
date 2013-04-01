@@ -23,6 +23,7 @@ import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupItem;
 import com.intellij.codeInsight.lookup.LookupValueWithPsiElement;
 import com.intellij.featureStatistics.FeatureUsageTracker;
+import com.intellij.injected.editor.DocumentWindowImpl;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.extensions.Extensions;
@@ -30,6 +31,7 @@ import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.NotNullLazyValue;
+import com.intellij.openapi.util.ProperTextRange;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.patterns.ElementPattern;
 import com.intellij.psi.PsiDocumentManager;
@@ -246,12 +248,24 @@ public class CompletionUtil {
       Integer end = range.getEndOffset();
       final Document document = file.getViewProvider().getDocument();
       if (document != null) {
-        final OffsetTranslator translator = document.getUserData(RANGE_TRANSLATION);
+        Document hostDocument = document instanceof DocumentWindowImpl ? ((DocumentWindowImpl)document).getDelegate() : document;
+        OffsetTranslator translator = hostDocument.getUserData(RANGE_TRANSLATION);
         if (translator != null) {
+          if (document instanceof DocumentWindowImpl) {
+            ProperTextRange translated = ((DocumentWindowImpl)document).injectedToHost(new TextRange(start, end));
+            start = translated.getStartOffset();
+            end = translated.getEndOffset();
+          }
+
           start = translator.translateOffset(start);
           end = translator.translateOffset(end);
           if (start == null || end == null) {
             return null;
+          }
+
+          if (document instanceof DocumentWindowImpl) {
+            start = ((DocumentWindowImpl)document).hostToInjected(start);
+            end = ((DocumentWindowImpl)document).hostToInjected(end);
           }
         }
       }

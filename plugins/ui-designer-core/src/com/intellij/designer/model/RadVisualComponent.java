@@ -35,39 +35,38 @@ public abstract class RadVisualComponent extends RadComponent {
 
   @Override
   public Rectangle getBounds(Component relativeTo) {
-    Rectangle bounds = getBounds();
-    return fromModel(relativeTo, bounds);
+    return fromModel(relativeTo, getBounds());
   }
 
   @Override
-  public Rectangle fromModel(Component target, Rectangle bounds) {
+  public Rectangle fromModel(@NotNull Component target, @NotNull Rectangle bounds) {
     if (target != myNativeComponent && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         bounds = new Rectangle(bounds);
         bounds.x *= zoom;
         bounds.y *= zoom;
         bounds.width *= zoom;
         bounds.height *= zoom;
-        if (myNativeComponent == target) {
-          return bounds;
-        }
       }
     }
+
     return myNativeComponent == target
            ? new Rectangle(bounds) :
            SwingUtilities.convertRectangle(myNativeComponent, bounds, target);
   }
 
   @Override
-  public Rectangle toModel(Component source, Rectangle rectangle) {
+  public Rectangle toModel(@NotNull Component source, @NotNull Rectangle rectangle) {
     Rectangle bounds = myNativeComponent == source
                        ? new Rectangle(rectangle) : SwingUtilities.convertRectangle(source, rectangle, myNativeComponent);
 
     if (myNativeComponent != source && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         bounds = new Rectangle(bounds);
         bounds.x /= zoom;
@@ -85,13 +84,11 @@ public abstract class RadVisualComponent extends RadComponent {
     if (target != myNativeComponent && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         point = new Point(point);
         point.x *= zoom;
         point.y *= zoom;
-        if (myNativeComponent == target) {
-          return point;
-        }
       }
     }
 
@@ -103,11 +100,12 @@ public abstract class RadVisualComponent extends RadComponent {
   @Override
   public Point toModel(@NotNull Component source, @NotNull Point point) {
     Point p = myNativeComponent == source
-                       ? new Point(point) : SwingUtilities.convertPoint(source, point, myNativeComponent);
+              ? new Point(point) : SwingUtilities.convertPoint(source, point, myNativeComponent);
 
     if (myNativeComponent != source && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         p = new Point(p);
         p.x /= zoom;
@@ -125,6 +123,7 @@ public abstract class RadVisualComponent extends RadComponent {
     if (target != myNativeComponent && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         size.width *= zoom;
         size.height *= zoom;
@@ -141,6 +140,7 @@ public abstract class RadVisualComponent extends RadComponent {
     if (myNativeComponent != source && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         size.width /= zoom;
         size.height /= zoom;
@@ -161,6 +161,7 @@ public abstract class RadVisualComponent extends RadComponent {
     if (myNativeComponent != relativeFrom && myNativeComponent instanceof ScalableComponent) {
       ScalableComponent scalableComponent = (ScalableComponent)myNativeComponent;
       double zoom = scalableComponent.getScale();
+
       if (zoom != 1) {
         p.x /= zoom;
         p.y /= zoom;
@@ -169,6 +170,7 @@ public abstract class RadVisualComponent extends RadComponent {
 
     return p;
   }
+
   public Component getNativeComponent() {
     return myNativeComponent;
   }

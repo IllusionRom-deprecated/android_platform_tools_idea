@@ -693,7 +693,7 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
     if (parent instanceof PsiMethodCallExpression) {
       PsiMethod method = ((PsiMethodCallExpression)parent).resolveMethod();
       PsiElement methodNameElement = element.getReferenceNameElement();
-      if (method != null && methodNameElement != null) {
+      if (method != null && methodNameElement != null&& !(methodNameElement instanceof PsiKeyword)) {
         myHolder.add(HighlightNamesUtil.highlightMethodName(method, methodNameElement, false, colorsScheme));
         myHolder.add(HighlightNamesUtil.highlightClassNameInQualifier(element, colorsScheme));
       }
@@ -707,7 +707,12 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
           }
         }
         else {
-          myHolder.add(HighlightNamesUtil.highlightMethodName(method, element, false, colorsScheme));
+          final PsiElement referenceNameElement = element.getReferenceNameElement();
+          if(referenceNameElement != null) {
+            // exclude type parameters from the highlighted text range
+            TextRange range = new TextRange(element.getTextRange().getStartOffset(), referenceNameElement.getTextRange().getEndOffset());
+            myHolder.add(HighlightNamesUtil.highlightMethodName(method, referenceNameElement, range, colorsScheme, false));
+          }
         }
       }
       catch (IndexNotReadyException ignored) {
@@ -958,6 +963,14 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
         }
         if (PsiTreeUtil.isAncestor(aClass, place, false) && aClass.hasTypeParameters()) {
           myHolder.add(HighlightClassUtil.checkCreateInnerClassFromStaticContext(ref, place, (PsiClass)resolved));
+        }
+      } else if (resolved instanceof PsiTypeParameter) {
+        final PsiTypeParameterListOwner owner = ((PsiTypeParameter)resolved).getOwner();
+        if (owner instanceof PsiClass) {
+          final PsiClass outerClass = (PsiClass)owner;
+          if (!HighlightClassUtil.hasEnclosingInstanceInScope(outerClass, ref, true, false)) {
+            myHolder.add(HighlightClassUtil.reportIllegalEnclosingUsage(ref, aClass, (PsiClass)owner, ref));
+          }
         }
       }
     }

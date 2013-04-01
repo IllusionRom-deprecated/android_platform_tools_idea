@@ -267,6 +267,9 @@ public class PsiMethodReferenceExpressionImpl extends PsiReferenceExpressionBase
         final PsiElement element = getReferenceNameElement();
         final boolean isConstructor = element instanceof PsiKeyword && PsiKeyword.NEW.equals(element.getText());
         if (element instanceof PsiIdentifier || isConstructor) {
+          if (isConstructor && (containingClass.isEnum() || containingClass.hasModifierProperty(PsiModifier.ABSTRACT))) {
+            return JavaResolveResult.EMPTY_ARRAY;
+          }
           PsiType functionalInterfaceType = null;
           final Map<PsiMethodReferenceExpression,PsiType> map = PsiMethodReferenceUtil.ourRefs.get();
           if (map != null) {
@@ -289,9 +292,7 @@ public class PsiMethodReferenceExpressionImpl extends PsiReferenceExpressionBase
             substitutor = LambdaUtil.inferFromReturnType(typeParameters, returnType, interfaceMethodReturnType, substitutor, languageLevel,
                                                          PsiMethodReferenceExpressionImpl.this.getProject());
 
-            if (containingClass.getConstructors().length == 0 &&
-                !containingClass.isEnum() &&
-                !containingClass.hasModifierProperty(PsiModifier.ABSTRACT)) {
+            if (containingClass.getConstructors().length == 0) {
               ClassCandidateInfo candidateInfo = null;
               if ((containingClass.getContainingClass() == null || !isLocatedInStaticContext(containingClass)) && signature.getParameterTypes().length == 0 ||
                   PsiMethodReferenceUtil.onArrayType(containingClass, signature)) {
@@ -358,9 +359,9 @@ public class PsiMethodReferenceExpressionImpl extends PsiReferenceExpressionBase
       final PsiType[] types = method.getSignature(PsiUtil.isRawSubstitutor(method, substitutor) ? PsiSubstitutor.EMPTY : substitutor).getParameterTypes();
       final PsiType[] rightTypes = signature.getParameterTypes();
       if (types.length < rightTypes.length) {
-        return PsiUtil.resolveGenericsClassInType(rightTypes[0]).getSubstitutor();
+        return getSubstitutor(rightTypes[0]);
       } else if (types.length > rightTypes.length) {
-        return PsiUtil.resolveGenericsClassInType(types[0]).getSubstitutor();
+        return getSubstitutor(types[0]);
       }
 
       for (int i = 0; i < rightTypes.length; i++) {
@@ -378,6 +379,20 @@ public class PsiMethodReferenceExpressionImpl extends PsiReferenceExpressionBase
                                             interfaceMethodReturnType,
                                             psiSubstitutor,
                                             languageLevel, PsiMethodReferenceExpressionImpl.this.getProject());
+    }
+
+    private PsiSubstitutor getSubstitutor(PsiType type) {
+      final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(type);
+      PsiSubstitutor psiSubstitutor = resolveResult.getSubstitutor();
+      if (type instanceof PsiClassType) {
+        final PsiClass psiClass = resolveResult.getElement();
+        if (psiClass instanceof PsiTypeParameter) {
+          for (PsiClass aClass : psiClass.getSupers()) {
+            psiSubstitutor = psiSubstitutor.putAll(TypeConversionUtil.getSuperClassSubstitutor(aClass, (PsiClassType)type));
+          }
+        }
+      }
+      return psiSubstitutor;
     }
 
     private class MethodReferenceConflictResolver implements PsiConflictResolver {

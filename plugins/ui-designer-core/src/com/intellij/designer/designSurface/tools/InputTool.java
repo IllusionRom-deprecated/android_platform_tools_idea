@@ -46,10 +46,10 @@ public abstract class InputTool {
   protected int myCurrentScreenX;
   protected int myCurrentScreenY;
   protected InputEvent myInputEvent;
+  protected int myModifiers;
   protected int myButton;
   protected int myStartScreenX;
   protected int myStartScreenY;
-  protected int myModifiers;
 
   private boolean myCanPastThreshold;
 
@@ -182,6 +182,23 @@ public abstract class InputTool {
     setArea(area);
   }
 
+  private void setEvent(KeyEvent event) {
+    myInputEvent = event;
+    myModifiers = event.getModifiers();
+  }
+
+  protected final boolean isShiftPressed() {
+    return (myModifiers & InputEvent.SHIFT_MASK) != 0;
+  }
+
+  protected final boolean isAltOptionPressed() {
+    return (myModifiers & InputEvent.ALT_MASK) != 0;
+  }
+
+  protected final boolean isCtrlCmdPressed() {
+    return (myModifiers & (InputEvent.CTRL_MASK | InputEvent.META_DOWN_MASK)) != 0;
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////
   //
   // Mouse
@@ -189,18 +206,13 @@ public abstract class InputTool {
   //////////////////////////////////////////////////////////////////////////////////////////
   private static final int DRAG_THRESHOLD = 5;
 
-  private void setEvent(KeyEvent event) {
-    myInputEvent = event;
-    myModifiers = event.getModifiers();
-  }
-
   private void setEvent(MouseEvent event) {
     myCurrentScreenX = event.getX();
     myCurrentScreenY = event.getY();
+    myModifiers = event.getModifiers();
     myButton = event.getButton();
     myInputEvent = event;
     myToolProvider.setEvent(event);
-    myModifiers = event.getModifiers();
   }
 
   private boolean movedPastThreshold() {
@@ -321,17 +333,5 @@ public abstract class InputTool {
       setArea(null);
       myToolProvider.setArea(null);
     }
-  }
-
-  protected boolean isShiftPressed() {
-    return (myModifiers & InputEvent.SHIFT_MASK) != 0;
-  }
-
-  protected boolean isAltOptionPressed() {
-    return (myModifiers & InputEvent.ALT_MASK) != 0;
-  }
-
-  protected boolean isCtrlCmdPressed() {
-    return (myModifiers & (InputEvent.CTRL_MASK|InputEvent.META_DOWN_MASK)) != 0;
   }
 }

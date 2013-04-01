@@ -22,7 +22,6 @@ import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.lookup.impl.LookupImpl
-import com.intellij.codeInsight.template.TemplateManager
 import com.intellij.codeInsight.template.impl.TemplateManagerImpl
 import com.intellij.ide.DataManager
 import com.intellij.ide.ui.UISettings
@@ -871,32 +870,26 @@ class Foo {
   }
 
   public void testCompletionWhenLiveTemplateAreNotSufficient() {
-    ((TemplateManagerImpl)TemplateManager.getInstance(getProject())).setTemplateTesting(true);
-    try {
-      myFixture.configureByText("a.java", """
-  class Foo {
-      {
-          Iterable<String> l1 = null;
-          Iterable<String> l2 = null;
-          Object asdf = null;
-          iter<caret>
-      }
-  }
-  """)
-      type '\t'
-      assert myFixture.lookupElementStrings == ['l2', 'l1']
-      type 'as'
-      assert lookup
-      assertContains 'asdf', 'assert'
-      type '\n.'
-      assert lookup
-      assert 'hashCode' in myFixture.lookupElementStrings
-      assert myFixture.file.text.contains('asdf.')
+    TemplateManagerImpl.setTemplateTesting(getProject(), getTestRootDisposable());
+    myFixture.configureByText("a.java", """
+class Foo {
+    {
+        Iterable<String> l1 = null;
+        Iterable<String> l2 = null;
+        Object asdf = null;
+        iter<caret>
     }
-    finally {
-      ((TemplateManagerImpl)TemplateManager.getInstance(getProject())).setTemplateTesting(false);
-    }
-
+}
+""")
+    type '\t'
+    assert myFixture.lookupElementStrings == ['l2', 'l1']
+    type 'as'
+    assert lookup
+    assertContains 'asdf', 'assert'
+    type '\n.'
+    assert lookup
+    assert 'hashCode' in myFixture.lookupElementStrings
+    assert myFixture.file.text.contains('asdf.')
   }
 
   public void testNoWordCompletionAutoPopup() {
@@ -1137,7 +1130,7 @@ class Foo {{
     assert lookup.items.size() == 2
     edt { myFixture.performEditorAction(IdeActions.ACTION_EDITOR_MOVE_CARET_DOWN) }
     type ' '
-    myFixture.checkResult '''import bar.Abcdefg;
+    myFixture.checkResult '''import foo.Abcdefg;
 
 class Foo extends Abcdefg <caret>'''
   }
@@ -1177,16 +1170,11 @@ class Foo extends Abcdefg <caret>'''
   }
 
   public void testSoutvTemplate() {
-    ((TemplateManagerImpl)TemplateManager.getInstance(getProject())).setTemplateTesting(true);
-    try {
-      myFixture.configureByText 'a.java', 'class Foo {{ <caret> }}'
-      type 'soutv\tgetcl.'
-      myFixture.checkResult '''class Foo {{
+    TemplateManagerImpl.setTemplateTesting(getProject(), getTestRootDisposable());
+    myFixture.configureByText 'a.java', 'class Foo {{ <caret> }}'
+    type 'soutv\tgetcl.'
+    myFixture.checkResult '''class Foo {{
     System.out.println("getClass(). = " + getClass().<caret>); }}'''
-    }
-    finally {
-      ((TemplateManagerImpl)TemplateManager.getInstance(getProject())).setTemplateTesting(false);
-    }
   }
 
   public void testReturnLParen() {
@@ -1343,6 +1331,57 @@ class Foo {
   }
 }
 '''
+  }
+
+  public void "test no focus in variable name"() {
+    myFixture.configureByText 'a.java', '''
+class FooBar {
+  void foo() {
+    FooBar <caret>
+  }
+}
+'''
+    type 'f'
+    assert lookup
+    assert !lookup.focused
+    type '\n'
+    assert !myFixture.editor.document.text.contains('fooBar')
+  }
+
+  public void "test choose variable name by enter when selection by chars is disabled"() {
+    CodeInsightSettings.instance.SELECT_AUTOPOPUP_SUGGESTIONS_BY_CHARS = false
+    myFixture.configureByText 'a.java', '''
+class FooBar {
+  void foo() {
+    FooBar <caret>
+  }
+}
+'''
+    type 'f'
+    assert lookup
+    assert !lookup.focused
+    assert myFixture.lookupElementStrings == ['fooBar']
+    type '\n'
+    assert myFixture.editor.document.text.contains('fooBar')
+  }
+
+  public void "test middle matching and overwrite"() {
+    myFixture.configureByText 'a.java', '''
+class ListConfigKey {
+  void foo() {
+    <caret>
+  }
+}
+'''
+    type 'CK\t'
+    myFixture.checkResult '''
+class ListConfigKey {
+  void foo() {
+    ListConfigKey<caret>
+  }
+}
+'''
+
   }
 
 }

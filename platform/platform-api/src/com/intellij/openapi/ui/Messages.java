@@ -29,6 +29,7 @@ import com.intellij.openapi.wm.WindowManager;
 import com.intellij.ui.*;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.mac.MacMessages;
+import com.intellij.util.Function;
 import com.intellij.util.PairFunction;
 import com.intellij.util.execution.ParametersListUtil;
 import com.intellij.util.ui.UIUtil;
@@ -40,7 +41,10 @@ import javax.swing.plaf.basic.BasicHTML;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.html.HTMLEditorKit;
 import java.awt.*;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.util.Arrays;
 import java.util.List;
 
 public class Messages {
@@ -766,6 +770,8 @@ public class Messages {
     }
   }
 
+  /** @deprecated It looks awful! */
+  @Deprecated
   public static int showChooseDialog(String message, String title, String[] values, String initialValue, @Nullable Icon icon) {
     if (isApplicationInUnitTestOrHeadless()) {
       return ourTestImplementation.show(message);
@@ -777,6 +783,8 @@ public class Messages {
     }
   }
 
+  /** @deprecated It looks awful! */
+  @Deprecated
   public static int showChooseDialog(Component parent, String message, String title, String[] values, String initialValue, Icon icon) {
     if (isApplicationInUnitTestOrHeadless()) {
       return ourTestImplementation.show(message);
@@ -789,8 +797,10 @@ public class Messages {
   }
 
   /**
+   * @deprecated It looks awful!
    * @see com.intellij.openapi.ui.DialogWrapper#DialogWrapper(Project,boolean)
    */
+  @Deprecated
   public static int showChooseDialog(Project project, String message, String title, Icon icon, String[] values, String initialValue) {
     if (isApplicationInUnitTestOrHeadless()) {
       return ourTestImplementation.show(message);
@@ -846,7 +856,11 @@ public class Messages {
   /**
    * Shows dialog with text area to edit long strings that don't fit in text field.
    */
-  public static void showTextAreaDialog(final JTextField textField, final String title, @NonNls final String dimensionServiceKey) {
+  public static void showTextAreaDialog(final JTextField textField,
+                                        final String title,
+                                        @NonNls final String dimensionServiceKey,
+                                        final Function<String, List<String>> parser,
+                                        final Function<List<String>, String> lineJoiner) {
     if (isApplicationInUnitTestOrHeadless()) {
       ourTestImplementation.show(title);
     }
@@ -854,7 +868,7 @@ public class Messages {
       final JTextArea textArea = new JTextArea(10, 50);
       textArea.setWrapStyleWord(true);
       textArea.setLineWrap(true);
-      List<String> lines = ParametersListUtil.parse(textField.getText(), true);
+      List<String> lines = parser.fun(textField.getText());
       textArea.setText(StringUtil.join(lines, "\n"));
       InsertPathAction.copyFromTo(textField, textArea);
       final DialogBuilder builder = new DialogBuilder(textField);
@@ -871,7 +885,7 @@ public class Messages {
       builder.setOkOperation(new Runnable() {
         @Override
         public void run() {
-          textField.setText(textArea.getText());
+          textField.setText(lineJoiner.fun(Arrays.asList(StringUtil.splitByLines(textArea.getText()))));
           builder.getDialogWrapper().close(DialogWrapper.OK_EXIT_CODE);
         }
       });
@@ -880,7 +894,11 @@ public class Messages {
     }
   }
 
-  private static class MoreInfoMessageDialog extends MessageDialog {
+  public static void showTextAreaDialog(final JTextField textField, final String title, @NonNls final String dimensionServiceKey) {
+    showTextAreaDialog(textField, title, dimensionServiceKey, ParametersListUtil.DEFAULT_LINE_PARSER, ParametersListUtil.DEFAULT_LINE_JOINER);
+  }
+
+    private static class MoreInfoMessageDialog extends MessageDialog {
     private final String myInfoText;
 
     public MoreInfoMessageDialog(Project project,
@@ -1434,6 +1452,8 @@ public class Messages {
     }
   }
 
+  /** It looks awful! */
+  @Deprecated
   protected static class ChooseDialog extends MessageDialog {
     private ComboBox myComboBox;
     private InputValidator myValidator;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.Consumer;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.hash.HashSet;
 import icons.JetgroovyIcons;
 import org.jetbrains.annotations.NotNull;
@@ -427,7 +428,7 @@ public class CompleteReferenceExpression {
         return;
       }
       if (element instanceof GrReferenceExpression) {
-        String name = ((GrReferenceExpression)element).getName();
+        String name = ((GrReferenceExpression)element).getReferenceName();
         if (!myNonDeclaredVars.add(name)) return;
       }
 
@@ -517,12 +518,22 @@ public class CompleteReferenceExpression {
       final GroovyResolveResult[] results = ResolveUtil.filterSameSignatureCandidates(getCandidatesInternal());
       List<GroovyResolveResult> list = new ArrayList<GroovyResolveResult>(results.length);
       myPropertyNames.removeAll(myPreferredFieldNames);
+
+      Set<String> usedFields = ContainerUtil.newHashSet();
       for (GroovyResolveResult result : results) {
         final PsiElement element = result.getElement();
-        if (element instanceof PsiField &&
-            (myPropertyNames.contains(((PsiField)element).getName()) || myLocalVars.contains(((PsiField)element).getName()))) {
-          continue;
+        if (element instanceof PsiField) {
+          final String name = ((PsiField)element).getName();
+          if (myPropertyNames.contains(name) ||
+              myLocalVars.contains(name) ||
+              usedFields.contains(name)) {
+            continue;
+          }
+          else {
+            usedFields.add(name);
+          }
         }
+
         list.add(result);
       }
       return list.toArray(new GroovyResolveResult[list.size()]);

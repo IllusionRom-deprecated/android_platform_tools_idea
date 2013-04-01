@@ -81,6 +81,10 @@ public class VfsUtilCore {
   public static String getRelativePath(@NotNull VirtualFile file, @NotNull VirtualFile ancestor, char separator) {
     if (!file.getFileSystem().equals(ancestor.getFileSystem())) return null;
 
+    return doGetRelative(file, ancestor, separator);
+  }
+
+  public static String doGetRelative(VirtualFile file, VirtualFile ancestor, char separator) {
     int length = 0;
     VirtualFile parent = file;
     while (true) {

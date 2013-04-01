@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,6 +87,8 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   public void testFinalFieldsDifferentInstances() throws Throwable { doTest(); }
   public void testThisFieldGetters() throws Throwable { doTest(); }
   public void testChainedFinalFieldAccessorsDfa() throws Throwable { doTest(); }
+  public void testAccessorPlusMutator() throws Throwable { doTest(); }
+  public void testClosureVariableField() throws Throwable { doTest(); }
 
   public void testAssigningUnknownToNullable() throws Throwable { doTest(); }
   public void testAssigningClassLiteralToNullable() throws Throwable { doTest(); }
@@ -114,8 +116,8 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   }
 
   private void setupCustomAnnotations() {
-    myFixture.addClass("package foo; public @interface Nullable {}");
-    myFixture.addClass("package foo; public @interface NotNull {}");
+    myFixture.addClass("package foo;\n\nimport java.lang.annotation.*;\n\n@Target({ElementType.TYPE_USE}) public @interface Nullable { }");
+    myFixture.addClass("package foo;\n\nimport java.lang.annotation.*;\n\n@Target({ElementType.TYPE_USE}) public @interface NotNull { }");
     final NullableNotNullManager nnnManager = NullableNotNullManager.getInstance(getProject());
     nnnManager.setNotNulls("foo.NotNull");
     nnnManager.setNullables("foo.Nullable");
@@ -140,10 +142,11 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   }
 
   public void testConstantDoubleComparisons() { doTest(); }
-  
+
   public void testMutableNullableFieldsTreatment() { doTest(); }
   public void testMutableVolatileNullableFieldsTreatment() { doTest(); }
   public void testMutableNotAnnotatedFieldsTreatment() { doTest(); }
+  public void testSuperCallMayChangeFields() { doTest(); }
 
   public void testMethodCallFlushesField() { doTest(); }
   public void testUnknownFloatMayBeNaN() { doTest(); }

@@ -61,11 +61,11 @@ final class BuildSession implements Runnable, CanceledStatus {
   private final UUID mySessionId;
   private final Channel myChannel;
   private volatile boolean myCanceled = false;
-  private String myProjectPath;
+  private final String myProjectPath;
   @Nullable
   private CmdlineRemoteProto.Message.ControllerMessage.FSEvent myInitialFSDelta;
   // state
-  private EventsProcessor myEventsProcessor = new EventsProcessor();
+  private final EventsProcessor myEventsProcessor = new EventsProcessor();
   private volatile long myLastEventOrdinal;
   private volatile ProjectDescriptor myProjectDescriptor;
   private final Map<Pair<String, String>, ConstantSearchFuture> mySearchTasks = Collections.synchronizedMap(new HashMap<Pair<String, String>, ConstantSearchFuture>());
@@ -81,14 +81,7 @@ final class BuildSession implements Runnable, CanceledStatus {
     mySessionId = sessionId;
     myChannel = channel;
 
-    // globals
-    Map<String, String> pathVars = new HashMap<String, String>();
     final CmdlineRemoteProto.Message.ControllerMessage.GlobalSettings globals = params.getGlobalSettings();
-    for (CmdlineRemoteProto.Message.KeyValuePair variable : globals.getPathVariableList()) {
-      pathVars.put(variable.getKey(), variable.getValue());
-    }
-
-    // session params
     myProjectPath = FileUtil.toCanonicalPath(params.getProjectId());
     String globalOptionsPath = FileUtil.toCanonicalPath(globals.getGlobalOptionsPath());
     myBuildType = convertCompileType(params.getBuildType());
@@ -99,7 +92,7 @@ final class BuildSession implements Runnable, CanceledStatus {
       builderParams.put(pair.getKey(), pair.getValue());
     }
     myInitialFSDelta = delta;
-    JpsModelLoaderImpl loader = new JpsModelLoaderImpl(myProjectPath, globalOptionsPath, pathVars, null);
+    JpsModelLoaderImpl loader = new JpsModelLoaderImpl(myProjectPath, globalOptionsPath, null);
     myForceModelLoading = Boolean.parseBoolean(builderParams.get(BuildMain.FORCE_MODEL_LOADING_PARAMETER.toString()));
     myBuildRunner = new BuildRunner(loader, scopes, filePaths, builderParams);
   }
@@ -178,8 +171,8 @@ final class BuildSession implements Runnable, CanceledStatus {
       return;
     }
     if (!dataStorageRoot.exists()) {
-      // invoked the very first time for this project. Force full rebuild
-      myBuildType = BuildType.PROJECT_REBUILD;
+      // invoked the very first time for this project
+      myBuildRunner.setForceCleanCaches(true);
     }
 
     final DataInputStream fsStateStream = createFSDataStream(dataStorageRoot);
@@ -187,7 +180,8 @@ final class BuildSession implements Runnable, CanceledStatus {
     if (fsStateStream != null) {
       // optimization: check whether we can skip the build
       final boolean hasWorkToDoWithModules = fsStateStream.readBoolean();
-      if (!myForceModelLoading && (myBuildType == BuildType.MAKE || myBuildType == BuildType.UP_TO_DATE_CHECK) && !hasWorkToDoWithModules && scopeContainsModulesOnly(myBuildRunner.getScopes()) && !containsChanges(myInitialFSDelta)) {
+      if (!myForceModelLoading && (myBuildType == BuildType.BUILD || myBuildType == BuildType.UP_TO_DATE_CHECK) && !hasWorkToDoWithModules
+          && scopeContainsModulesOnlyForIncrementalMake(myBuildRunner.getScopes()) && !containsChanges(myInitialFSDelta)) {
         updateFsStateOnDisk(dataStorageRoot, fsStateStream, myInitialFSDelta.getOrdinal());
         return;
       }
@@ -226,9 +220,10 @@ final class BuildSession implements Runnable, CanceledStatus {
     }
   }
 
-  private static boolean scopeContainsModulesOnly(List<TargetTypeBuildScope> scopes) {
+  private static boolean scopeContainsModulesOnlyForIncrementalMake(List<TargetTypeBuildScope> scopes) {
     TargetTypeRegistry typeRegistry = null;
     for (TargetTypeBuildScope scope : scopes) {
+      if (scope.getForceBuild()) return false;
       final String typeId = scope.getTypeId();
       if (isJavaModuleBuildType(typeId)) { // fast check
         continue;
@@ -304,7 +299,8 @@ final class BuildSession implements Runnable, CanceledStatus {
     }
   }
 
-  private void applyFSEvent(ProjectDescriptor pd, @Nullable CmdlineRemoteProto.Message.ControllerMessage.FSEvent event, final boolean saveEventStamp) throws IOException {
+  private static void applyFSEvent(ProjectDescriptor pd, @Nullable CmdlineRemoteProto.Message.ControllerMessage.FSEvent event,
+                                   final boolean saveEventStamp) throws IOException {
     if (event == null) {
       return;
     }
@@ -369,7 +365,7 @@ final class BuildSession implements Runnable, CanceledStatus {
     }
   }
 
-  private void updateFsStateOnDisk(File dataStorageRoot, DataInputStream original, final long ordinal) {
+  private static void updateFsStateOnDisk(File dataStorageRoot, DataInputStream original, final long ordinal) {
     final File file = new File(dataStorageRoot, FS_STATE_FILE);
     try {
       final BufferExposingByteArrayOutputStream bytes = new BufferExposingByteArrayOutputStream();
@@ -462,8 +458,8 @@ final class BuildSession implements Runnable, CanceledStatus {
     }
     try {
       final File file = new File(dataStorageRoot, FS_STATE_FILE);
-      final InputStream fs = new FileInputStream(file);
       byte[] bytes;
+      final InputStream fs = new FileInputStream(file);
       try {
         bytes = FileUtil.loadBytes(fs, (int)file.length());
       }
@@ -557,12 +553,10 @@ final class BuildSession implements Runnable, CanceledStatus {
   private static BuildType convertCompileType(CmdlineRemoteProto.Message.ControllerMessage.ParametersMessage.Type compileType) {
     switch (compileType) {
       case CLEAN: return BuildType.CLEAN;
-      case MAKE: return BuildType.MAKE;
-      case REBUILD: return BuildType.PROJECT_REBUILD;
-      case FORCED_COMPILATION: return BuildType.FORCED_COMPILATION;
+      case BUILD: return BuildType.BUILD;
       case UP_TO_DATE_CHECK: return BuildType.UP_TO_DATE_CHECK;
     }
-    return BuildType.MAKE; // use make by default
+    return BuildType.BUILD;
   }
 
   private static class EventsProcessor extends SequentialTaskExecutor {

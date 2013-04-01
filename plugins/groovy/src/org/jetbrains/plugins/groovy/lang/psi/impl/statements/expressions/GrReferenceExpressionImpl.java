@@ -38,7 +38,6 @@ import com.intellij.util.Consumer;
 import com.intellij.util.Function;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.GroovyFileType;
@@ -71,6 +70,7 @@ import org.jetbrains.plugins.groovy.lang.resolve.ClosureMissingMethodContributor
 import org.jetbrains.plugins.groovy.lang.resolve.ResolveUtil;
 import org.jetbrains.plugins.groovy.lang.resolve.processors.*;
 import org.jetbrains.plugins.groovy.refactoring.GroovyRefactoringUtil;
+import org.jetbrains.plugins.groovy.util.ResolveProfiler;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -185,7 +185,10 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
       return fieldCandidates;
     }
 
-    if (findClassOrPackageAtFirst()) {
+
+    boolean canBeClassOrPackage = ResolveUtil.canBeClassOrPackage(this);
+
+    if (canBeClassOrPackage && findClassOrPackageAtFirst()) {
       boolean preferVar = containsLocalVar(fieldCandidates);
       if (!preferVar) {
         ResolverProcessor classProcessor = new ClassResolverProcessor(name, this, kinds);
@@ -226,12 +229,12 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
       }
     }
     if (fieldCandidates.length > 0) return fieldCandidates;
-    if (classCandidates == null) {
+    if (classCandidates == null && canBeClassOrPackage ) {
       ResolverProcessor classProcessor = new ClassResolverProcessor(name, this, kinds);
       GrReferenceResolveUtil.resolveImpl(classProcessor, this);
       classCandidates = classProcessor.getCandidates();
     }
-    if (classCandidates.length > 0) return classCandidates;
+    if (classCandidates != null && classCandidates.length > 0) return classCandidates;
     if (accessorResults.size() > 0) return new GroovyResolveResult[]{accessorResults.get(0)};
     return GroovyResolveResult.EMPTY_ARRAY;
   }
@@ -744,22 +747,6 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
     return PsiImplUtil.replaceExpression(this, newExpr, removeUnnecessaryParentheses);
   }
 
-  public String getName() {
-    return getReferenceName();
-  }
-
-  public PsiElement setName(@NonNls @NotNull String name) throws IncorrectOperationException {
-    PsiElement nameElement = getReferenceNameElement();
-    if (nameElement == null) throw new IncorrectOperationException("ref has no name element");
-
-    ASTNode node = nameElement.getNode();
-    ASTNode newNameNode = GroovyPsiElementFactory.getInstance(getProject()).createReferenceNameFromText(name).getNode();
-    LOG.assertTrue(newNameNode != null && node != null);
-    node.getTreeParent().replaceChild(node, newNameNode);
-
-    return this;
-  }
-
   @NotNull
   private GroovyResolveResult[] doPolyResolve(boolean incompleteCode, boolean genericsMatter) {
     String name = getReferenceName();
@@ -772,17 +759,24 @@ public class GrReferenceExpressionImpl extends GrReferenceElementImpl<GrExpressi
       if (propertyCandidates.length > 0) return propertyCandidates;
     }
 
-    switch (getKind()) {
-      case METHOD_OR_PROPERTY:
-        return resolveMethodOrProperty(false, null, genericsMatter);
-      case TYPE_OR_PROPERTY:
-        return resolveTypeOrProperty();
-      case METHOD_OR_PROPERTY_OR_TYPE:
-        GroovyResolveResult[] results = resolveMethodOrProperty(false, null, genericsMatter);
-        if (results.length == 0) results = resolveTypeOrProperty();
-        return results;
-      default:
-        return GroovyResolveResult.EMPTY_ARRAY;
+    try {
+      ResolveProfiler.start();
+      switch (getKind()) {
+        case METHOD_OR_PROPERTY:
+          return resolveMethodOrProperty(false, null, genericsMatter);
+        case TYPE_OR_PROPERTY:
+          return resolveTypeOrProperty();
+        case METHOD_OR_PROPERTY_OR_TYPE:
+          GroovyResolveResult[] results = resolveMethodOrProperty(false, null, genericsMatter);
+          if (results.length == 0) results = resolveTypeOrProperty();
+          return results;
+        default:
+          return GroovyResolveResult.EMPTY_ARRAY;
+      }
+    }
+    finally {
+      final long time = ResolveProfiler.finish();
+      ResolveProfiler.write("ref " + getText() + " " + hashCode() + " : " + time);
     }
   }
 

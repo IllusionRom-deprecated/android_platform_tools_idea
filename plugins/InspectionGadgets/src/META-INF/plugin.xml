@@ -107,6 +107,10 @@
                      key="assignment.to.static.field.from.instance.method.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.assignment.issues" enabledByDefault="false" level="WARNING"
                      implementationClass="com.siyeh.ig.assignment.AssignmentToStaticFieldFromInstanceMethodInspection"/>
+    <localInspection language="JAVA" shortName="AssignmentToSuperclassField" bundle="com.siyeh.InspectionGadgetsBundle"
+                     key="assignment.to.superclass.field.display.name" groupBundle="messages.InspectionsBundle"
+                     groupKey="group.names.assignment.issues" enabledByDefault="false" level="WARNING"
+                     implementationClass="com.siyeh.ig.assignment.AssignmentToSuperclassFieldInspection"/>
     <localInspection language="JAVA" shortName="AssignmentUsedAsCondition" bundle="com.siyeh.InspectionGadgetsBundle"
                      key="assignment.used.as.condition.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.assignment.issues" enabledByDefault="false" level="WARNING"
@@ -1441,6 +1445,10 @@
     <localInspection language="JAVA" suppressId="NonConstantLogger" shortName="NonStaticFinalLogger" bundle="com.siyeh.InspectionGadgetsBundle"
                      key="non.constant.logger.display.name" groupBundle="messages.InspectionsBundle" groupKey="group.names.logging.issues"
                      enabledByDefault="false" level="WARNING" implementationClass="com.siyeh.ig.logging.NonStaticFinalLoggerInspection"/>
+    <localInspection language="JAVA" shortName="PlaceholderCountMatchesArgumentCount" bundle="com.siyeh.InspectionGadgetsBundle"
+                     key="placeholder.count.matches.argument.count.display.name" groupBundle="messages.InspectionsBundle"
+                     groupKey="group.names.logging.issues" enabledByDefault="false" level="WARNING"
+                     implementationClass="com.siyeh.ig.logging.PlaceholderCountMatchesArgumentCountInspection"/>
     <localInspection language="JAVA" shortName="PublicMethodWithoutLogging" bundle="com.siyeh.InspectionGadgetsBundle"
                      key="public.method.without.logging.display.name" groupBundle="messages.InspectionsBundle"
                      groupKey="group.names.logging.issues" enabledByDefault="false" level="WARNING"

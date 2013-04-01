@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import com.intellij.ide.IdeBundle;
 import com.intellij.ide.plugins.PluginManager;
 import com.intellij.ide.ui.UISettings;
 import com.intellij.ide.ui.UISettingsListener;
-import com.intellij.ide.util.projectWizard.ProjectTemplateComponent;
 import com.intellij.injected.editor.VirtualFileWindow;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
@@ -68,6 +67,7 @@ import com.intellij.ui.FocusTrackback;
 import com.intellij.ui.Gray;
 import com.intellij.ui.docking.DockContainer;
 import com.intellij.ui.docking.DockManager;
+import com.intellij.ui.docking.impl.DockManagerImpl;
 import com.intellij.ui.tabs.impl.JBTabsImpl;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.messages.MessageBusConnection;
@@ -83,6 +83,8 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.border.Border;
 import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.lang.ref.WeakReference;
@@ -94,7 +96,7 @@ import java.util.List;
  * @author Eugene Belyaev
  * @author Vladimir Kondratyev
  */
-public class FileEditorManagerImpl extends FileEditorManagerEx implements ProjectComponent, JDOMExternalizable, ProjectTemplateComponent {
+public class FileEditorManagerImpl extends FileEditorManagerEx implements ProjectComponent, JDOMExternalizable {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.fileEditor.impl.FileEditorManagerImpl");
   private static final Key<LocalFileSystem.WatchRequest> WATCH_REQUEST_KEY = Key.create("WATCH_REQUEST_KEY");
   private static final Key<Boolean> DUMB_AWARE = Key.create("DUMB_AWARE");
@@ -102,6 +104,7 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
   private static final FileEditor[] EMPTY_EDITOR_ARRAY = {};
   private static final FileEditorProvider[] EMPTY_PROVIDER_ARRAY = {};
   public static final Key<Boolean> CLOSING_TO_REOPEN = Key.create("CLOSING_TO_REOPEN");
+  public static final String FILE_EDITOR_MANAGER = "FileEditorManager";
 
   private volatile JPanel myPanels;
   private EditorsSplitters mySplitters;
@@ -250,11 +253,6 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
         }
       }
     }
-  }
-
-  @Override
-  public String getStorageFile() {
-    return "workspace.xml";
   }
 
   private static class MyBorder implements Border {
@@ -598,6 +596,11 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
     }
     assertDispatchThread();
 
+    if (isOpenInNewWindow(EventQueue.getCurrentEvent())) {
+      return openFileInNewWindow(file);
+    }
+
+
     EditorWindow wndToOpenIn = null;
     if (searchForSplitter) {
       Set<EditorsSplitters> all = getAllSplitters();
@@ -628,6 +631,26 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
 
     openAssociatedFile(file, wndToOpenIn, splitters);
     return openFileImpl2(wndToOpenIn, file, focusEditor);
+  }
+
+  public Pair<FileEditor[], FileEditorProvider[]> openFileInNewWindow(VirtualFile file) {
+    return ((DockManagerImpl)DockManager.getInstance(getProject())).createNewDockContainerFor(file, this);
+  }
+
+  private static boolean isOpenInNewWindow(AWTEvent event) {
+    // Shift was used while clicking
+    if (event instanceof MouseEvent && ((MouseEvent)event).isShiftDown()) {
+      return true;
+    }
+
+    // Shift + Enter
+    if (event instanceof KeyEvent
+        && ((KeyEvent)event).getKeyCode() == KeyEvent.VK_ENTER
+        && ((KeyEvent)event).isShiftDown()) {
+      return true;
+    }
+
+    return false;
   }
 
   private void openAssociatedFile(VirtualFile file, EditorWindow wndToOpenIn, EditorsSplitters splitters) {
@@ -1351,7 +1374,7 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
 
   @NotNull
   public String getComponentName() {
-    return "FileEditorManager";
+    return FILE_EDITOR_MANAGER;
   }
 
   public void initComponent() {

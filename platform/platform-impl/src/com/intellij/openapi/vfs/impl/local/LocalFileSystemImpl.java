@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import com.intellij.util.Consumer;
 import com.intellij.util.TimeoutUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.HashSet;
+import gnu.trove.THashMap;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,18 +53,17 @@ public final class LocalFileSystemImpl extends LocalFileSystemBase implements Ap
   private final FileWatcher myWatcher;
 
   private static class WatchRequestImpl implements WatchRequest {
-    private final String myRootPath;
     private final boolean myToWatchRecursively;
     private String myFSRootPath;
     private boolean myDominated;
 
-    public WatchRequestImpl(String rootPath, final boolean toWatchRecursively) throws FileNotFoundException {
-      final int index = rootPath.indexOf(JarFileSystem.JAR_SEPARATOR);
+    public WatchRequestImpl(String rootPath, boolean toWatchRecursively) throws FileNotFoundException {
+      int index = rootPath.indexOf(JarFileSystem.JAR_SEPARATOR);
       if (index >= 0) rootPath = rootPath.substring(0, index);
 
       File rootFile = new File(FileUtil.toSystemDependentName(rootPath));
       if (index > 0 || !rootFile.isDirectory()) {
-        final File parentFile = rootFile.getParentFile();
+        File parentFile = rootFile.getParentFile();
         if (parentFile == null) {
           throw new FileNotFoundException(rootPath);
         }
@@ -73,14 +73,13 @@ public final class LocalFileSystemImpl extends LocalFileSystemBase implements Ap
       }
 
       myFSRootPath = rootFile.getAbsolutePath();
-      myRootPath = FileUtil.toSystemIndependentName(myFSRootPath);
       myToWatchRecursively = toWatchRecursively;
     }
 
     @Override
     @NotNull
     public String getRootPath() {
-      return myRootPath;
+      return FileUtil.toSystemIndependentName(myFSRootPath);
     }
 
     /** @deprecated implementation details (to remove in IDEA 13) */
@@ -102,13 +101,13 @@ public final class LocalFileSystemImpl extends LocalFileSystemBase implements Ap
 
     @Override
     public String toString() {
-      return myRootPath;
+      return getRootPath();
     }
   }
 
   private static class TreeNode {
     private WatchRequestImpl watchRequest = null;
-    private Map<String, TreeNode> nodes = ContainerUtil.newTroveMap(FileUtil.PATH_HASHING_STRATEGY);
+    private Map<String, TreeNode> nodes = new THashMap<String, TreeNode>(1, FileUtil.PATH_HASHING_STRATEGY);
   }
 
   public LocalFileSystemImpl(@NotNull ManagingFS managingFS) {
@@ -270,36 +269,35 @@ public final class LocalFileSystemImpl extends LocalFileSystemBase implements Ap
 
   private static boolean dominates(final WatchRequestImpl request, final WatchRequestImpl other) {
     if (request.myToWatchRecursively) {
-      return other.myRootPath.startsWith(request.myRootPath);
+      return other.myFSRootPath.startsWith(request.myFSRootPath);
     }
 
-    return !other.myToWatchRecursively && request.myRootPath.equals(other.myRootPath);
+    return !other.myToWatchRecursively && request.myFSRootPath.equals(other.myFSRootPath);
   }
 
   private void storeRefreshStatusToFiles() {
     if (myWatcher.isOperational()) {
-      // TODO: different ways to mark dirty for all these cases
-      final FileWatcher.DirtyPaths dirtyPaths = myWatcher.getDirtyPaths();
+      FileWatcher.DirtyPaths dirtyPaths = myWatcher.getDirtyPaths();
       markPathsDirty(dirtyPaths.dirtyPaths);
       markFlatDirsDirty(dirtyPaths.dirtyDirectories);
       markRecursiveDirsDirty(dirtyPaths.dirtyPathsRecursive);
     }
   }
 
-  private void markPathsDirty(final List<String> dirtyFiles) {
-    for (String dirtyFile : dirtyFiles) {
-      VirtualFile file = findFileByPathIfCached(dirtyFile);
+  private void markPathsDirty(List<String> dirtyPaths) {
+    for (String dirtyPath : dirtyPaths) {
+      VirtualFile file = findFileByPathIfCached(dirtyPath);
       if (file instanceof NewVirtualFile) {
         ((NewVirtualFile)file).markDirty();
       }
     }
   }
 
-  private void markFlatDirsDirty(final List<String> dirtyFiles) {
-    for (String dirtyFile : dirtyFiles) {
-      VirtualFile file = findFileByPathIfCached(dirtyFile);
+  private void markFlatDirsDirty(List<String> dirtyPaths) {
+    for (String dirtyPath : dirtyPaths) {
+      VirtualFile file = findFileOrParentIfCached(dirtyPath);
       if (file instanceof NewVirtualFile) {
-        final NewVirtualFile nvf = (NewVirtualFile)file;
+        NewVirtualFile nvf = (NewVirtualFile)file;
         nvf.markDirty();
         for (VirtualFile child : nvf.getCachedChildren()) {
           ((NewVirtualFile)child).markDirty();
@@ -308,13 +306,24 @@ public final class LocalFileSystemImpl extends LocalFileSystemBase implements Ap
     }
   }
 
-  private void markRecursiveDirsDirty(final List<String> dirtyFiles) {
-    for (String dirtyFile : dirtyFiles) {
-      VirtualFile file = findFileByPathIfCached(dirtyFile);
+  private void markRecursiveDirsDirty(List<String> dirtyPaths) {
+    for (String dirtyPath : dirtyPaths) {
+      VirtualFile file = findFileOrParentIfCached(dirtyPath);
       if (file instanceof NewVirtualFile) {
         ((NewVirtualFile)file).markDirtyRecursively();
       }
     }
+  }
+
+  private VirtualFile findFileOrParentIfCached(String path) {
+    VirtualFile file = findFileByPathIfCached(path);
+    if (file == null) {
+      String parentPath = new File(path).getParent();
+      if (parentPath != null) {
+        file = findFileByPathIfCached(parentPath);
+      }
+    }
+    return file;
   }
 
   public void markSuspiciousFilesDirty(List<VirtualFile> files) {
@@ -374,7 +383,7 @@ public final class LocalFileSystemImpl extends LocalFileSystemBase implements Ap
       while (true) {
         final Application application = ApplicationManager.getApplication();
         if (application == null || application.isDisposed()) break;
-        
+
         storeRefreshStatusToFiles();
         TimeoutUtil.sleep(PERIOD);
       }

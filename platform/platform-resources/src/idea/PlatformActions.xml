@@ -20,6 +20,7 @@
     <action id="TextComponent.ClearAction" class="com.intellij.ui.ClearTextAction"/>
     <action id="Switcher" class="com.intellij.ide.actions.Switcher" text="Switcher"/>
     <action id="QuickDocCopy" class="com.intellij.codeInsight.documentation.actions.CopyQuickDocAction" use-shortcut-of="$Copy"/>
+    <action id="EditSourceInNewWindow" class="com.intellij.ide.actions.EditSourceInNewWindowAction" />
 
     <group id="TemplateParametersNavigation">
       <action id="NextTemplateParameter" class="com.intellij.codeInsight.completion.NextPrevParameterAction$Next" text="Next Parameter">
@@ -169,6 +170,12 @@
         <action id="InvalidateCaches" class="com.intellij.ide.actions.InvalidateCachesAction"/>
         
         <action id="ChangeFileEncodingAction" class="com.intellij.openapi.vfs.encoding.ChangeFileEncodingAction"/>
+        
+        <group id="ChangeLineSeparators" text="Line Separators" popup="true">
+          <action id="ConvertToWindowsLineSeparators" class="com.intellij.codeStyle.ConvertToWindowsLineSeparatorsAction"/>
+          <action id="ConvertToUnixLineSeparators" class="com.intellij.codeStyle.ConvertToUnixLineSeparatorsAction"/>
+          <action id="ConvertToMacLineSeparators" class="com.intellij.codeStyle.ConvertToMacLineSeparatorsAction"/>
+        </group>
 
         <action id="ToggleReadOnlyAttribute" class="com.intellij.ide.actions.ToggleReadOnlyAttributeAction"/>
         <separator/>
@@ -411,10 +418,11 @@
       <reference ref="Back"/>
       <reference ref="Forward"/>
       <separator/>
-      <reference ref="ShowSettings"/>
+      <group id="MainToolBarSettings">
+        <reference ref="ShowSettings"/>
+      </group>
       <separator/>
       <reference ref="HelpTopics"/>
-
     </group>
 
     <group id="EditorPopupMenu" configurable="true">
@@ -538,8 +546,8 @@
     <group id="Console.HistoryActions">
       <action id="Console.History.Previous" class="com.intellij.openapi.actionSystem.EmptyAction"/>
       <action id="Console.History.Next" class="com.intellij.openapi.actionSystem.EmptyAction"/>
-      <action id="Console.History.Browse" class="com.intellij.openapi.actionSystem.EmptyAction" icon="AllIcons.Actions.ConsoleHistory"/>
-      <action id="Console.History.BrowseTW" class="com.intellij.openapi.actionSystem.EmptyAction" use-shortcut-of="RecentFiles" icon="AllIcons.Actions.ConsoleHistory"/>
+      <action id="Console.History.Browse" class="com.intellij.openapi.actionSystem.EmptyAction" icon="AllIcons.General.MessageHistory"/>
+      <action id="Console.History.BrowseTW" class="com.intellij.openapi.actionSystem.EmptyAction" use-shortcut-of="RecentFiles" icon="AllIcons.General.MessageHistory"/>
     </group>
 
     <group id="Internal" text="Internal Actions" internal="true" popup="true">

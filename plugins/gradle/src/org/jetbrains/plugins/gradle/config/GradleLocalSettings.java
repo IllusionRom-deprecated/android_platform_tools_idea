@@ -9,12 +9,9 @@ import com.intellij.util.xmlb.annotations.AbstractCollection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.gradle.autoimport.*;
+import org.jetbrains.plugins.gradle.model.gradle.GradleTaskDescriptor;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -25,8 +22,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @State(name = "GradleLocalSettings", storages = {@Storage(file = StoragePathMacros.WORKSPACE_FILE)} )
 public class GradleLocalSettings implements PersistentStateComponent<GradleLocalSettings> {
-
-  private static final long USER_CHANGE_TTL_MS = SystemProperties.getIntProperty("gradle.user.change.ttl", (int)TimeUnit.DAYS.toMillis(7));
 
   private static final boolean PRESERVE_EXPAND_STATE = !SystemProperties.getBooleanProperty("gradle.forget.expand.nodes.state", false);
 
@@ -39,6 +34,11 @@ public class GradleLocalSettings implements PersistentStateComponent<GradleLocal
 
   private final AtomicReference<Set<GradleUserProjectChange>> myUserChanges
     = new AtomicReference<Set<GradleUserProjectChange>>(new HashSet<GradleUserProjectChange>());
+
+  private final AtomicReference<List<GradleTaskDescriptor>>       myRecentTasks    =
+    new AtomicReference<List<GradleTaskDescriptor>>(ContainerUtilRt.<GradleTaskDescriptor>newArrayList());
+  private final AtomicReference<Collection<GradleTaskDescriptor>> myAvailableTasks =
+    new AtomicReference<Collection<GradleTaskDescriptor>>(ContainerUtilRt.<GradleTaskDescriptor>newArrayList());
 
   @NotNull
   public static GradleLocalSettings getInstance(@NotNull Project project) {
@@ -57,20 +57,6 @@ public class GradleLocalSettings implements PersistentStateComponent<GradleLocal
   @Override
   public void loadState(GradleLocalSettings state) {
     XmlSerializerUtil.copyBean(state, this);
-    Set<GradleUserProjectChange> activeChange = ContainerUtilRt.newHashSet();
-    boolean update = false;
-    long now = System.currentTimeMillis();
-    for (GradleUserProjectChange change : getUserProjectChanges()) {
-      if (now - change.getTimestamp() > USER_CHANGE_TTL_MS) {
-        update = true;
-      }
-      else {
-        activeChange.add(change);
-      }
-    }
-    if (update) {
-      setUserProjectChanges(activeChange);
-    }
   }
 
   @SuppressWarnings("UnusedDeclaration")
@@ -107,7 +93,9 @@ public class GradleLocalSettings implements PersistentStateComponent<GradleLocal
     elementTypes = {
       GradleAddModuleUserChange.class, GradleRemoveModuleUserChange.class,
       GradleAddModuleDependencyUserChange.class, GradleRemoveModuleDependencyUserChange.class,
-      GradleAddLibraryDependencyUserChange.class, GradleRemoveLibraryDependencyUserChange.class
+      GradleAddLibraryDependencyUserChange.class, GradleRemoveLibraryDependencyUserChange.class,
+      GradleModuleDependencyExportedChange.class, GradleModuleDependencyScopeUserChange.class,
+      GradleLibraryDependencyExportedChange.class, GradleLibraryDependencyScopeUserChange.class
     }
   )
   @NotNull
@@ -117,5 +105,23 @@ public class GradleLocalSettings implements PersistentStateComponent<GradleLocal
 
   public void setUserProjectChanges(@Nullable Set<GradleUserProjectChange> changes) {
     myUserChanges.set(changes);
+  }
+
+  @NotNull
+  public Collection<GradleTaskDescriptor> getAvailableTasks() {
+    return myAvailableTasks.get();
+  }
+
+  public void setAvailableTasks(@NotNull Collection<GradleTaskDescriptor> taskNames) {
+    myAvailableTasks.set(taskNames);
+  }
+
+  @NotNull
+  public List<GradleTaskDescriptor> getRecentTasks() {
+    return myRecentTasks.get();
+  }
+
+  public void setRecentTasks(@NotNull List<GradleTaskDescriptor> taskNames) {
+    myRecentTasks.set(taskNames);
   }
 }

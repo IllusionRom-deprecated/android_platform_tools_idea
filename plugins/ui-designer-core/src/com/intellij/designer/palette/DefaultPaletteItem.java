@@ -22,8 +22,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 
-import static com.intellij.designer.model.MetaManager.*;
-
 /**
  * @author Alexander Lobas
  */
@@ -40,15 +38,19 @@ public class DefaultPaletteItem implements PaletteItem {
   protected MetaModel myMetaModel;
 
   public DefaultPaletteItem(Element palette) {
-    this(palette.getAttributeValue(ATTR_TITLE),
-         palette.getAttributeValue(ATTR_ICON),
-         palette.getAttributeValue(ATTR_TOOLTIP),
-         palette.getAttributeValue(ATTR_VERSION),
-         palette.getAttributeValue(ATTR_DEPRECATED),
-         palette.getAttributeValue(ATTR_DEPRECATED_HINT));
+    this(palette.getAttributeValue("title"),
+         palette.getAttributeValue("icon"),
+         palette.getAttributeValue("tooltip"),
+         palette.getAttributeValue("version"),
+         palette.getAttributeValue("deprecated"),
+         palette.getAttributeValue("deprecatedHint"));
   }
 
-  public DefaultPaletteItem(String title, String iconPath, String tooltip, String version, String deprecatedVersion,
+  public DefaultPaletteItem(String title,
+                            String iconPath,
+                            String tooltip,
+                            String version,
+                            String deprecatedVersion,
                             String deprecatedHint) {
     myTitle = title;
     myIconPath = iconPath;
@@ -86,20 +88,11 @@ public class DefaultPaletteItem implements PaletteItem {
     return myEnabled;
   }
 
-  @Override
-  public String getCreation() {
-    return myMetaModel.getCreation();
-  }
-
   public void setEnabled(boolean enabled) {
     myEnabled = enabled;
   }
 
-  @Override
-  public MetaModel getMetaModel() {
-    return myMetaModel;
-  }
-
+  @Nullable
   @Override
   public String getDeprecatedIn() {
     return myDeprecatedVersion;
@@ -109,6 +102,16 @@ public class DefaultPaletteItem implements PaletteItem {
   @Override
   public String getDeprecatedHint() {
     return myDeprecatedHint;
+  }
+
+  @Override
+  public String getCreation() {
+    return myMetaModel.getCreation();
+  }
+
+  @Override
+  public MetaModel getMetaModel() {
+    return myMetaModel;
   }
 
   public void setMetaModel(MetaModel metaModel) {

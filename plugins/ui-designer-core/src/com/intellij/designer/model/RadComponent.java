@@ -23,16 +23,14 @@ import com.intellij.designer.designSurface.tools.DragTracker;
 import com.intellij.designer.designSurface.tools.InputTool;
 import com.intellij.designer.propertyTable.PropertyTable;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
-import com.intellij.util.containers.hash.*;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.InputEvent;
 import java.util.*;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -82,7 +80,6 @@ public abstract class RadComponent extends PropertiesContainer {
     myParent = parent;
   }
 
-  @NotNull
   public List<RadComponent> getChildren() {
     return Collections.emptyList();
   }
@@ -136,6 +133,14 @@ public abstract class RadComponent extends PropertiesContainer {
     return false;
   }
 
+  /**
+   * Returns true if this component is of the same logical type as the given other component.
+   * This is used to for example select "Select Same Type".
+   */
+  public boolean isSameType(@NotNull RadComponent other) {
+    return other.getClass() == this.getClass();
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////
   //
   // Visual
@@ -144,11 +149,11 @@ public abstract class RadComponent extends PropertiesContainer {
 
   /**
    * Returns the bounds of this {@linkplain RadComponent} in the model.
-   * <p>
+   * <p/>
    * Caller should <b>not</b> modify this rectangle.
    *
    * @return the bounds of this {@linkplain RadComponent} in the model coordinate system
-   *          (e.g. unaffected by a view zoom for example)
+   *         (e.g. unaffected by a view zoom for example)
    */
   public Rectangle getBounds() {
     return null;
@@ -160,14 +165,14 @@ public abstract class RadComponent extends PropertiesContainer {
    * (see {@link DesignerEditorPanel#zoom(com.intellij.designer.designSurface.ZoomType)})
    * and will apply any relative position offsets of views in the hierarchy between the
    * two components.
-   * <p>
+   * <p/>
    * Returns a new {@link Rectangle}, so callers are free to modify the result.
    *
    * @param relativeTo the component whose coordinate system the model bounds should
    *                   be shifted and scaled into
    * @return the bounds of this {@linkplain RadComponent} in the given coordinate system
    */
-  public Rectangle getBounds(@NotNull Component relativeTo) {
+  public Rectangle getBounds(Component relativeTo) {
     return null;
   }
 
@@ -175,14 +180,14 @@ public abstract class RadComponent extends PropertiesContainer {
    * Converts the given rectangle (in model coordinates) to coordinates in the given
    * target component's coordinate system. The model coordinate system refers to
    * the same coordinate system as the bounds returned by {@link #getBounds()}.
-   * <p>
+   * <p/>
    * This means that calling {@link #getBounds(java.awt.Component)} is equivalent
    * to calling this method and passing in {@link #getBounds()}.
-   * <p>
+   * <p/>
    * Returns a new {@link Rectangle}, so callers are free to modify the result.
    *
-   * @param target the component whose coordinate system the rectangle should be
-   *               translated into
+   * @param target    the component whose coordinate system the rectangle should be
+   *                  translated into
    * @param rectangle the model rectangle to convert
    * @return the rectangle converted to the coordinate system of the target
    */
@@ -193,10 +198,10 @@ public abstract class RadComponent extends PropertiesContainer {
   /**
    * Converts the given rectangle (in coordinates relative to the given component)
    * into the equivalent rectangle in model coordinates.
-   * <p>
+   * <p/>
    * Returns a new {@link Rectangle}, so callers are free to modify the result.
    *
-   * @param source the component which defines the coordinate system of the rectangle
+   * @param source    the component which defines the coordinate system of the rectangle
    * @param rectangle the rectangle to be converted into model coordinates
    * @return the rectangle converted to the model coordinate system
    */
@@ -208,12 +213,12 @@ public abstract class RadComponent extends PropertiesContainer {
    * Converts the given point (in model coordinates) to coordinates in the given
    * target component's coordinate system. The model coordinate system refers to
    * the same coordinate system as the bounds returned by {@link #getBounds()}.
-   * <p>
+   * <p/>
    * Returns a new {@link Point}, so callers are free to modify the result.
    *
    * @param target the component whose coordinate system the point should be
    *               translated into
-   * @param point the model point to convert
+   * @param point  the model point to convert
    * @return the point converted to the coordinate system of the target
    */
   public Point fromModel(@NotNull Component target, @NotNull Point point) {
@@ -223,11 +228,11 @@ public abstract class RadComponent extends PropertiesContainer {
   /**
    * Converts the given point (in coordinates relative to the given component)
    * into the equivalent point in model coordinates.
-   * <p>
+   * <p/>
    * Returns a new {@link Point}, so callers are free to modify the result.
    *
    * @param source the component which defines the coordinate system of the point
-   * @param point the point to be converted into model coordinates
+   * @param point  the point to be converted into model coordinates
    * @return the point converted to the model coordinate system
    */
   public Point toModel(@NotNull Component source, @NotNull Point point) {
@@ -238,12 +243,12 @@ public abstract class RadComponent extends PropertiesContainer {
    * Converts the given rectangle (in model coordinates) to coordinates in the given
    * target component's coordinate system. The model coordinate system refers to
    * the same coordinate system as the bounds returned by {@link #getBounds()}.
-   * <p>
+   * <p/>
    * Returns a new {@link Dimension}, so callers are free to modify the result.
    *
    * @param target the component whose coordinate system the dimension should be
    *               translated into
-   * @param size the model dimension to convert
+   * @param size   the model dimension to convert
    * @return the size converted to the coordinate system of the target
    */
   public Dimension fromModel(@NotNull Component target, @NotNull Dimension size) {
@@ -253,11 +258,11 @@ public abstract class RadComponent extends PropertiesContainer {
   /**
    * Converts the given size (in coordinates relative to the given component)
    * into the equivalent size in model coordinates.
-   * <p>
+   * <p/>
    * Returns a new {@link Dimension}, so callers are free to modify the result.
    *
    * @param source the component which defines the coordinate system of the size
-   * @param size the dimension to be converted into model coordinates
+   * @param size   the dimension to be converted into model coordinates
    * @return the size converted to the model coordinate system
    */
   public Dimension toModel(@NotNull Component source, @NotNull Dimension size) {
@@ -266,20 +271,20 @@ public abstract class RadComponent extends PropertiesContainer {
 
   /**
    * Returns the point in the model coordinate space (see {@link #getBounds()}) given
-   * a coordinate {@code x,y} in the given Swing component.
-   * <p>
+   * a coordinate {@code x, y} in the given Swing component.
+   * <p/>
    * Returns a new {@link Point}, so callers are free to modify the result.
    *
    * @param relativeFrom the component whose coordinate system defines the rectangle
-   * @param x the x coordinate of the point
-   * @param y the y coordinate of the point
+   * @param x            the x coordinate of the point
+   * @param y            the y coordinate of the point
    * @return a corresponding {@link Point} in the model coordinate system
    */
-  public Point convertPoint(@NotNull Component relativeFrom, int x, int y) {
+  public Point convertPoint(Component relativeFrom, int x, int y) {
     return null;
   }
 
-  public InputTool getDragTracker(Point location, boolean isTree) {
+  public InputTool getDragTracker(Point location, InputEvent event, boolean isTree) {
     return new DragTracker(this);
   }
 
@@ -400,19 +405,23 @@ public abstract class RadComponent extends PropertiesContainer {
 
   public void accept(RadComponentVisitor visitor, boolean forward) {
     if (visitor.visit(this)) {
-      List<RadComponent> children = getChildrenForAccept(visitor);
-      if (forward) {
-        for (RadComponent child : children) {
-          child.accept(visitor, forward);
-        }
-      }
-      else {
-        int size = children.size();
-        for (int i = size - 1; i >= 0; i--) {
-          children.get(i).accept(visitor, forward);
-        }
-      }
+      acceptChildren(visitor, forward);
       visitor.endVisit(this);
+    }
+  }
+
+  public void acceptChildren(RadComponentVisitor visitor, boolean forward) {
+    List<RadComponent> children = getChildrenForAccept(visitor);
+    if (forward) {
+      for (RadComponent child : children) {
+        child.accept(visitor, forward);
+      }
+    }
+    else {
+      int size = children.size();
+      for (int i = size - 1; i >= 0; i--) {
+        children.get(i).accept(visitor, forward);
+      }
     }
   }
 
@@ -446,14 +455,6 @@ public abstract class RadComponent extends PropertiesContainer {
     return null;
   }
 
-  /**
-   * Returns true if this component is of the same logical type as the given other component.
-   * This is used to for example select "Select Same Type".
-   */
-  public boolean isSameType(@NotNull RadComponent other) {
-    return other.getClass() == this.getClass();
-  }
-
   //////////////////////////////////////////////////////////////////////////////////////////
   //
   // Utils
@@ -484,6 +485,41 @@ public abstract class RadComponent extends PropertiesContainer {
     }, true);
   }
 
+  /**
+   * Partitions the given list of components into a map where each value is a list of siblings,
+   * in the same order as in the original list, and where the keys are the parents (or null
+   * for the components that do not have a parent).
+   * <p/>
+   * The value lists will never be empty. The parent key will be null for components without parents.
+   *
+   * @param components the components to be grouped
+   * @return a map from parents (or null) to a list of components with the corresponding parent
+   */
+  @NotNull
+  public static Map<RadComponent, List<RadComponent>> groupSiblings(@NotNull List<? extends RadComponent> components) {
+    Map<RadComponent, List<RadComponent>> siblingLists = new HashMap<RadComponent, List<RadComponent>>();
+
+    if (components.isEmpty()) {
+      return siblingLists;
+    }
+    if (components.size() == 1) {
+      RadComponent component = components.get(0);
+      siblingLists.put(component.getParent(), Collections.singletonList(component));
+      return siblingLists;
+    }
+
+    for (RadComponent component : components) {
+      RadComponent parent = component.getParent();
+      List<RadComponent> children = siblingLists.get(parent);
+      if (children == null) {
+        children = new ArrayList<RadComponent>();
+        siblingLists.put(parent, children);
+      }
+      children.add(component);
+    }
+
+    return siblingLists;
+  }
 
   public static Set<RadComponent> getParents(List<RadComponent> components) {
     Set<RadComponent> parents = new HashSet<RadComponent>();
@@ -494,45 +530,6 @@ public abstract class RadComponent extends PropertiesContainer {
       }
     }
     return parents;
-  }
-
-  /**
-   * Partitions the given list of components into a map where each value is a list of siblings,
-   * in the same order as in the original list, and where the keys are the parents (or null
-   * for the components that do not have a parent).
-   * <p>
-   * The value lists will never be empty. The parent key will be null for components without parents.
-   *
-   * @param components the components to be grouped
-   * @return a map from parents (or null) to a list of components with the corresponding parent
-   */
-  @NotNull
-  public static Map<RadComponent,List<RadComponent>> groupSiblings(@NotNull List<? extends RadComponent> components) {
-    Map<RadComponent, List<RadComponent>> siblingLists =
-      new com.intellij.util.containers.hash.HashMap<RadComponent, List<RadComponent>>();
-
-    if (components.isEmpty()) {
-      return siblingLists;
-    } else if (components.size() == 1) {
-      RadComponent component = components.get(0);
-      siblingLists.put(component.getParent(), Collections.singletonList(component));
-      return siblingLists;
-    }
-
-    for (RadComponent node : components) {
-      if (node == null) {
-        continue;
-      }
-      RadComponent parent = node.getParent();
-      List<RadComponent> children = siblingLists.get(parent);
-      if (children == null) {
-        children = new ArrayList<RadComponent>();
-        siblingLists.put(parent, children);
-      }
-      children.add(node);
-    }
-
-    return siblingLists;
   }
 
   public static boolean isParentsContainedIn(List<RadComponent> components, RadComponent component) {

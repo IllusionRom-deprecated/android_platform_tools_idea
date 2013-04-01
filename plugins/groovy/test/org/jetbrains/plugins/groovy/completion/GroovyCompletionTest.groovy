@@ -641,6 +641,10 @@ class A {
     myFixture.checkResult "List<String> l = new ArrayList<>(<caret>)"
   }
 
+  public void testFinishByClosingBracket() {
+    doCompletionTest "int o1, o2; array[o<caret>", "int o1, o2; array[o1]<caret>", "]", CompletionType.BASIC
+  }
+
   public void testAfterNewWithInner() {
     myFixture.addClass """class Zzoo {
         static class Impl {}
@@ -1715,5 +1719,19 @@ class Baz {}''', '', CompletionType.BASIC, CompletionResult.contain, 'xxx', 'yyy
     myFixture.type('\n\nb.mes')
     myFixture.completeBasic()
     myFixture.assertPreferredCompletionItems 0, "message", "messages"
+  }
+
+  void testFieldCompletionFromJavaClass() {
+    myFixture.addClass("""\
+class Base {
+    static public Base foo;
+}
+
+class Inheritor extends Base {
+    static public Inheritor foo;
+}
+""")
+
+    doVariantableTest('Inheritor.fo<caret>','', CompletionType.BASIC, CompletionResult.equal, 'foo', 'forName', 'forName')
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -242,6 +242,7 @@ public abstract class GroovyFileBaseImpl extends PsiFileBase implements GroovyFi
   private volatile SoftReference<Instruction[]> myControlFlow = null;
 
   public Instruction[] getControlFlow() {
+    assert isValid();
     SoftReference<Instruction[]> flow = myControlFlow;
     Instruction[] result = flow != null ? flow.get() : null;
     if (result == null) {
@@ -349,6 +350,8 @@ public abstract class GroovyFileBaseImpl extends PsiFileBase implements GroovyFi
   private static int getMaxSpaceCount(PackageEntry[] entries, int b1, int b2) {
     int start = Math.min(b1, b2);
     int end = Math.max(b1, b2);
+
+    if (start == -1) return 0;
 
     int max = 0;
     int cur = 0;

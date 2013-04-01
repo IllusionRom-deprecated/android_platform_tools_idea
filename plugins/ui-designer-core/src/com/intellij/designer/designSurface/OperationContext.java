@@ -36,9 +36,9 @@ public final class OperationContext {
   private EditableArea myArea;
   private List<RadComponent> myComponents;
   private InputEvent myInputEvent;
+  private int myModifiers;
   private Point myLocation;
   private Point myMoveDelta;
-  private int myModifiers;
   private Dimension mySizeDelta;
   private int myResizeDirection;
 
@@ -139,6 +139,14 @@ public final class OperationContext {
     myInputEvent = inputEvent;
   }
 
+  public int getModifiers() {
+    return myModifiers;
+  }
+
+  public void setModifiers(int modifiers) {
+    myModifiers = modifiers;
+  }
+
   public Point getLocation() {
     return myLocation;
   }
@@ -173,13 +181,5 @@ public final class OperationContext {
 
   public void setResizeDirection(int resizeDirection) {
     myResizeDirection = resizeDirection;
-  }
-
-  public int getModifiers() {
-    return myModifiers;
-  }
-
-  public void setModifiers(int modifiers) {
-    myModifiers = modifiers;
   }
 }

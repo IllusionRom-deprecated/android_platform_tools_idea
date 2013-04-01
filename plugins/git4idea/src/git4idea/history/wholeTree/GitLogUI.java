@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,12 +54,14 @@ import com.intellij.ui.awt.RelativePoint;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.*;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.Convertor;
 import com.intellij.util.containers.MultiMap;
 import com.intellij.util.text.DateFormatUtil;
 import com.intellij.util.ui.AdjustComponentWhenShown;
 import com.intellij.util.ui.ColumnInfo;
 import com.intellij.util.ui.UIUtil;
+import com.intellij.vcsUtil.MoreAction;
 import git4idea.GitUtil;
 import git4idea.GitVcs;
 import git4idea.branch.GitBranchUtil;
@@ -1158,12 +1160,11 @@ public class GitLogUI implements Disposable {
   }
 
   private static class CommentSearchContext {
-    private final List<HighlightingRendererBase> myListeners;
+    private final List<HighlightingRendererBase> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
     private final List<String> mySearchContext;
 
     private CommentSearchContext() {
       mySearchContext = new ArrayList<String>();
-      myListeners = new ArrayList<HighlightingRendererBase>();
     }
 
     public void addHighlighter(final HighlightingRendererBase renderer) {
@@ -1772,7 +1773,7 @@ public class GitLogUI implements Disposable {
   }
 
   interface Colors {
-    Color tag = new JBColor(new Color(0xf1ef9e), new Color(0x7D7B12));
+    Color tag = new JBColor(new Color(0xf1ef9e), new Color(113, 111, 64));
     Color remote = new JBColor(new Color(0xbcbcfc), new Color(0xbcbcfc).darker().darker());
     Color local = new JBColor(new Color(0x75eec7), new Color(0x0D6D4F));
     Color highlighted = new JBColor(new Color(210,255,233), UIUtil.getTableBackground());
