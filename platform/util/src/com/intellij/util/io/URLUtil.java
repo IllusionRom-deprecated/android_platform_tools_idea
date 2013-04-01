@@ -16,6 +16,9 @@
 
 package com.intellij.util.io;
 
+import com.google.common.base.Splitter;
+import com.google.common.collect.Lists;
+import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import gnu.trove.TIntArrayList;
 import org.jetbrains.annotations.NonNls;
@@ -27,10 +30,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class URLUtil {
+
+  public static final String SCHEME_SEPARATOR = "://";
+
   private URLUtil() {
   }
 
@@ -144,7 +151,21 @@ public class URLUtil {
       return -1;
   }
 
-  public static boolean containsScheme(String url) {
-    return url.contains("://");
+  public static boolean containsScheme(@NotNull String url) {
+    return url.contains(SCHEME_SEPARATOR);
+  }
+
+  /**
+   * Splits the url into 2 parts: the scheme ("http", for instance) and the rest of the URL. <br/>
+   * Scheme separator is not included neither to the scheme part, nor to the url part. <br/>
+   * The scheme can be absent, in which case empty string is written to the first item of the Pair.
+   */
+  @NotNull
+  public static Pair<String, String> splitScheme(@NotNull String url) {
+    ArrayList<String> list = Lists.newArrayList(Splitter.on(SCHEME_SEPARATOR).limit(2).split(url));
+    if (list.size() == 1) {
+      return Pair.create("", list.get(0));
+    }
+    return Pair.create(list.get(0), list.get(1));
   }
 }

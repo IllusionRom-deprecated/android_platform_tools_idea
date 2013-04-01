@@ -73,7 +73,6 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.AbstractLayoutManager;
 import com.intellij.util.ui.AsyncProcessIcon;
 import com.intellij.util.ui.ButtonlessScrollBarUI;
-import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
@@ -122,7 +121,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
   private final LookupCellRenderer myCellRenderer;
   private Boolean myPositionedAbove = null;
 
-  private final ArrayList<LookupListener> myListeners = new ArrayList<LookupListener>();
+  private final List<LookupListener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
 
   private long myStampShown = 0;
   private boolean myShown = false;
@@ -174,7 +173,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
     myList.setFixedCellWidth(50);
 
     myList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-    myList.setBackground(UIUtil.isUnderDarcula() ? LookupCellRenderer.BACKGROUND_COLOR_DARK_VARIANT : LookupCellRenderer.BACKGROUND_COLOR);
+    myList.setBackground(LookupCellRenderer.BACKGROUND_COLOR);
 
     myList.getExpandableItemsHandler();
 
@@ -218,7 +217,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
 
     addListeners();
 
-    mySortingLabel.setBorder(new LineBorder(Color.LIGHT_GRAY));
+    mySortingLabel.setBorder(new LineBorder(new JBColor(Color.LIGHT_GRAY, JBColor.background())));
     mySortingLabel.setOpaque(true);
     new ChangeLookupSorting().installOn(mySortingLabel);
     updateSorting();
@@ -651,10 +650,17 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
       LogicalPosition blockEnd = myEditor.getSelectionModel().getBlockEnd();
       assert blockStart != null && blockEnd != null;
 
-      for (int line = blockStart.line; line <= blockEnd.line; line++) {
-        int bs = myEditor.logicalPositionToOffset(new LogicalPosition(line, blockStart.column));
+      int minLine = Math.min(blockStart.line, blockEnd.line);
+      int maxLine = Math.max(blockStart.line, blockEnd.line);
+      int minColumn = Math.min(blockStart.column, blockEnd.column);
+      int maxColumn = Math.max(blockStart.column, blockEnd.column);
+
+      int caretLine = document.getLineNumber(myEditor.getCaretModel().getOffset());
+
+      for (int line = minLine; line <= maxLine; line++) {
+        int bs = myEditor.logicalPositionToOffset(new LogicalPosition(line, minColumn));
         int start = bs - prefix;
-        int end = myEditor.logicalPositionToOffset(new LogicalPosition(line, blockEnd.column));
+        int end = myEditor.logicalPositionToOffset(new LogicalPosition(line, maxColumn));
         if (start > end) {
           LOG.error("bs=" + bs + "; start=" + start + "; end=" + end +
                     "; blockStart=" + blockStart + "; blockEnd=" + blockEnd + "; line=" + line + "; len=" +
@@ -662,10 +668,10 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
         }
         document.replaceString(start, end, lookupString);
       }
-      LogicalPosition start = new LogicalPosition(blockStart.line, blockStart.column - prefix);
-      LogicalPosition end = new LogicalPosition(blockEnd.line, start.column + lookupString.length());
+      LogicalPosition start = new LogicalPosition(minLine, minColumn - prefix);
+      LogicalPosition end = new LogicalPosition(maxLine, start.column + lookupString.length());
       myEditor.getSelectionModel().setBlockSelection(start, end);
-      myEditor.getCaretModel().moveToLogicalPosition(end);
+      myEditor.getCaretModel().moveToLogicalPosition(new LogicalPosition(caretLine, end.column));
     } else {
       EditorModificationUtil.deleteSelectedText(myEditor);
       final int caretOffset = myEditor.getCaretModel().getOffset();
@@ -985,8 +991,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
 
     if (!myListeners.isEmpty()){
       LookupEvent event = new LookupEvent(this, item, completionChar);
-      LookupListener[] listeners = myListeners.toArray(new LookupListener[myListeners.size()]);
-      for (LookupListener listener : listeners) {
+      for (LookupListener listener : myListeners) {
         try {
           listener.itemSelected(event);
         }
@@ -1000,8 +1005,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
   private void fireLookupCanceled(final boolean explicitly) {
     if (!myListeners.isEmpty()){
       LookupEvent event = new LookupEvent(this, explicitly);
-      LookupListener[] listeners = myListeners.toArray(new LookupListener[myListeners.size()]);
-      for (LookupListener listener : listeners) {
+      for (LookupListener listener : myListeners) {
         try {
           listener.lookupCanceled(event);
         }
@@ -1015,8 +1019,7 @@ public class LookupImpl extends LightweightHint implements LookupEx, Disposable 
   private void fireCurrentItemChanged(LookupElement item){
     if (!myListeners.isEmpty()){
       LookupEvent event = new LookupEvent(this, item, (char)0);
-      LookupListener[] listeners = myListeners.toArray(new LookupListener[myListeners.size()]);
-      for (LookupListener listener : listeners) {
+      for (LookupListener listener : myListeners) {
         listener.currentItemChanged(event);
       }
     }

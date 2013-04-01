@@ -85,6 +85,7 @@ public class CreateFromUsageUtils {
     if (!unresolvedOnly) {
       for (JavaResolveResult result : results) {
         if (!result.isValidResult()) return false;
+        if (result.getElement() instanceof PsiPackage) return false;
       }
     }
     return true;
@@ -446,7 +447,7 @@ public class CreateFromUsageUtils {
               targetClass = (PsiClass) sourceFile.add(aClass);
             }
 
-            if (superClassName != null) {
+            if (superClassName != null && (classKind != CreateClassKind.ENUM || !superClassName.equals(CommonClassNames.JAVA_LANG_ENUM))) {
               final PsiClass superClass =
                 facade.findClass(superClassName, targetClass.getResolveScope());
               final PsiJavaCodeReferenceElement superClassReference = factory.createReferenceElementByFQClassName(superClassName, targetClass.getResolveScope());

@@ -268,11 +268,16 @@ public abstract class InplaceRefactoring {
     int offset = myEditor.getCaretModel().getOffset();
     PsiElement selectedElement = getSelectedInEditorElement(nameIdentifier, refs, stringUsages, offset);
 
-    if (nameIdentifier != null) addVariable(nameIdentifier, selectedElement, builder);
+    boolean subrefOnPrimaryElement = false;
     for (PsiReference ref : refs) {
-      if (nameIdentifier != null && ref.getElement() == nameIdentifier.getParent()) continue;
+      if (isReferenceAtCaret(nameIdentifier, ref)) {
+        builder.replaceElement(ref, PRIMARY_VARIABLE_NAME, createLookupExpression(), true);
+        subrefOnPrimaryElement = true;
+        continue;
+      }
       addVariable(ref, selectedElement, builder, offset);
     }
+    if (nameIdentifier != null && !subrefOnPrimaryElement) addVariable(nameIdentifier, selectedElement, builder);
     for (Pair<PsiElement, TextRange> usage : stringUsages) {
       addVariable(usage.first, usage.second, selectedElement, builder);
     }
@@ -320,6 +325,10 @@ public abstract class InplaceRefactoring {
       showBalloon();
     }
     return true;
+  }
+
+  protected boolean isReferenceAtCaret(PsiElement nameIdentifier, PsiReference ref) {
+    return nameIdentifier != null && ref.getElement() == nameIdentifier.getParent();
   }
 
   protected void beforeTemplateStart() {
@@ -655,10 +664,10 @@ public abstract class InplaceRefactoring {
     }
   }
 
-  private static PsiElement getSelectedInEditorElement(@Nullable PsiElement nameIdentifier,
-                                                       final Collection<PsiReference> refs,
-                                                       Collection<Pair<PsiElement, TextRange>> stringUsages,
-                                                       final int offset) {
+  private PsiElement getSelectedInEditorElement(@Nullable PsiElement nameIdentifier,
+                                                final Collection<PsiReference> refs,
+                                                Collection<Pair<PsiElement, TextRange>> stringUsages,
+                                                final int offset) {
     if (nameIdentifier != null) {
       final TextRange range = nameIdentifier.getTextRange();
       if (range != null && contains(range, offset)) return nameIdentifier;
@@ -674,7 +683,7 @@ public abstract class InplaceRefactoring {
       if (contains(stringUsage.second.shiftRight(element.getTextRange().getStartOffset()), offset)) return element;
     }
 
-    LOG.error(nameIdentifier);
+    LOG.error(nameIdentifier + " by " + this.getClass().getName());
     return null;
   }
 

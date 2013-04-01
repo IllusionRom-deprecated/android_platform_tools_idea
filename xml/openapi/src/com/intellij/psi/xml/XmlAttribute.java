@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,11 +42,13 @@ public interface XmlAttribute extends XmlElement, PsiNamedElement {
   /**
    * @return text inside XML attribute with quotes stripped off
    */
+  @Nullable
   String getValue();
 
   /**
    * @return text inside XML attribute with quotes stripped off and XML char entities replaced with corresponding characters
    */
+  @Nullable
   String getDisplayValue();
 
   /**
@@ -73,9 +75,6 @@ public interface XmlAttribute extends XmlElement, PsiNamedElement {
 
   @Nullable XmlAttributeDescriptor getDescriptor();
 
-  // Tree functions
-
-  // TODO: remove this. For tree functions XmlChildRole.XXX_FINDER should be used.
   // In this case function is also used to get references from attribute value
   @Nullable
   XmlAttributeValue getValueElement();

@@ -28,10 +28,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.actionSystem.ex.ActionManagerEx;
 import com.intellij.openapi.actionSystem.ex.ActionUtil;
 import com.intellij.openapi.actionSystem.ex.AnActionListener;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationActivationListener;
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.application.*;
 import com.intellij.openapi.application.ex.ApplicationManagerEx;
 import com.intellij.openapi.components.ApplicationComponent;
 import com.intellij.openapi.diagnostic.Logger;
@@ -47,6 +44,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.UIUtil;
 import gnu.trove.THashMap;
@@ -81,8 +79,7 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
   private MyTimer myTimer;
 
   private int myRegisteredActionsCount;
-  private final List<AnActionListener> myActionListeners = new ArrayList<AnActionListener>();
-  private AnActionListener[] myCachedActionListeners;
+  private final List<AnActionListener> myActionListeners = ContainerUtil.createLockFreeCopyOnWriteList();
   private String myLastPreformedActionId;
   private final KeymapManager myKeymapManager;
   private final DataManager myDataManager;
@@ -1005,17 +1002,8 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
     myQueuedNotificationsEvents.clear();
   }
 
-  private AnActionListener[] getActionListeners() {
-    if (myCachedActionListeners == null) {
-      myCachedActionListeners = myActionListeners.toArray(new AnActionListener[myActionListeners.size()]);
-    }
-
-    return myCachedActionListeners;
-  }
-
   public void addAnActionListener(AnActionListener listener) {
     myActionListeners.add(listener);
-    myCachedActionListeners = null;
   }
 
   public void addAnActionListener(final AnActionListener listener, final Disposable parentDisposable) {
@@ -1029,7 +1017,6 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
 
   public void removeAnActionListener(AnActionListener listener) {
     myActionListeners.remove(listener);
-    myCachedActionListeners = null;
   }
 
   public void fireBeforeActionPerformed(AnAction action, DataContext dataContext, AnActionEvent event) {
@@ -1039,8 +1026,7 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
       //noinspection AssignmentToStaticFieldFromInstanceMethod
       IdeaLogger.ourLastActionId = myLastPreformedActionId;
     }
-    AnActionListener[] listeners = getActionListeners();
-    for (AnActionListener listener : listeners) {
+    for (AnActionListener listener : myActionListeners) {
       listener.beforeActionPerformed(action, dataContext, event);
     }
   }
@@ -1052,8 +1038,7 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
       //noinspection AssignmentToStaticFieldFromInstanceMethod
       IdeaLogger.ourLastActionId = myLastPreformedActionId;
     }
-    AnActionListener[] listeners = getActionListeners();
-    for (AnActionListener listener : listeners) {
+    for (AnActionListener listener : myActionListeners) {
       try {
         listener.afterActionPerformed(action, dataContext, event);
       }
@@ -1082,8 +1067,7 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
 
   public void fireBeforeEditorTyping(char c, DataContext dataContext) {
     myLastTimeEditorWasTypedIn = System.currentTimeMillis();
-    AnActionListener[] listeners = getActionListeners();
-    for (AnActionListener listener : listeners) {
+    for (AnActionListener listener : myActionListeners) {
       listener.beforeEditorTyping(c, dataContext);
     }
   }
@@ -1108,7 +1092,10 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
     if (myPreloadActionsRunnable == null) {
       myPreloadActionsRunnable = new Runnable() {
         public void run() {
-          doPreloadActions();
+          try {
+            doPreloadActions();
+          } catch (RuntimeInterruptedException ignore) {
+          }
         }
       };
       ApplicationManager.getApplication().executeOnPooledThread(myPreloadActionsRunnable);
@@ -1120,7 +1107,7 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
       Thread.sleep(5000); // wait for project initialization to complete
     }
     catch (InterruptedException e) {
-      // ignore
+      return; // IDEA exited
     }
     preloadActionGroup(IdeActions.GROUP_EDITOR_POPUP);
     preloadActionGroup(IdeActions.GROUP_EDITOR_TAB_POPUP);
@@ -1162,7 +1149,9 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
           //noinspection BusyWait
           Thread.sleep(300);
         }
-        catch (InterruptedException ignored) { }
+        catch (InterruptedException ignored) {
+          throw new RuntimeInterruptedException(ignored);
+        }
       }
     }
   }
@@ -1338,7 +1327,7 @@ public final class ActionManagerImpl extends ActionManagerEx implements Applicat
           }
         }, AWTEvent.WINDOW_EVENT_MASK, result);
 
-        action.actionPerformed(event);
+        ActionUtil.performActionDumbAware(action, event);
         result.setDone();
         queueActionPerformedEvent(action, context, event);
       }

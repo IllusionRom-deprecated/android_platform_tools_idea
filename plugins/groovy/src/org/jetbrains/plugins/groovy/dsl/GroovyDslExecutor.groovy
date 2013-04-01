@@ -1,3 +1,18 @@
+/*
+ * Copyright 2000-2013 JetBrains s.r.o.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.jetbrains.plugins.groovy.dsl
 
 import com.intellij.openapi.application.ApplicationInfo
@@ -6,8 +21,10 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.patterns.ElementPattern
 import com.intellij.patterns.PsiJavaPatterns
 import com.intellij.psi.PsiType
+import com.intellij.util.ObjectUtils
 import com.intellij.util.ProcessingContext
-import java.lang.reflect.Modifier
+import com.intellij.util.containers.MultiMap
+import org.jetbrains.annotations.Nullable
 import org.jetbrains.plugins.groovy.dsl.holders.CompoundMembersHolder
 import org.jetbrains.plugins.groovy.dsl.psi.PsiEnhancerCategory
 import org.jetbrains.plugins.groovy.dsl.toplevel.CompositeContextFilter
@@ -17,7 +34,8 @@ import org.jetbrains.plugins.groovy.dsl.toplevel.scopes.AnnotatedScope
 import org.jetbrains.plugins.groovy.dsl.toplevel.scopes.ClassScope
 import org.jetbrains.plugins.groovy.dsl.toplevel.scopes.ClosureScope
 import org.jetbrains.plugins.groovy.dsl.toplevel.scopes.ScriptScope
-import com.intellij.util.ObjectUtils
+
+import java.lang.reflect.Modifier
 
 /**
  * @author ilyas
@@ -26,6 +44,8 @@ import com.intellij.util.ObjectUtils
 public class GroovyDslExecutor {
   static final def cats = PsiEnhancerCategory.EP_NAME.extensions.collect { it.class }
   final List<Pair<ContextFilter, Closure>> enhancers = ObjectUtils.assertNotNull([])
+
+  private MultiMap staticInfo = null
 
   private final String myFileName;
   static final String ideaVersion
@@ -87,6 +107,11 @@ public class GroovyDslExecutor {
     mc.supportsVersion = { ver -> return supportsVersion(ver) }
     mc.assertVersion = { ver -> if (!supportsVersion(ver)) throw new InvalidVersionException() }
 
+    mc.scriptSuperClass = { Map args ->
+      if (staticInfo == null) staticInfo = MultiMap.create()
+      staticInfo.putValue('scriptSuperClass', args)
+    }
+
     oldStylePrimitives(mc)
 
     mc.initialize()
@@ -101,7 +126,7 @@ public class GroovyDslExecutor {
     locked = true
   }
 
-  private boolean supportsVersion(ver) {
+  private static boolean supportsVersion(ver) {
     if (ver instanceof String) {
       return StringUtil.compareVersionNumbers(ideaVersion, ver) >= 0
     }
@@ -118,14 +143,14 @@ public class GroovyDslExecutor {
 
   private static class InvalidVersionException extends Exception {}
 
-  private def handleImplicitBind(arg) {
+  private static def handleImplicitBind(arg) {
     if (arg instanceof Map && arg.size() == 1 && arg.keySet().iterator().next() instanceof String && arg.values().iterator().next() instanceof DslPointcut) {
       return DslPointcut.bind(arg)
     }
     return arg
   }
 
-  private void oldStylePrimitives(MetaClass mc) {
+  private static void oldStylePrimitives(MetaClass mc) {
     /**
      * Context definition
      */
@@ -178,4 +203,8 @@ public class GroovyDslExecutor {
     return "${super.toString()}; file = $myFileName";
   }
 
+  @Nullable
+  MultiMap getStaticInfo() {
+    staticInfo
+  }
 }

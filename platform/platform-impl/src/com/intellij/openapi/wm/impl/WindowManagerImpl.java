@@ -35,13 +35,10 @@ import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.NamedJDOMExternalizable;
 import com.intellij.openapi.util.SystemInfo;
-import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.StatusBar;
 import com.intellij.openapi.wm.WindowManagerListener;
 import com.intellij.openapi.wm.ex.WindowManagerEx;
-import com.intellij.openapi.wm.impl.status.ClockPanel;
-import com.intellij.openapi.wm.impl.status.MemoryUsagePanel;
 import com.intellij.openapi.wm.impl.welcomeScreen.WelcomeFrame;
 import com.intellij.ui.ScreenUtil;
 import com.intellij.util.Alarm;
@@ -623,8 +620,13 @@ public final class WindowManagerImpl extends WindowManagerEx implements Applicat
     frame.setFileTitle(null, null);
 
     myProject2Frame.remove(project);
-    Disposer.dispose(frame.getStatusBar());
-    frame.dispose();
+    if (myProject2Frame.isEmpty()) {
+      myProject2Frame.put(null, frame);
+    }
+    else {
+      Disposer.dispose(frame.getStatusBar());
+      frame.dispose();
+    }
   }
 
   public final void disposeRootFrame() {
@@ -716,13 +718,7 @@ public final class WindowManagerImpl extends WindowManagerEx implements Applicat
     final Element frameElement = new Element(FRAME_ELEMENT);
     element.addContent(frameElement);
     final Project[] projects = ProjectManager.getInstance().getOpenProjects();
-    final Project project;
-    if (projects.length > 0) {
-      project = projects[projects.length - 1];
-    }
-    else {
-      project = null;
-    }
+    final Project project = projects.length > 0 ? projects[0] : null;
 
     final IdeFrameImpl frame = getFrame(project);
     if (frame != null) {
@@ -731,12 +727,12 @@ public final class WindowManagerImpl extends WindowManagerEx implements Applicat
         // frame.state is not updated by jdk so get it directly from peer
         extendedState = ((FramePeer)frame.getPeer()).getState();
       }
-      boolean usePreviousBounds = extendedState == Frame.MAXIMIZED_BOTH ||
-                                  isFullScreenSupportedInCurrentOS() && WindowManagerEx.getInstanceEx().isFullScreen(frame);
+      boolean isMaximized = extendedState == Frame.MAXIMIZED_BOTH ||
+                            isFullScreenSupportedInCurrentOS() && WindowManagerEx.getInstanceEx().isFullScreen(frame);
+      boolean usePreviousBounds = isMaximized &&
+                                  myFrameBounds != null &&
+                                  frame.getBounds().contains(new Point((int)myFrameBounds.getCenterX(), (int)myFrameBounds.getCenterY()));
       Rectangle rectangle = usePreviousBounds ? myFrameBounds : frame.getBounds();
-      if (rectangle == null) { //frame is out of the screen?
-        rectangle = ScreenUtil.getScreenRectangle(0, 0);
-      }
       frameElement.setAttribute(X_ATTR, Integer.toString(rectangle.x));
       frameElement.setAttribute(Y_ATTR, Integer.toString(rectangle.y));
       frameElement.setAttribute(WIDTH_ATTR, Integer.toString(rectangle.width));
@@ -850,16 +846,12 @@ public final class WindowManagerImpl extends WindowManagerEx implements Applicat
         finally {
           if (fullScreen) {
             frame.setBounds(device.getDefaultConfiguration().getBounds());
-            if (!Registry.is("ui.no.bangs.and.whistles", false) && !SystemInfo.isMac) {
-              frame.getStatusBar().addWidget(new ClockPanel(), "before " + MemoryUsagePanel.WIDGET_ID);
-            }
           }
           else {
             Object o = frame.getRootPane().getClientProperty("oldBounds");
             if (o instanceof Rectangle) {
               frame.setBounds((Rectangle)o);
             }
-            frame.getStatusBar().removeWidget(ClockPanel.WIDGET_ID);
           }
           frame.setVisible(true);
           frame.getRootPane().putClientProperty(ScreenUtil.DISPOSE_TEMPORARY, null);

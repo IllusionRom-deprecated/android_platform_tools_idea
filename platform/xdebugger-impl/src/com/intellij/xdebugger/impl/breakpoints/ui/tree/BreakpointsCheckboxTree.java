@@ -23,14 +23,6 @@ public class BreakpointsCheckboxTree extends CheckboxTree {
 
 
   @Override
-  protected void onDoubleClick(CheckedTreeNode node) {
-    super.onDoubleClick(node);
-    if (myDelegate != null) {
-      myDelegate.didSelectNode(node);
-    }
-  }
-
-  @Override
   protected void onNodeStateChanged(CheckedTreeNode node) {
     super.onNodeStateChanged(node);
     if (myDelegate != null) {
@@ -39,8 +31,6 @@ public class BreakpointsCheckboxTree extends CheckboxTree {
   }
 
   interface Delegate {
-    void didSelectNode(CheckedTreeNode node);
-
     void nodeStateChanged(CheckedTreeNode node);
   }
 

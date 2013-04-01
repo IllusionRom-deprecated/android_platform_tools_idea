@@ -74,7 +74,8 @@ public class ReferenceParser {
 
         while (builder.getTokenType() == operator) {
           builder.advanceLexer();
-          if (builder.getTokenType() != JavaTokenType.IDENTIFIER) {
+          IElementType tokenType = builder.getTokenType();
+          if (tokenType != JavaTokenType.IDENTIFIER && tokenType != JavaTokenType.AT) {
             error(builder, JavaErrorMessages.message("expected.identifier"));
           }
           parseTypeInfo(builder, flags, false);
@@ -269,7 +270,7 @@ public class ReferenceParser {
       return false;
     }
 
-    final int flags = set(set(EAT_LAST_DOT, WILDCARD, wildcard), DIAMONDS, diamonds);
+    int flags = set(set(EAT_LAST_DOT, WILDCARD, wildcard), DIAMONDS, diamonds);
     boolean isOk = true;
     while (true) {
       if (parseTypeInfo(builder, flags, true) == null) {
@@ -289,6 +290,7 @@ public class ReferenceParser {
         isOk = false;
         break;
       }
+      flags = set(flags, DIAMONDS, false);
     }
 
     list.done(JavaElementType.REFERENCE_PARAMETER_LIST);

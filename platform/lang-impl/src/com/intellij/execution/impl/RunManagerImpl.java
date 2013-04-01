@@ -19,7 +19,6 @@ package com.intellij.execution.impl;
 import com.intellij.execution.*;
 import com.intellij.execution.configurations.*;
 import com.intellij.ide.util.PropertiesComponent;
-import com.intellij.ide.util.projectWizard.ProjectTemplateComponent;
 import com.intellij.openapi.components.ProjectComponent;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.project.Project;
@@ -40,7 +39,7 @@ import javax.swing.*;
 import java.util.*;
 
 
-public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, ProjectComponent, ProjectTemplateComponent {
+public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, ProjectComponent {
   private final Project myProject;
 
   private final Map<String, ConfigurationType> myTypesByName = new LinkedHashMap<String, ConfigurationType>();
@@ -1140,10 +1139,5 @@ public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, 
       myBeforeStepsMap.put(id, provider);
       myProviderKeysMap.put(id.toString(), id);
     }
-  }
-
-  @Override
-  public String getStorageFile() {
-    return "workspace.xml";
   }
 }

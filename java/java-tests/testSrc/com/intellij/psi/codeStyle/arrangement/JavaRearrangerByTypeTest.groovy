@@ -17,10 +17,10 @@ package com.intellij.psi.codeStyle.arrangement
 
 import org.junit.Before
 
-import static com.intellij.psi.codeStyle.arrangement.match.ArrangementEntryType.*
-import static com.intellij.psi.codeStyle.arrangement.match.ArrangementModifier.PRIVATE
-import static com.intellij.psi.codeStyle.arrangement.match.ArrangementModifier.PROTECTED
-import static com.intellij.psi.codeStyle.arrangement.match.ArrangementModifier.PUBLIC
+import static com.intellij.psi.codeStyle.arrangement.std.StdArrangementTokens.Modifier.*
+import static com.intellij.psi.codeStyle.arrangement.std.StdArrangementTokens.EntryType.*
+import static com.intellij.psi.codeStyle.arrangement.std.StdArrangementTokens.Order.*
+
 /**
  * @author Denis Zhdanov
  * @since 7/20/12 2:45 PM
@@ -34,7 +34,7 @@ class JavaRearrangerByTypeTest extends AbstractJavaRearrangerTest {
     commonSettings.BLANK_LINES_AROUND_CLASS = 0
   }
 
-  void testFieldsBeforeMethods() {
+  void "test fields before methods"() {
     doTest(
       initial: '''\
 class Test {
@@ -47,6 +47,7 @@ public void test() {
     private int i;
   private int j;
 }''',
+      rules: [rule(FIELD)],
       expected: '''\
 class Test {
    private int i;
@@ -57,12 +58,11 @@ class Test2 {
   private int j;
 public void test() {
 }
-}''',
-      rules: [rule(FIELD)]
+}'''
     )
   }
 
-  void testAnonymousClassAtFieldInitializer() {
+  void "test anonymous class at field initializer"() {
     doTest(
       initial: '''\
 class Test {
@@ -106,7 +106,7 @@ class Test {
     )
   }
 
-  void testAnonymousClassAtMethod() {
+  void "test anonymous class at method"() {
     doTest(
       initial: '''\
 class Test {
@@ -144,7 +144,7 @@ class Test {
     )
   }
 
-  void testInnerClassInterfaceAndEnum() {
+  void "test inner class interface and enum"() {
     doTest(
       initial: '''\
 class Test {
@@ -164,7 +164,7 @@ class Test {
     )
   }
 
-  void testRanges() {
+  void "test ranges"() {
     doTest(
       initial: '''\
 class Test {
@@ -202,7 +202,7 @@ class Test {
     )
   }
 
-  void testMethodsAndConstructors() {
+  void "test methods and constructors"() {
     doTest(
       initial: '''\
 class Test {
@@ -219,24 +219,7 @@ class Test {
       rules: [rule(CONSTRUCTOR), rule(METHOD)])
   }
 
-  void testConstructorAsMethod() {
-    doTest(
-      initial: '''\
-class Test {
-  private int i;
-  Test() {}
-  public int j;
-}''',
-      expected: '''\
-class Test {
-  public int j;
-  Test() {}
-  private int i;
-}''',
-      rules: [rule(FIELD, PUBLIC), rule(METHOD), rule(FIELD)])
-  }
-
-  void testMultipleFieldsInOneRow() {
+  void "test multiple fields in one row"() {
     doTest(
       initial: '''\
 class Test {
@@ -306,5 +289,81 @@ class Test {
                  a2
 }'''
     )    
+  }
+
+  void "test fields with comments"() {
+    doTest(
+      initial: '''\
+class Test {
+  int h1, /** h1 */
+      h2;
+  int f1, // f1
+      f2; // f2
+  int g1, /* g1 */
+      g2;
+  int e1, e2; // ee
+  int d; /* c-style
+            multi-line comment */
+  int b; /* c-style single line comment */
+  int c; // comment
+  int a;
+}''',
+      rules: [ruleWithOrder(BY_NAME, rule(FIELD))],
+      expected: '''\
+class Test {
+  int a;
+  int b; /* c-style single line comment */
+  int c; // comment
+  int d; /* c-style
+            multi-line comment */
+  int e1, e2; // ee
+  int f1, // f1
+      f2; // f2
+  int g1, /* g1 */
+      g2;
+  int h1, /** h1 */
+      h2;
+}'''
+    )
+  }
+  
+  void "test anonymous class and siblings"() {
+    doTest(
+      initial: '''\
+class Test {
+  void test() {
+    new MyClass(new Object() {
+      @Override
+      public String toString() {
+        return null;
+      }
+    }) {
+      @Override
+      public int hashCode() {
+        return 1;
+      }
+      private int field;
+    }
+  };
+}''',
+      rules: [rule(FIELD), rule(METHOD)],
+      expected: '''\
+class Test {
+  void test() {
+    new MyClass(new Object() {
+      @Override
+      public String toString() {
+        return null;
+      }
+    }) {
+      private int field;
+      @Override
+      public int hashCode() {
+        return 1;
+      }
+    }
+  };
+}'''
+    )
   }
 }

@@ -15,6 +15,7 @@
  */
 package com.intellij.psi;
 
+import com.intellij.lang.java.JavaLanguage;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
@@ -128,25 +129,31 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     if (psiClass == null) return DiamondInferenceResult.NULL_RESULT;
     final PsiExpressionList argumentList = newExpression.getArgumentList();
     if (argumentList == null) return DiamondInferenceResult.NULL_RESULT;
-    final Ref<PsiMethod> staticFactory = new Ref<PsiMethod>();
-    final PsiSubstitutor inferredSubstitutor = ourDiamondGuard.doPreventingRecursion(newExpression, true, new Computable<PsiSubstitutor>() {
+    final Ref<PsiMethod> staticFactoryRef = new Ref<PsiMethod>();
+    final PsiSubstitutor inferredSubstitutor = ourDiamondGuard.doPreventingRecursion(newExpression, false, new Computable<PsiSubstitutor>() {
       @Override
       public PsiSubstitutor compute() {
         final PsiMethod constructor = findConstructor(psiClass, newExpression);
         PsiTypeParameter[] params = getAllTypeParams(constructor, psiClass);
 
-        staticFactory.set(generateStaticFactory(constructor, psiClass, params));
-        if (staticFactory.get() == null) {
+        final PsiMethod staticFactory = generateStaticFactory(constructor, psiClass, params);
+        if (staticFactory == null) {
           return null;
         }
+        staticFactoryRef.set(staticFactory);
         
-        return inferTypeParametersForStaticFactory(staticFactory.get(), newExpression, context);
+        return inferTypeParametersForStaticFactory(staticFactory, newExpression, context);
       }
     });
     if (inferredSubstitutor == null) {
       return DiamondInferenceResult.NULL_RESULT;
     }
-    final PsiTypeParameter[] parameters = staticFactory.get().getTypeParameters();
+    final PsiMethod staticFactory = staticFactoryRef.get();
+    if (staticFactory == null) {
+      LOG.error(inferredSubstitutor);
+      return DiamondInferenceResult.NULL_RESULT;
+    }
+    final PsiTypeParameter[] parameters = staticFactory.getTypeParameters();
     final PsiTypeParameter[] classParameters = psiClass.getTypeParameters();
     final PsiJavaCodeReferenceElement classOrAnonymousClassReference = newExpression.getClassOrAnonymousClassReference();
     LOG.assertTrue(classOrAnonymousClassReference != null);
@@ -210,7 +217,7 @@ public class PsiDiamondTypeImpl extends PsiDiamondType {
     buf.append(StringUtil.join(params, new Function<PsiTypeParameter, String>() {
       @Override
       public String fun(PsiTypeParameter psiTypeParameter) {
-        final String extendsList = psiTypeParameter.getExtendsList().getText();
+        final String extendsList = psiTypeParameter.getLanguage().isKindOf(JavaLanguage.INSTANCE) ? psiTypeParameter.getExtendsList().getText() : null;
         return psiTypeParameter.getName() + (StringUtil.isEmpty(extendsList) ? "" : " " + extendsList);
       }
     }, ", "));

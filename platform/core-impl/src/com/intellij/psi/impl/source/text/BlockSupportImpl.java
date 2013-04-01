@@ -23,6 +23,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.ex.DocumentBulkUpdateListener;
 import com.intellij.openapi.fileTypes.FileType;
+import com.intellij.openapi.fileTypes.PlainTextLanguage;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
@@ -186,14 +187,8 @@ public class BlockSupportImpl extends BlockSupport {
 
       FileViewProvider copy = viewProvider.createCopy(lightFile);
       copy.getLanguages();
-      Language language = fileImpl.getLanguage();
       SingleRootFileViewProvider.doNotCheckFileSizeLimit(lightFile); // optimization: do not convert file contents to bytes to determine if we should codeinsight it
-      final PsiFileImpl newFile = (PsiFileImpl)copy.getPsi(language);
-
-      if (newFile == null) {
-        throw new RuntimeException("View provider " + viewProvider + " refused to parse text with " + language +
-                  "; base: " + viewProvider.getBaseLanguage() + "; copy: " + copy.getBaseLanguage() + "; fileType: " + fileType + "; file name=" + fileName);
-      }
+      PsiFileImpl newFile = getFileCopy(fileImpl, copy);
 
       newFile.setOriginalFile(fileImpl);
 
@@ -206,6 +201,32 @@ public class BlockSupportImpl extends BlockSupport {
       ((PsiManagerEx)fileImpl.getManager()).getFileManager().setViewProvider(lightFile, null);
       return diffLog;
     }
+  }
+
+  @NotNull
+  public static PsiFileImpl getFileCopy(PsiFileImpl originalFile, FileViewProvider providerCopy) {
+    FileViewProvider viewProvider = originalFile.getViewProvider();
+    Language language = originalFile.getLanguage();
+    PsiFileImpl newFile = (PsiFileImpl)providerCopy.getPsi(language);
+
+    if (newFile == null && language == PlainTextLanguage.INSTANCE && originalFile == viewProvider.getPsi(viewProvider.getBaseLanguage())) {
+      newFile = (PsiFileImpl)providerCopy.getPsi(providerCopy.getBaseLanguage());
+    }
+
+    if (newFile == null) {
+      throw new RuntimeException("View provider " + viewProvider + " refused to parse text with " + language +
+                                 "; languages: " + viewProvider.getLanguages() +
+                                 "; base: " + viewProvider.getBaseLanguage() +
+                                 "; copy: " + providerCopy +
+                                 "; copy.base: " + providerCopy.getBaseLanguage() +
+                                 "; vFile: " + viewProvider.getVirtualFile() +
+                                 "; copy.vFile: " + providerCopy.getVirtualFile() +
+                                 "; fileType: " + viewProvider.getVirtualFile().getFileType() +
+                                 "; copy.original(): " +
+                                 (providerCopy.getVirtualFile() instanceof LightVirtualFile ? ((LightVirtualFile)providerCopy.getVirtualFile()).getOriginalFile() : null));
+    }
+
+    return newFile;
   }
 
   @NotNull

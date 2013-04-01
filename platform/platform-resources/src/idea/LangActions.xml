@@ -487,7 +487,7 @@
       <separator/>
       <reference ref="ProjectViewPopupMenuRefactoringGroup"/>
       <separator/>
-      <action id="RenameFavoritesList" class="com.intellij.ide.favoritesTreeView.actions.RenameFavoritesListAction"/>
+      <action id="RenameFavoritesList" class="com.intellij.ide.favoritesTreeView.actions.RenameFavoritesListAction" use-shortcut-of="RenameElement"/>
       <action id="RemoveFromFavorites" class="com.intellij.ide.favoritesTreeView.actions.DeleteFromFavoritesAction"/>
       <action id="EditFavorites" class="com.intellij.ide.favoritesTreeView.actions.EditFavoritesAction"/>
       <reference ref="AddToFavorites"/>
@@ -807,10 +807,9 @@
       <add-to-group group-id="TestTreePopupMenu" anchor="last"/>
     </group>
 
-    <group text="Lang internal actions" internal="true">
-      <action id="DumpLookupElementWeights" internal="true" class="com.intellij.internal.DumpLookupElementWeights" text="Dump lookup element weights"/>
-      <add-to-group group-id="Internal" anchor="last"/>
-    </group>
+    <action id="DumpLookupElementWeights" class="com.intellij.internal.DumpLookupElementWeights" text="Dump lookup element weights to log">
+      <add-to-group group-id="MaintenanceGroup" anchor="last"/>
+    </action>
 
     <action id="Arrangement.Rule.Add" class="com.intellij.application.options.codeStyle.arrangement.action.AddArrangementRuleAction"/>
     <action id="Arrangement.Rule.Remove" class="com.intellij.application.options.codeStyle.arrangement.action.RemoveArrangementRuleAction"/>

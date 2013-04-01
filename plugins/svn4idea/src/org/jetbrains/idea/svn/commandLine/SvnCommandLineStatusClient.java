@@ -17,15 +17,15 @@ package org.jetbrains.idea.svn.commandLine;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.util.containers.Convertor;
+import org.jetbrains.idea.svn.SvnBindUtil;
 import org.jetbrains.idea.svn.SvnUtil;
 import org.jetbrains.idea.svn.portable.PortableStatus;
 import org.jetbrains.idea.svn.portable.SvnExceptionWrapper;
 import org.jetbrains.idea.svn.portable.SvnStatusClientI;
-import org.tmatesoft.sqljet.core.SqlJetErrorCode;
-import org.tmatesoft.sqljet.core.SqlJetException;
 import org.tmatesoft.svn.core.*;
 import org.tmatesoft.svn.core.internal.util.SVNPathUtil;
 import org.tmatesoft.svn.core.wc.*;
@@ -96,12 +96,12 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
                        boolean collectParentExternals,
                        final ISVNStatusHandler handler,
                        final Collection changeLists) throws SVNException {
-    final File base = path.isDirectory() ? path : path.getParentFile();
+    File base = path.isDirectory() ? path : path.getParentFile();
+    base = SvnBindUtil.correctUpToExistingParent(base);
 
     final SVNInfo infoBase = myInfoClient.doInfo(base, revision);
 
-    // todo can not understand why revision can be used here
-    final SvnSimpleCommand command = new SvnSimpleCommand(myProject, base, SvnCommandName.st);
+    final SvnSimpleCommand command = SvnCommandFactory.createSimpleCommand(myProject, base, SvnCommandName.st);
     putParameters(depth, remote, reportAll, includeIgnored, changeLists, command);
 
     final SvnStatusHandler[] svnHandl = new SvnStatusHandler[1];
@@ -109,6 +109,9 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
 
     try {
       final String result = command.run();
+      if (StringUtil.isEmptyOrSpaces(result)) {
+        throw new VcsException("Status request returned nothing for command: " + command.myCommandLine.getCommandLineString());
+      }
       SAXParser parser = SAXParserFactory.newInstance().newSAXParser();
       parser.parse(new ByteArrayInputStream(result.getBytes(CharsetToolkit.UTF8_CHARSET)), svnHandl[0]);
       if (! svnHandl[0].isAnythingReported()) {
@@ -192,10 +195,6 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
       @Override
       public void switchPath() {
         final PortableStatus pending = svnHandl[0].getPending();
-        if (pending.isLocked()) {
-          throw new SvnExceptionWrapper(new SVNException(SVNErrorMessage.create(SVNErrorCode.SQLITE_ERROR),
-                                                         new SqlJetException(SqlJetErrorCode.BUSY)));
-        }
         pending.setChangelistName(changelistName[0]);
         try {
           //if (infoBase != null) {

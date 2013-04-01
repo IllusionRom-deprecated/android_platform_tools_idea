@@ -104,7 +104,7 @@ public class UsageViewImpl implements UsageView, UsageModelTracker.UsageModelTra
   private final ButtonPanel myButtonPanel = new ButtonPanel();
   private volatile boolean isDisposed;
   private volatile boolean myChangesDetected = false;
-  static final Comparator<Usage> USAGE_COMPARATOR = new Comparator<Usage>() {
+  public static final Comparator<Usage> USAGE_COMPARATOR = new Comparator<Usage>() {
     @Override
     public int compare(final Usage o1, final Usage o2) {
       if (o1 == NULL_NODE || o2 == NULL_NODE) return -1;
@@ -585,11 +585,6 @@ public class UsageViewImpl implements UsageView, UsageModelTracker.UsageModelTra
   }
 
   @NotNull
-  private static AnAction createImportToFavorites() {
-    return ActionManager.getInstance().getAction("UsageView.ImportToFavorites");
-  }
-
-  @NotNull
   private AnAction[] createGroupingActions() {
     final UsageGroupingRuleProvider[] providers = Extensions.getExtensions(UsageGroupingRuleProvider.EP_NAME);
     List<AnAction> list = new ArrayList<AnAction>(providers.length);
@@ -866,24 +861,28 @@ public class UsageViewImpl implements UsageView, UsageModelTracker.UsageModelTra
 
   @Override
   public void includeUsages(@NotNull Usage[] usages) {
+    List<TreeNode> nodes = new ArrayList<TreeNode>(usages.length);
     for (Usage usage : usages) {
       final UsageNode node = myUsageNodes.get(usage);
       if (node != NULL_NODE && node != null) {
         node.setUsageExcluded(false);
+        nodes.add(node);
       }
     }
-    updateImmediately();
+    updateImmediatelyNodesUpToRoot(nodes);
   }
 
   @Override
   public void excludeUsages(@NotNull Usage[] usages) {
+    List<TreeNode> nodes = new ArrayList<TreeNode>(usages.length);
     for (Usage usage : usages) {
       final UsageNode node = myUsageNodes.get(usage);
       if (node != NULL_NODE && node != null) {
         node.setUsageExcluded(true);
+        nodes.add(node);
       }
     }
-    updateImmediately();
+    updateImmediatelyNodesUpToRoot(nodes);
   }
 
   @Override
@@ -925,6 +924,24 @@ public class UsageViewImpl implements UsageView, UsageModelTracker.UsageModelTra
     updateOnSelectionChanged();
   }
 
+  private void updateImmediatelyNodesUpToRoot(@NotNull List<TreeNode> nodes) {
+    if (myProject.isDisposed()) return;
+    TreeNode root = (TreeNode)myTree.getModel().getRoot();
+
+    for (int i=0; i<nodes.size(); i++) {
+      TreeNode node = nodes.get(i);
+      if (node instanceof Node) {
+        ((Node)node).update(this);
+        TreeNode parent = node.getParent();
+        if (parent != root && parent != null) {
+          nodes.add(parent);
+        }
+      }
+    }
+    updateImmediately();
+  }
+
+
   private void updateOnSelectionChanged() {
     List<UsageInfo> infos = getSelectedUsageInfos();
     if (myCurrentUsageContextPanel != null) {
@@ -933,18 +950,24 @@ public class UsageViewImpl implements UsageView, UsageModelTracker.UsageModelTra
   }
 
   private void checkNodeValidity(@NotNull TreeNode node, @NotNull TreePath path) {
-    if (node instanceof Node && node != getModelRoot()) {
-      ((Node)node).update(this);
-    }
+    boolean shouldCheckChildren = true;
     if (myTree.isCollapsed(path)) {
       if (node instanceof Node) {
         ((Node)node).markNeedUpdate();
       }
-      return; // optimization: do not call expensive update() on invisible node
+      shouldCheckChildren = false;
+      // optimization: do not call expensive update() on invisible node
     }
-    for (int i=0; i < node.getChildCount(); i++) {
-      TreeNode child = node.getChildAt(i);
-      checkNodeValidity(child, path.pathByAddingChild(child));
+    if (shouldCheckChildren) {
+      for (int i=0; i < node.getChildCount(); i++) {
+        TreeNode child = node.getChildAt(i);
+        checkNodeValidity(child, path.pathByAddingChild(child));
+      }
+    }
+
+    // call update last, to let children a chance to update their cache first
+    if (node instanceof Node && node != getModelRoot()) {
+      ((Node)node).update(this);
     }
   }
 

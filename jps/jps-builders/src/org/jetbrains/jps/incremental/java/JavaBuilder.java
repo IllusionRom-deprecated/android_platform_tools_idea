@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class JavaBuilder extends ModuleLevelBuilder {
   private static final String DOT_JAVA_EXTENSION = "." + JAVA_EXTENSION;
   public static final boolean USE_EMBEDDED_JAVAC = System.getProperty(GlobalOptions.USE_EXTERNAL_JAVAC_OPTION) == null;
   private static final Key<Integer> JAVA_COMPILER_VERSION_KEY = Key.create("_java_compiler_version_");
-  private static final Key<Boolean> IS_ENABLED = Key.create("_java_compiler_enabled_");
+  public static final Key<Boolean> IS_ENABLED = Key.create("_java_compiler_enabled_");
   private static final Key<AtomicReference<String>> COMPILER_VERSION_INFO = Key.create("_java_compiler_version_info_");
 
   private static final Set<String> FILTERED_OPTIONS = new HashSet<String>(Arrays.<String>asList(
@@ -152,13 +152,20 @@ public class JavaBuilder extends ModuleLevelBuilder {
     return Collections.singletonList(JAVA_EXTENSION);
   }
 
-  public ExitCode build(final CompileContext context,
-                        final ModuleChunk chunk,
-                        DirtyFilesHolder<JavaSourceRootDescriptor, ModuleBuildTarget> dirtyFilesHolder,
-                        OutputConsumer outputConsumer) throws ProjectBuildException {
+  public ExitCode build(@NotNull CompileContext context,
+                        @NotNull ModuleChunk chunk,
+                        @NotNull DirtyFilesHolder<JavaSourceRootDescriptor, ModuleBuildTarget> dirtyFilesHolder,
+                        @NotNull OutputConsumer outputConsumer) throws ProjectBuildException, IOException {
     if (!IS_ENABLED.get(context, Boolean.TRUE)) {
       return ExitCode.NOTHING_DONE;
     }
+    return doBuild(context, chunk, dirtyFilesHolder, outputConsumer);
+  }
+
+  public ExitCode doBuild(@NotNull CompileContext context,
+                          @NotNull ModuleChunk chunk,
+                          @NotNull DirtyFilesHolder<JavaSourceRootDescriptor, ModuleBuildTarget> dirtyFilesHolder,
+                          @NotNull OutputConsumer outputConsumer) throws ProjectBuildException, IOException {
     try {
       final Set<File> filesToCompile = new THashSet<File>(FileUtil.FILE_HASHING_STRATEGY);
 
@@ -171,7 +178,7 @@ public class JavaBuilder extends ModuleLevelBuilder {
         }
       });
 
-      if (context.isMake()) {
+      if (JavaBuilderUtil.isCompileJavaIncrementally(context)) {
         final ProjectBuilderLogger logger = context.getLoggingManager().getProjectBuilderLogger();
         if (logger.isEnabled()) {
           if (filesToCompile.size() > 0) {

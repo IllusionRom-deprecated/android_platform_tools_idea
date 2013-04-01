@@ -67,9 +67,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -130,7 +128,7 @@ public class IncProjectBuilder {
   public void checkUpToDate(CompileScope scope) {
     CompileContextImpl context = null;
     try {
-      context = createContext(scope, true, false);
+      context = createContext(scope);
       final BuildFSState fsState = myProjectDescriptor.fsState;
       for (BuildTarget<?> target : myProjectDescriptor.getBuildTargetIndex().getAllTargets()) {
         if (scope.isAffected(target)) {
@@ -164,8 +162,7 @@ public class IncProjectBuilder {
   }
 
 
-  public void build(CompileScope scope, final boolean isMake, final boolean isProjectRebuild, boolean forceCleanCaches)
-    throws RebuildRequestedException {
+  public void build(CompileScope scope, boolean forceCleanCaches) throws RebuildRequestedException {
 
     final LowMemoryWatcher memWatcher = LowMemoryWatcher.register(new Runnable() {
       @Override
@@ -174,9 +171,12 @@ public class IncProjectBuilder {
         myProjectDescriptor.timestamps.getStorage().force();
       }
     });
+    
+    startTempDirectoryCleanupTask();
+    
     CompileContextImpl context = null;
     try {
-      context = createContext(scope, isMake, isProjectRebuild);
+      context = createContext(scope);
       runBuild(context, forceCleanCaches);
       myProjectDescriptor.dataManager.saveVersion();
       reportRebuiltModules(context);
@@ -212,17 +212,35 @@ public class IncProjectBuilder {
     finally {
       memWatcher.stop();
       flushContext(context);
-      // wait for the async tasks
+      // wait for async tasks
+      final CanceledStatus status = context == null? CanceledStatus.NULL : context.getCancelStatus();
       synchronized (myAsyncTasks) {
         for (Future task : myAsyncTasks) {
-          try {
-            task.get();
+          if (status.isCanceled()) {
+            break;
           }
-          catch (Throwable th) {
-            LOG.info(th);
+          waitForTask(status, task);
+        }
+      }
+    }
+  }
+
+  private static void waitForTask(@NotNull CanceledStatus status, Future task) {
+    try {
+      while (true) {
+        try {
+          task.get(500L, TimeUnit.MILLISECONDS);
+          break;
+        }
+        catch (TimeoutException ignored) {
+          if (status.isCanceled()) {
+            break;
           }
         }
       }
+    }
+    catch (Throwable th) {
+      LOG.info(th);
     }
   }
 
@@ -281,7 +299,7 @@ public class IncProjectBuilder {
     }
   }
 
-  private void runBuild(CompileContextImpl context, boolean forceCleanCaches) throws ProjectBuildException {
+  private void runBuild(final CompileContextImpl context, boolean forceCleanCaches) throws ProjectBuildException {
     context.setDone(0.0f);
 
     LOG.info("Building project; isRebuild:" +
@@ -290,6 +308,8 @@ public class IncProjectBuilder {
              context.isMake() +
              " parallel compilation:" +
              BuildRunner.PARALLEL_BUILD_ENABLED);
+
+    context.addBuildListener(new ChainedTargetsBuildListener(context));
 
     for (TargetBuilder builder : myBuilderRegistry.getTargetBuilders()) {
       builder.buildStarted(context);
@@ -311,22 +331,6 @@ public class IncProjectBuilder {
 
       context.processMessage(new ProgressMessage("Running 'after' tasks"));
       runTasks(context, myBuilderRegistry.getAfterTasks());
-
-      // cleanup output roots layout, commented for efficiency
-      //final ModuleOutputRootsLayout outputRootsLayout = context.getDataManager().getOutputRootsLayout();
-      //try {
-      //  final Iterator<String> keysIterator = outputRootsLayout.getKeysIterator();
-      //  final Map<String, JpsModule> modules = myProjectDescriptor.project.getModules();
-      //  while (keysIterator.hasNext()) {
-      //    final String moduleName = keysIterator.next();
-      //    if (modules.containsKey(moduleName)) {
-      //      outputRootsLayout.remove(moduleName);
-      //    }
-      //  }
-      //}
-      //catch (IOException e) {
-      //  throw new ProjectBuildException(e);
-      //}
     }
     finally {
       for (TargetBuilder builder : myBuilderRegistry.getTargetBuilders()) {
@@ -340,14 +344,41 @@ public class IncProjectBuilder {
 
   }
 
-  private CompileContextImpl createContext(CompileScope scope, boolean isMake, final boolean isProjectRebuild)
-    throws ProjectBuildException {
-    final CompileContextImpl context = new CompileContextImpl(scope, myProjectDescriptor, isMake, isProjectRebuild, myMessageDispatcher,
-                                                              myBuilderParams, myCancelStatus
-    );
+  private void startTempDirectoryCleanupTask() {
+    final File systemRoot = Utils.getSystemRoot();
+    final String tempPath = System.getProperty("java.io.tmpdir", null);
+    if (StringUtil.isEmptyOrSpaces(tempPath)) {
+      return;
+    }
+    final File tempDir = new File(tempPath);
+    if (!FileUtil.isAncestor(systemRoot, tempDir, true)) {
+      // cleanup only 'local' temp
+      return;
+    }
+    final File[] files = tempDir.listFiles();
+    if (files != null && files.length != 0) {
+      final RunnableFuture<Void> task = new FutureTask<Void>(new Runnable() {
+        public void run() {
+          for (File tempFile : files) {
+            FileUtil.delete(tempFile);
+          }
+        }
+      }, null);
+      final Thread thread = new Thread(task, "Temp directory cleanup");
+      thread.setPriority(Thread.MIN_PRIORITY);
+      thread.setDaemon(true);
+      thread.start();
+      myAsyncTasks.add(task);
+    }
+  }
+
+  private CompileContextImpl createContext(CompileScope scope) throws ProjectBuildException {
+    final CompileContextImpl context = new CompileContextImpl(scope, myProjectDescriptor, myMessageDispatcher,
+                                                              myBuilderParams, myCancelStatus);
+
     // in project rebuild mode performance gain is hard to observe, so it is better to save memory
     // in make mode it is critical to traverse file system as fast as possible, so we choose speed over memory savings
-    myProjectDescriptor.setFSCache(isProjectRebuild? FSCache.NO_CACHE : new FSCache());
+    myProjectDescriptor.setFSCache(context.isProjectRebuild() ? FSCache.NO_CACHE : new FSCache());
     JavaBuilderUtil.CONSTANT_SEARCH_SERVICE.set(context, myConstantSearch);
     return context;
   }
@@ -978,7 +1009,7 @@ public class IncProjectBuilder {
               FSOperations.processFilesToRecompile(context, chunk, processor);
             }
           };
-        if (!context.isProjectRebuild()) {
+        if (!JavaBuilderUtil.isForcedRecompilationAllJavaModules(context)) {
           final Map<ModuleBuildTarget, Set<File>> cleanedSources = BuildOperations
             .cleanOutputsCorrespondingToChangedFiles(context, dirtyFilesHolder);
           for (Map.Entry<ModuleBuildTarget, Set<File>> entry : cleanedSources.entrySet()) {
@@ -1020,7 +1051,7 @@ public class IncProjectBuilder {
               nextPassRequired = true;
             }
             else if (buildResult == ModuleLevelBuilder.ExitCode.CHUNK_REBUILD_REQUIRED) {
-              if (!rebuildFromScratchRequested && !context.isProjectRebuild()) {
+              if (!rebuildFromScratchRequested && !JavaBuilderUtil.isForcedRecompilationAllJavaModules(context)) {
                 LOG.info("Builder " + builder.getPresentableName() + " requested rebuild of module chunk " + chunk.getName());
                 // allow rebuild from scratch only once per chunk
                 rebuildFromScratchRequested = true;

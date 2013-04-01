@@ -528,14 +528,14 @@ class Indirect {
     myFixture.addFileToProject('Bar.groovy', 'class Bar extends Foo { }')
     def main = myFixture.addFileToProject('Main.groovy', 'class Main extends Bar { }').virtualFile
     assertEmpty make()
-    long oldBaseStamp = findClassFile("Base").modificationStamp
-    long oldMainStamp = findClassFile("Main").modificationStamp
+    long oldBaseStamp = findClassFile("Base").timeStamp
+    long oldMainStamp = findClassFile("Main").timeStamp
 
     touch(main)
     touch(foo)
     assertEmpty make()
-    assert oldMainStamp != findClassFile("Main").modificationStamp
-    assert oldBaseStamp == findClassFile("Base").modificationStamp
+    assert oldMainStamp != findClassFile("Main").timeStamp
+    assert oldBaseStamp == findClassFile("Base").timeStamp
   }
 
   public void testPartialCrossRecompile() {
@@ -804,6 +804,14 @@ string
       finally {
         FileUtil.delete(systemRoot);
       }
+    }
+
+    public void "test no groovy library"() {
+      myFixture.addFileToProject("dependent/a.groovy", "");
+      addModule("dependent", true)
+
+      def messages = make()
+      assert messages.find { it.message.contains("Cannot compile Groovy files: no Groovy library is defined for module 'dependent'") }
     }
   }
 }

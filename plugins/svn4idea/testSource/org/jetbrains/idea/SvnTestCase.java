@@ -83,11 +83,12 @@ public abstract class SvnTestCase extends AbstractJunitVcsTestCase  {
   protected String myWcRootName;
   protected boolean myUseNativeAcceleration = new GregorianCalendar().get(Calendar.HOUR_OF_DAY) % 2 == 0;
 
-  private final String myTestDataDir;
+  protected final String myTestDataDir;
   private File myRepoRoot;
   private File myWcRoot;
   private ChangeListManagerGate myGate;
   protected String myAnotherRepoUrl;
+  protected File myPluginRoot;
 
   protected SvnTestCase(@NotNull String testDataDir) {
     PlatformTestCase.initPlatformLangPrefix();
@@ -128,15 +129,15 @@ public abstract class SvnTestCase extends AbstractJunitVcsTestCase  {
           myRepoRoot = new File(myTempDirFixture.getTempDirPath(), "svnroot");
           assert myRepoRoot.mkdir() || myRepoRoot.isDirectory() : myRepoRoot;
 
-          File pluginRoot = new File(PluginPathManager.getPluginHomePath("svn4idea"));
-          if (!pluginRoot.isDirectory()) {
+          myPluginRoot = new File(PluginPathManager.getPluginHomePath("svn4idea"));
+          if (!myPluginRoot.isDirectory()) {
             // try standalone mode
             Class aClass = SvnTestCase.class;
             String rootPath = PathManager.getResourceRoot(aClass, "/" + aClass.getName().replace('.', '/') + ".class");
-            pluginRoot = new File(rootPath).getParentFile().getParentFile().getParentFile();
+            myPluginRoot = new File(rootPath).getParentFile().getParentFile().getParentFile();
           }
 
-          File svnBinDir =  new File(pluginRoot, myTestDataDir + "/svn/bin");
+          File svnBinDir =  new File(myPluginRoot, myTestDataDir + "/svn/bin");
           File svnExecutable = null;
           if (SystemInfo.isWindows) {
             svnExecutable = new File(svnBinDir, "windows/svn.exe");
@@ -154,7 +155,7 @@ public abstract class SvnTestCase extends AbstractJunitVcsTestCase  {
                      ? createClientRunner(Collections.singletonMap("DYLD_LIBRARY_PATH", myClientBinaryPath.getPath()))
                      : createClientRunner();
 
-          ZipUtil.extract(new File(pluginRoot, myTestDataDir + "/svn/newrepo.zip"), myRepoRoot, null);
+          ZipUtil.extract(new File(myPluginRoot, myTestDataDir + "/svn/newrepo.zip"), myRepoRoot, null);
 
           myWcRoot = new File(myTempDirFixture.getTempDirPath(), myWcRootName);
           assert myWcRoot.mkdir() || myWcRoot.isDirectory() : myWcRoot;
@@ -278,6 +279,43 @@ public abstract class SvnTestCase extends AbstractJunitVcsTestCase  {
         }
       }
     });
+  }
+
+  protected void prepareInnerCopy(final boolean anotherRepository) throws Exception {
+    final String mainUrl = myRepoUrl + "/root/source";
+    final String externalURL;
+    if (anotherRepository) {
+      createAnotherRepo();
+      externalURL = myAnotherRepoUrl + "/root/target";
+    } else {
+      externalURL = myRepoUrl + "/root/target";
+    }
+
+    final ChangeListManagerImpl clManager = (ChangeListManagerImpl)ChangeListManager.getInstance(myProject);
+    final SubTree subTree = new SubTree(myWorkingCopyDir);
+    checkin();
+    clManager.stopEveryThingIfInTestMode();
+    sleep(100);
+    final File rootFile = new File(subTree.myRootDir.getPath());
+    FileUtil.delete(rootFile);
+    FileUtil.delete(new File(myWorkingCopyDir.getPath() + File.separator + ".svn"));
+    Assert.assertTrue(!rootFile.exists());
+    sleep(200);
+    myWorkingCopyDir.refresh(false, true);
+
+    runInAndVerifyIgnoreOutput("co", mainUrl);
+    final File sourceDir = new File(myWorkingCopyDir.getPath(), "source");
+    final File innerDir = new File(sourceDir, "inner1/inner2/inner");
+    runInAndVerifyIgnoreOutput("co", externalURL, innerDir.getPath());
+    sleep(100);
+    myWorkingCopyDir.refresh(false, true);
+    // above is preparation
+
+    // start change list manager again
+    clManager.forceGoInTestMode();
+    refreshSvnMappingsSynchronously();
+    //clManager.ensureUpToDate(false);
+    //clManager.ensureUpToDate(false);
   }
 
   protected class SubTree {
@@ -412,7 +450,7 @@ public abstract class SvnTestCase extends AbstractJunitVcsTestCase  {
     //clManager.ensureUpToDate(false);
   }
 
-  private void createAnotherRepo() throws Exception {
+  protected void createAnotherRepo() throws Exception {
     final File repo = FileUtil.createTempDirectory("anotherRepo", "");
     FileUtil.delete(repo);
     FileUtil.copyDir(myRepoRoot, repo);
@@ -546,5 +584,12 @@ public abstract class SvnTestCase extends AbstractJunitVcsTestCase  {
     }
     final ProcessOutput output = runner.runClient("svn", null, workingDir, input);
     primitiveVerifier.process(output);
+  }
+
+  protected void setNativeAcceleration(final boolean value) {
+    System.out.println("Set native acceleration to " + value);
+    SvnConfiguration.getInstance(myProject).myUseAcceleration =
+      value ? SvnConfiguration.UseAcceleration.commandLine : SvnConfiguration.UseAcceleration.nothing;
+    SvnApplicationSettings.getInstance().setCommandLinePath(myClientBinaryPath + File.separator + "svn");
   }
 }

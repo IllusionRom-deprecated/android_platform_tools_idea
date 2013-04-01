@@ -16,6 +16,7 @@
 package com.intellij.designer.designSurface.tools;
 
 import com.intellij.designer.designSurface.EditableArea;
+import com.intellij.designer.designSurface.ZoomType;
 import com.intellij.designer.model.RadComponent;
 import com.intellij.designer.propertyTable.InplaceContext;
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -53,12 +54,11 @@ public class SelectionTool extends InputTool {
       myState = STATE_DRAG;
       deactivateTracker();
 
-      if (!myArea.isTree()) {
-        if (myInputEvent.isAltDown()) {
-          setTracker(new MarqueeTracker());
-          return;
-        }
+      if (handleTracker()) {
+        return;
+      }
 
+      if (!myArea.isTree()) {
         InputTool tracker = myArea.findTargetTool(myCurrentScreenX, myCurrentScreenY);
         if (tracker != null) {
           setTracker(tracker);
@@ -70,16 +70,30 @@ public class SelectionTool extends InputTool {
       }
 
       RadComponent component = myArea.findTarget(myCurrentScreenX, myCurrentScreenY, null);
-      if (component == null) {
+      if (component == null || component.isBackground()) {
         if (!myArea.isTree()) {
-          setTracker(new MarqueeTracker());
+          MarqueeTracker tracker = new MarqueeTracker();
+
+          // Allow marquee dragging within the root (background) layout, and if you click
+          // without dragging, select that background component
+          tracker.setSelectBackground(component != null && component.isBackground());
+
+          setTracker(tracker);
         }
       }
       else {
         Point location = component.convertPoint(myArea.getNativeComponent(), myCurrentScreenX, myCurrentScreenY);
-        setTracker(component.getDragTracker(location, myArea.isTree()));
+        setTracker(component.getDragTracker(location, myInputEvent, myArea.isTree()));
       }
     }
+  }
+
+  protected boolean handleTracker() {
+    if (!myArea.isTree() && myInputEvent.isAltDown()) {
+      setTracker(new MarqueeTracker());
+      return true;
+    }
+    return false;
   }
 
   @Override
@@ -129,6 +143,7 @@ public class SelectionTool extends InputTool {
         myToolProvider.hideInspections();
         myTracker.setToolProvider(myToolProvider);
         myTracker.setArea(myArea);
+        myTracker.myModifiers = myModifiers;
         myTracker.activate();
       }
     }
@@ -147,6 +162,7 @@ public class SelectionTool extends InputTool {
   @Override
   public void mouseDown(MouseEvent event, EditableArea area) throws Exception {
     super.mouseDown(event, area);
+
     if (myTracker != null) {
       myTracker.mouseDown(event, area);
     }
@@ -157,6 +173,7 @@ public class SelectionTool extends InputTool {
     if (myTracker != null) {
       myTracker.mouseUp(event, area);
     }
+
     super.mouseUp(event, area);
   }
 
@@ -165,6 +182,7 @@ public class SelectionTool extends InputTool {
     if (myTracker != null) {
       myTracker.mouseMove(event, area);
     }
+
     super.mouseMove(event, area);
   }
 
@@ -173,6 +191,7 @@ public class SelectionTool extends InputTool {
     if (myTracker != null) {
       myTracker.mouseDrag(event, area);
     }
+
     super.mouseDrag(event, area);
   }
 
@@ -182,12 +201,14 @@ public class SelectionTool extends InputTool {
     if (myTracker != null) {
       myTracker.mousePopup(event, area);
     }
+
     super.mousePopup(event, area);
   }
 
   @Override
   public void mouseDoubleClick(MouseEvent event, EditableArea area) throws Exception {
     super.mouseDoubleClick(event, area);
+
     if (myTracker != null) {
       myTracker.mouseDoubleClick(event, area);
     }
@@ -195,6 +216,8 @@ public class SelectionTool extends InputTool {
 
   @Override
   public void keyPressed(KeyEvent event, EditableArea area) throws Exception {
+    super.keyTyped(event, area);
+
     if (myTracker != null) {
       myTracker.keyPressed(event, area);
     }
@@ -211,18 +234,51 @@ public class SelectionTool extends InputTool {
 
   @Override
   public void keyTyped(KeyEvent event, EditableArea area) throws Exception {
+    super.keyTyped(event, area);
+
     if (myTracker != null) {
       myTracker.keyTyped(event, area);
     }
-    else if (myToolProvider != null && !area.isTree() &&
-             Character.isLetterOrDigit(event.getKeyChar()) &&
-             (event.getModifiers() & (InputEvent.ALT_MASK | InputEvent.CTRL_MASK | InputEvent.META_MASK)) == 0) {
-      myToolProvider.startInplaceEditing(new InplaceContext(event.getKeyChar()));
+    else if (myToolProvider != null && !area.isTree()) {
+      char keyChar = event.getKeyChar();
+      switch (keyChar) {
+        // Zoom
+        case '-':
+        case '+':
+        case '0':
+        case '1':
+          ZoomType type;
+          if (keyChar == '-') {
+            type = ZoomType.OUT;
+          }
+          else if (keyChar == '+') {
+            type = ZoomType.IN;
+          }
+          else if (keyChar == '0') {
+            type = ZoomType.FIT;
+          }
+          else { // '1'
+            type = ZoomType.ACTUAL;
+          }
+          if (myToolProvider.isZoomSupported()) {
+            myToolProvider.zoom(type);
+            event.consume();
+            return;
+          }
+          // else: fall through
+        default:
+          if (Character.isLetterOrDigit(keyChar) &&
+              (event.getModifiers() & (InputEvent.ALT_MASK | InputEvent.CTRL_MASK | InputEvent.META_MASK)) == 0) {
+            myToolProvider.startInplaceEditing(new InplaceContext(keyChar));
+          }
+      }
     }
   }
 
   @Override
   public void keyReleased(KeyEvent event, EditableArea area) throws Exception {
+    super.keyReleased(event, area);
+
     if (myTracker != null) {
       myTracker.keyReleased(event, area);
     }

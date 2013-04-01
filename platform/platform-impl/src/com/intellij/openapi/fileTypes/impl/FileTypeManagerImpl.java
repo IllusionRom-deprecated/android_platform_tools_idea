@@ -78,9 +78,13 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
 
   private FileTypeAssocTable<FileType> myPatternsTable = new FileTypeAssocTable<FileType>();
   private final IgnoredPatternSet myIgnoredPatterns = new IgnoredPatternSet();
+  private final IgnoredFileCache myIgnoredFileCache = new IgnoredFileCache(myIgnoredPatterns);
+
   private final FileTypeAssocTable<FileType> myInitialAssociations = new FileTypeAssocTable<FileType>();
   private final Map<FileNameMatcher, String> myUnresolvedMappings = new THashMap<FileNameMatcher, String>();
-  private final Map<FileNameMatcher, String> myUnresolvedRemovedMappings = new THashMap<FileNameMatcher, String>();
+  private final Map<FileNameMatcher, Trinity<String, String, Boolean>> myUnresolvedRemovedMappings = new THashMap<FileNameMatcher, Trinity<String, String, Boolean>>();
+  /** This will contain removed mappings with "approved" states */
+  private final Map<FileNameMatcher, Pair<FileType, Boolean>> myRemovedMappings = new THashMap<FileNameMatcher, Pair<FileType, Boolean>>();
 
   @NonNls private static final String ELEMENT_FILETYPE = "filetype";
   @NonNls private static final String ELEMENT_FILETYPES = "filetypes";
@@ -193,7 +197,6 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       @Override
       public boolean shouldBeSaved(final AbstractFileType fileType) {
         return shouldBeSavedToFile(fileType);
-
       }
 
       @Override
@@ -510,6 +513,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
   @Override
   public void setIgnoredFilesList(@NotNull String list) {
     fireBeforeFileTypesChanged();
+    myIgnoredFileCache.clearCache();
     myIgnoredPatterns.setIgnoreMasks(list);
     fireFileTypesChanged();
   }
@@ -531,7 +535,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
 
   @Override
   public boolean isFileIgnored(@NonNls @NotNull VirtualFile file) {
-    return isFileIgnored(file.getName());
+    return myIgnoredFileCache.isFileIgnored(file);
   }
 
   @Override
@@ -670,6 +674,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     if (savedVersion < VERSION) {
       addIgnore("*.rbc");
     }
+    myIgnoredFileCache.clearCache();
   }
 
   private void readGlobalMappings(final Element e) {
@@ -686,15 +691,17 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       }
     }
 
-    List<Pair<FileNameMatcher, String>> removedAssociations = AbstractFileType.readRemovedAssociations(e);
+    List<Trinity<FileNameMatcher, String, Boolean>> removedAssociations = AbstractFileType.readRemovedAssociations(e);
 
-    for (Pair<FileNameMatcher, String> removedAssociation : removedAssociations) {
-      FileType type = getFileTypeByName(removedAssociation.getSecond());
+    for (Trinity<FileNameMatcher, String, Boolean> trinity : removedAssociations) {
+      FileType type = getFileTypeByName(trinity.getSecond());
+      FileNameMatcher matcher = trinity.getFirst();
       if (type != null) {
-        removeAssociation(type, removedAssociation.getFirst(), false);
+        removeAssociation(type, matcher, false);
       }
       else {
-        myUnresolvedRemovedMappings.put(removedAssociation.getFirst(), removedAssociation.getSecond());
+        myUnresolvedRemovedMappings.put(matcher, Trinity
+          .create(trinity.getSecond(), myUnresolvedMappings.get(matcher), trinity.getThird()));
       }
     }
   }
@@ -707,9 +714,9 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       associate(type, association.getFirst(), false);
     }
 
-    List<Pair<FileNameMatcher, String>> removedAssociations = AbstractFileType.readRemovedAssociations(e);
+    List<Trinity<FileNameMatcher, String, Boolean>> removedAssociations = AbstractFileType.readRemovedAssociations(e);
 
-    for (Pair<FileNameMatcher, String> removedAssociation : removedAssociations) {
+    for (Trinity<FileNameMatcher, String, Boolean> removedAssociation : removedAssociations) {
       removeAssociation(type, removedAssociation.getFirst(), false);
     }
 
@@ -791,7 +798,7 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     }
 
     for (FileNameMatcher matcher : defaultAssocs) {
-      Element content = AbstractFileType.writeRemovedMapping(type, matcher, specifyTypeName);
+      Element content = AbstractFileType.writeRemovedMapping(type, matcher, specifyTypeName, isApproved(matcher));
       if (content != null) {
         map.addContent(content);
       }
@@ -801,13 +808,18 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
       List<FileNameMatcher> original = ((ImportedFileType)type).getOriginalPatterns();
       for (FileNameMatcher matcher : original) {
         if (!assocs.contains(matcher)) {
-          Element content = AbstractFileType.writeRemovedMapping(type, matcher, specifyTypeName);
+          Element content = AbstractFileType.writeRemovedMapping(type, matcher, specifyTypeName, isApproved(matcher));
           if (content != null) {
             map.addContent(content);
           }
         }
       }
     }
+  }
+
+  private boolean isApproved(FileNameMatcher matcher) {
+    Pair<FileType, Boolean> pair = myRemovedMappings.get(matcher);
+    return pair != null && pair.getSecond();
   }
 
   // -------------------------------------------------------------------------
@@ -855,12 +867,14 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     }
 
     for (FileNameMatcher matcher : new THashSet<FileNameMatcher>(myUnresolvedRemovedMappings.keySet())) {
-      String name = myUnresolvedRemovedMappings.get(matcher);
-      if (Comparing.equal(name, fileType.getName())) {
+      Trinity<String, String, Boolean> trinity = myUnresolvedRemovedMappings.get(matcher);
+      if (Comparing.equal(trinity.getFirst(), fileType.getName())) {
+        if (trinity.getSecond() == null || PlainTextFileType.INSTANCE.getName().equals(trinity.getSecond())) {
+          myRemovedMappings.put(matcher, Pair.create(fileType, trinity.getThird()));
+        }
         removeAssociation(fileType, matcher, false);
         myUnresolvedRemovedMappings.remove(matcher);
       }
-
     }
   }
 
@@ -1095,5 +1109,9 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
   @Override
   public FileType getKnownFileTypeOrAssociate(@NotNull VirtualFile file, @NotNull Project project) {
     return FileTypeChooser.getKnownFileTypeOrAssociate(file, project);
+  }
+
+  Map<FileNameMatcher, Pair<FileType, Boolean>> getRemovedMappings() {
+    return myRemovedMappings;
   }
 }

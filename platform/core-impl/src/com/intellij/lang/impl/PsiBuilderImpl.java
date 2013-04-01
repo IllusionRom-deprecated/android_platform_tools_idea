@@ -734,7 +734,7 @@ public class PsiBuilderImpl extends UserDataHolderBase implements PsiBuilder {
   }
 
   @Override
-  public void setWhitespaceSkippedCallback(WhitespaceSkippedCallback callback) {
+  public void setWhitespaceSkippedCallback(@Nullable final WhitespaceSkippedCallback callback) {
     myWhitespaceSkippedCallback = callback;
   }
 

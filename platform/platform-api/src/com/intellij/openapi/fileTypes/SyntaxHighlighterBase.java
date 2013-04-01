@@ -15,13 +15,17 @@
  */
 package com.intellij.openapi.fileTypes;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.TokenSet;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
 
 public abstract class SyntaxHighlighterBase implements SyntaxHighlighter {
+  private static final Logger LOG = Logger.getInstance(SyntaxHighlighterBase.class);
+
   protected static final TextAttributesKey[] EMPTY = new TextAttributesKey[0];
 
   public static TextAttributesKey[] pack(TextAttributesKey key) {
@@ -50,14 +54,51 @@ public abstract class SyntaxHighlighterBase implements SyntaxHighlighter {
     return result;
   }
 
+  /**
+   * @deprecated use safeMap() instead
+   */
+  @Deprecated
   protected static void fillMap(Map<IElementType, TextAttributesKey> map, TokenSet keys, TextAttributesKey value) {
     IElementType[] types = keys.getTypes();
     fillMap(map, value, types);
   }
 
+  /**
+   * @deprecated use safeMap() instead
+   */
+  @Deprecated
   protected static void fillMap(final Map<IElementType, TextAttributesKey> map, final TextAttributesKey value, final IElementType... types) {
     for (int i = 0; i < types.length; i++) {
       map.put(types[i], value);
+    }
+  }
+
+  /**
+   * Tries to update the map by associating given keys with a given value.
+   * Throws error if the map already contains different mapping for one of given keys.
+   */
+  protected static void safeMap(
+    @NotNull final Map<IElementType, TextAttributesKey> map,
+    @NotNull final TokenSet keys,
+    @NotNull final TextAttributesKey value)
+  {
+    for (final IElementType type : keys.getTypes()) {
+      safeMap(map, type, value);
+    }
+  }
+
+  /**
+   * Tries to update the map by associating given key with a given value.
+   * Throws error if the map already contains different mapping for given key.
+   */
+  protected static void safeMap(
+    @NotNull final Map<IElementType, TextAttributesKey> map,
+    @NotNull final IElementType type,
+    @NotNull final TextAttributesKey value)
+  {
+    final TextAttributesKey oldVal = map.put(type, value);
+    if (oldVal != null && !oldVal.equals(value)) {
+      LOG.error("Remapping highlighting for \"" + type + "\" val: old=" + oldVal + " new=" + value);
     }
   }
 

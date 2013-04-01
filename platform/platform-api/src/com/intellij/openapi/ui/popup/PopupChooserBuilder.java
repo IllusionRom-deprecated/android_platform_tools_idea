@@ -29,8 +29,10 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBViewport;
 import com.intellij.ui.speedSearch.ListWithFilter;
 import com.intellij.ui.treeStructure.treetable.TreeTable;
+import com.intellij.util.BooleanFunction;
 import com.intellij.util.Function;
 import com.intellij.util.Processor;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.tree.TreeUtil;
 import org.jetbrains.annotations.Nls;
@@ -70,7 +72,7 @@ public class PopupChooserBuilder {
   private Component[] myFocusOwners = new Component[0];
   private boolean myCancelKeyEnabled = true;
 
-  ArrayList<JBPopupListener> myListeners = new ArrayList<JBPopupListener>();
+  private final List<JBPopupListener> myListeners = ContainerUtil.createLockFreeCopyOnWriteList();
   private String myAd;
   private Dimension myMinSize;
   private ActiveComponent myCommandButton;
@@ -211,10 +213,20 @@ public class PopupChooserBuilder {
 
   @NotNull
   public JBPopup createPopup() {
-    JList list = null;
+    final JList list;
+    BooleanFunction<KeyEvent> keyEventHandler = null;
     if (myChooserComponent instanceof JList) {
       list = (JList)myChooserComponent;
       myChooserComponent = ListWithFilter.wrap(list, new MyListWrapper(list), myItemsNamer);
+      keyEventHandler = new BooleanFunction<KeyEvent>() {
+        @Override
+        public boolean fun(KeyEvent keyEvent) {
+          return keyEvent.isConsumed();
+        }
+      };
+    }
+    else {
+      list = null;
     }
 
     JPanel contentPane = new JPanel(new BorderLayout());
@@ -307,7 +319,7 @@ public class PopupChooserBuilder {
       .setCancelCallback(myCancelCallback)
       .setAlpha(myAlpha)
       .setFocusOwners(myFocusOwners)
-      .setCancelKeyEnabled(myCancelKeyEnabled && !(myChooserComponent instanceof ListWithFilter))
+      .setCancelKeyEnabled(myCancelKeyEnabled)
       .setAdText(myAd, myAdAlignment)
       .setKeyboardActions(myKeyboardActions)
       .setMayBeParent(myMayBeParent)
@@ -317,6 +329,10 @@ public class PopupChooserBuilder {
       .setCancelOnWindowDeactivation(myCancelOnWindowDeactivation)
       .setCancelOnClickOutside(myCancelOnClickOutside)
       .setCouldPin(myCouldPin);
+
+    if (keyEventHandler != null) {
+      builder.setKeyEventHandler(keyEventHandler);
+    }
 
     if (myCommandButton != null) {
       builder.setCommandButton(myCommandButton);

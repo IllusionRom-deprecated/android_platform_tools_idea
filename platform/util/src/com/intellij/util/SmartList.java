@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -255,7 +255,7 @@ public class SmartList<E> extends AbstractList<E> {
   public <T> T[] toArray(@NotNull T[] a) {
     if (mySize == 1) {
       int length = a.length;
-      if (length  != 0) {
+      if (length != 0) {
         a[0] = (T)myElem;
         if (length > 1) {
           a[1] = null;
@@ -280,4 +280,5 @@ public class SmartList<E> extends AbstractList<E> {
       modCount++;
       myElem = Arrays.copyOf(array, mySize);
     }
-  }}
+  }
+}

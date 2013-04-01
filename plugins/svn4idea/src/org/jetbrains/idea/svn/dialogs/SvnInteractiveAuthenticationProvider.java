@@ -21,6 +21,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.MessageType;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.ui.VcsBalloonProblemNotifier;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.WaitForProgressToShow;
@@ -32,6 +33,7 @@ import org.jetbrains.idea.svn.auth.ProviderType;
 import org.tmatesoft.svn.core.SVNErrorMessage;
 import org.tmatesoft.svn.core.SVNURL;
 import org.tmatesoft.svn.core.auth.*;
+import org.tmatesoft.svn.core.internal.wc.ISVNHostOptions;
 
 import javax.swing.*;
 import java.io.File;
@@ -64,7 +66,7 @@ public class SvnInteractiveAuthenticationProvider implements ISVNAuthenticationP
   public SVNAuthentication requestClientAuthentication(final String kind,
                                                        final SVNURL url,
                                                        final String realm,
-                                                       SVNErrorMessage errorMessage,
+                                                       final SVNErrorMessage errorMessage,
                                                        final SVNAuthentication previousAuth,
                                                        final boolean authMayBeStored) {
     final MyCallState callState = new MyCallState(true, false);
@@ -85,7 +87,7 @@ public class SvnInteractiveAuthenticationProvider implements ISVNAuthenticationP
         public void run() {
           SimpleCredentialsDialog dialog = new SimpleCredentialsDialog(myProject);
           dialog.setup(realm, userName, authCredsOn);
-          if (previousAuth == null) {
+          if (errorMessage == null) {
             dialog.setTitle(SvnBundle.message("dialog.title.authentication.required"));
           }
           else {
@@ -106,7 +108,7 @@ public class SvnInteractiveAuthenticationProvider implements ISVNAuthenticationP
         public void run() {
           UserNameCredentialsDialog dialog = new UserNameCredentialsDialog(myProject);
           dialog.setup(realm, userName, authCredsOn);
-          if (previousAuth == null) {                                                               
+          if (errorMessage == null) {
             dialog.setTitle(SvnBundle.message("dialog.title.authentication.required"));
           }
           else {
@@ -123,7 +125,7 @@ public class SvnInteractiveAuthenticationProvider implements ISVNAuthenticationP
       command = new Runnable() {
         public void run() {
           SSHCredentialsDialog dialog = new SSHCredentialsDialog(myProject, realm, userName, authCredsOn, url.getPort());
-          if (previousAuth == null) {
+          if (errorMessage == null) {
             dialog.setTitle(SvnBundle.message("dialog.title.authentication.required"));
           }
           else {
@@ -150,8 +152,13 @@ public class SvnInteractiveAuthenticationProvider implements ISVNAuthenticationP
     } else if (ISVNAuthenticationManager.SSL.equals(kind)) {
       command = new Runnable() {
         public void run() {
+          final ISVNHostOptions options = myManager.getHostOptionsProvider().getHostOptions(url);
+          final String file = options.getSSLClientCertFile();
           final SSLCredentialsDialog dialog = new SSLCredentialsDialog(myProject, realm, authCredsOn);
-          if (previousAuth == null) {
+          if (!StringUtil.isEmptyOrSpaces(file)) {
+            dialog.setFile(file);
+          }
+          if (errorMessage == null) {
             dialog.setTitle(SvnBundle.message("dialog.title.authentication.required"));
           }
           else {

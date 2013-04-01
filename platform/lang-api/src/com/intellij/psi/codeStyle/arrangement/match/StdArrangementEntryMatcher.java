@@ -17,17 +17,17 @@ package com.intellij.psi.codeStyle.arrangement.match;
 
 import com.intellij.psi.codeStyle.arrangement.ArrangementEntry;
 import com.intellij.psi.codeStyle.arrangement.model.*;
+import com.intellij.psi.codeStyle.arrangement.std.ArrangementSettingsToken;
+import com.intellij.psi.codeStyle.arrangement.std.StdArrangementTokens;
 import com.intellij.util.containers.ContainerUtilRt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * {@link ArrangementEntryMatcher} which is based on standard match conditions like {@link ArrangementEntryType entry type}
- * or {@link ArrangementModifier modifier}.
+ * {@link ArrangementEntryMatcher} which is based on standard match conditions in form of {@link ArrangementSettingsToken}.
  * <p/>
  * Implementations of this interface are expected to be thread-safe.
  * 
@@ -76,7 +76,7 @@ public class StdArrangementEntryMatcher implements ArrangementEntryMatcher {
   public String toString() {
     return myCondition.toString();
   }
-  
+
   @NotNull
   private static ArrangementEntryMatcher doBuildMatcher(@NotNull ArrangementMatchCondition condition) {
     MyVisitor visitor = new MyVisitor();
@@ -87,24 +87,32 @@ public class StdArrangementEntryMatcher implements ArrangementEntryMatcher {
   private static class MyVisitor implements ArrangementMatchConditionVisitor {
 
     @NotNull private final List<ArrangementEntryMatcher> myMatchers  = ContainerUtilRt.newArrayList();
-    @NotNull private final Set<ArrangementEntryType>     myTypes     = EnumSet.noneOf(ArrangementEntryType.class);
-    @NotNull private final Set<ArrangementModifier>      myModifiers = EnumSet.noneOf(ArrangementModifier.class);
+    @NotNull private final Set<ArrangementSettingsToken> myTypes     = ContainerUtilRt.newHashSet();
+    @NotNull private final Set<ArrangementSettingsToken> myModifiers = ContainerUtilRt.newHashSet();
 
     @Nullable private String myNamePattern;
+    @Nullable private String myNamespacePattern;
 
     private boolean nestedComposite;
 
     @Override
     public void visit(@NotNull ArrangementAtomMatchCondition condition) {
-      switch (condition.getType()) {
-        case TYPE:
-          myTypes.add((ArrangementEntryType)condition.getValue());
-          break;
-        case MODIFIER:
-          myModifiers.add((ArrangementModifier)condition.getValue());
-          break;
-        case NAME:
-          myNamePattern = condition.getValue().toString();
+      if (StdArrangementTokens.Regexp.NAME.equals(condition.getType())) {
+        myNamePattern = condition.getValue().toString();
+        return;
+      }
+      else if (StdArrangementTokens.Regexp.XML_NAMESPACE.equals(condition.getType())) {
+        myNamespacePattern = condition.getValue().toString();
+      }
+      Object v = condition.getValue();
+      if (v instanceof ArrangementSettingsToken) {
+        ArrangementSettingsToken token = (ArrangementSettingsToken)v;
+        if (StdArrangementTokens.EntryType.is(token)) {
+          myTypes.add(token);
+        }
+        else if (StdArrangementTokens.Modifier.is(token)) {
+          myModifiers.add(token);
+        }
       }
     }
 
@@ -127,6 +135,8 @@ public class StdArrangementEntryMatcher implements ArrangementEntryMatcher {
       ByTypeArrangementEntryMatcher byType = myTypes.isEmpty() ? null : new ByTypeArrangementEntryMatcher(myTypes);
       ByModifierArrangementEntryMatcher byModifiers = myModifiers.isEmpty() ? null : new ByModifierArrangementEntryMatcher(myModifiers);
       ByNameArrangementEntryMatcher byName = myNamePattern == null ? null : new ByNameArrangementEntryMatcher(myNamePattern);
+      ByNamespaceArrangementEntryMatcher byNamespace = myNamespacePattern == null
+                                                       ? null : new ByNamespaceArrangementEntryMatcher(myNamespacePattern);
       int i = countNonNulls(byType, byModifiers, byName);
       if (i == 0 && myMatchers.isEmpty()) {
         return ArrangementEntryMatcher.EMPTY;
@@ -138,8 +148,11 @@ public class StdArrangementEntryMatcher implements ArrangementEntryMatcher {
         else if (byModifiers != null) {
           return byModifiers;
         }
-        else {
+        else if (byName != null) {
           return byName;
+        }
+        else {
+          return byNamespace;
         }
       }
       else if (myMatchers.size() == 1) {
@@ -158,6 +171,9 @@ public class StdArrangementEntryMatcher implements ArrangementEntryMatcher {
         }
         if (byName != null) {
           result.addMatcher(byName);
+        }
+        if (byNamespace != null) {
+          result.addMatcher(byNamespace);
         }
         return result;
       }

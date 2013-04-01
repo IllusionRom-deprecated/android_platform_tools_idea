@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,8 @@ contributor([gdslScriptContext]) {
   method name: "contributor", params: [contexts: "java.util.Map", body: {}], type: void
   method name: "contributor", params: [contexts: "java.lang.Object", body: {}], type: void
   method name: "contribute", params: [pointcut: "Pointcut", body: {}], type: void
-  
+  method name: "scriptSuperClass", params: [args: [pattern: 'java.lang.String', superClass: 'java.lang.String']]
+
   method name: "currentType", params: [qName: String.name], type: "Pointcut", doc:'Matches when the current (qualifier or this) type is a subtype of the type described by the parameter'
 
   method name: "category", params: [categoryClass: "java.lang.String", isStatic:"java.lang.Boolean"], type: void
@@ -62,6 +63,10 @@ Its elements should be calls to <code>parameter</code> method.'''),
             parameter(name:'type', type:Object.name, doc:'Return type name of the method'),
             parameter(name:'doc', type:String.name, doc:'Method documentation text'),
     ]], doc:'Describe a DSL method'
+    method name: "variable", type: "void", params: [args: [
+            parameter(name: "name", type: String.name, doc: 'Variable name'),
+            parameter(name: 'type', type: String.name, doc: 'Variable type')
+    ]], doc: 'Descrive a DSL local variable'
     method name: "property", type: "void", params: [args: [
             parameter(name:'name', type:String.name, doc:'Property name'),
             parameter(name:'type', type:Object.name, doc:'Property type name'),

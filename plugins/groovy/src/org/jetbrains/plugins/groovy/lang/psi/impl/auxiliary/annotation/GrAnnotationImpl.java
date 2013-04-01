@@ -17,11 +17,11 @@
 package org.jetbrains.plugins.groovy.lang.psi.impl.auxiliary.annotation;
 
 import com.intellij.lang.ASTNode;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.PsiImplUtil;
 import com.intellij.psi.impl.light.LightClassReference;
-import com.intellij.psi.impl.source.tree.java.PsiAnnotationImpl;
 import com.intellij.psi.meta.PsiMetaData;
 import com.intellij.util.PairFunction;
 import org.jetbrains.annotations.NonNls;
@@ -51,6 +51,8 @@ import org.jetbrains.plugins.groovy.lang.resolve.ResolveUtil;
  * @date: 04.04.2007
  */
 public class GrAnnotationImpl extends GrStubElementBase<GrAnnotationStub> implements GrAnnotation, StubBasedPsiElement<GrAnnotationStub> {
+  private static final Logger LOG = Logger.getInstance("#org.jetbrains.plugins.groovy.lang.psi.impl.auxiliary.annotation.GrAnnotationImpl");
+
   private static final PairFunction<Project, String, PsiAnnotation> ANNOTATION_CREATOR = new PairFunction<Project, String, PsiAnnotation>() {
     public PsiAnnotation fun(Project project, String text) {
       return GroovyPsiElementFactory.getInstance(project).createAnnotationFromText(text);
@@ -143,59 +145,54 @@ public class GrAnnotationImpl extends GrStubElementBase<GrAnnotationStub> implem
     return (PsiAnnotationOwner)getParent();
   }
 
-  @Nullable
-  public static String[] getApplicableElementTypeFields(PsiElement owner) {
+  @NotNull
+  public static TargetType[] getApplicableElementTypeFields(PsiElement owner) {
     if (owner instanceof PsiClass) {
       PsiClass aClass = (PsiClass)owner;
       if (aClass.isAnnotationType()) {
-        return new String[]{"ANNOTATION_TYPE", "TYPE"};
+        return new TargetType[]{TargetType.ANNOTATION_TYPE, TargetType.TYPE};
       }
       else if (aClass instanceof GrTypeParameter) {
-        return new String[]{"TYPE_PARAMETER"};
+        return new TargetType[]{TargetType.TYPE_PARAMETER};
       }
       else {
-        return new String[]{"TYPE"};
+        return new TargetType[]{TargetType.TYPE};
       }
     }
     if (owner instanceof GrMethod) {
       if (((PsiMethod)owner).isConstructor()) {
-        return new String[]{"CONSTRUCTOR"};
+        return new TargetType[]{TargetType.CONSTRUCTOR};
       }
       else {
-        return new String[]{"METHOD"};
+        return new TargetType[]{TargetType.METHOD};
       }
     }
     if (owner instanceof GrVariableDeclaration) {
       final GrVariable[] variables = ((GrVariableDeclaration)owner).getVariables();
-      if (variables.length == 0) return null;
+      if (variables.length == 0) {
+        return TargetType.EMPTY_ARRAY;
+      }
       if (variables[0] instanceof GrField || ResolveUtil.isScriptField(variables[0])) {
-        return new String[]{"FIELD"};
+        return new TargetType[]{TargetType.FIELD};
       }
       else {
-        return new String[]{"LOCAL_VARIABLE"};
+        return new TargetType[]{TargetType.LOCAL_VARIABLE};
       }
     }
     if (owner instanceof GrParameter) {
-      return new String[]{"PARAMETER"};
+      return new TargetType[]{TargetType.PARAMETER};
     }
     if (owner instanceof GrPackageDefinition) {
-      return new String[]{"PACKAGE"};
+      return new TargetType[]{TargetType.PACKAGE};
     }
     if (owner instanceof GrTypeElement) {
-      return new String[]{"TYPE_USE"};
+      return new TargetType[]{TargetType.TYPE_USE};
     }
 
-    return null;
+    return TargetType.EMPTY_ARRAY;
   }
 
-
-  public static boolean isAnnotationApplicableTo(GrAnnotation annotation, boolean strict, String... elementTypeFields) {
-    if (elementTypeFields == null) return true;
-    GrCodeReferenceElement nameRef = annotation.getClassReference();
-    PsiElement resolved = nameRef.resolve();
-    if (resolved instanceof PsiClass && ((PsiClass)resolved).isAnnotationType()) {
-      return PsiAnnotationImpl.isAnnotationApplicable(strict, (PsiClass)resolved, elementTypeFields, annotation.getResolveScope());
-    }
-    return !strict;
+  public static boolean isAnnotationApplicableTo(GrAnnotation annotation, @NotNull TargetType... elementTypeFields) {
+    return elementTypeFields.length == 0 || PsiImplUtil.findApplicableTarget(annotation, elementTypeFields) != null;
   }
 }

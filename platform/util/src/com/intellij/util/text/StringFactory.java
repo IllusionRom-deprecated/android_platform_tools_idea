@@ -16,46 +16,46 @@
 package com.intellij.util.text;
 
 import org.jetbrains.annotations.NotNull;
+import sun.reflect.ConstructorAccessor;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 
 public class StringFactory {
-  private static final Constructor<String> sharingCtr;   // String(char[], boolean)
-  private static final Constructor<String> oldSharingCtr; // String(int offset, int count, char value[]) in ancient java 1.6
+  // String(char[], boolean). Works since JDK1.7, earlier JDKs have too slow reflection anyway
+  private static final ConstructorAccessor ourConstructorAccessor;
 
   static {
-    Constructor<String> newC = null;
-    Constructor<String> oldC = null;
+    ConstructorAccessor constructorAccessor = null;
     try {
-      newC = String.class.getDeclaredConstructor(char[].class, boolean.class);
+      Constructor<String> newC = String.class.getDeclaredConstructor(char[].class, boolean.class);
       newC.setAccessible(true);
+      Method accessor = Constructor.class.getDeclaredMethod("acquireConstructorAccessor");
+      accessor.setAccessible(true);
+      constructorAccessor = (ConstructorAccessor)accessor.invoke(newC);
     }
-    catch (NoSuchMethodException e) {
-      try {
-        oldC = String.class.getDeclaredConstructor(int.class, int.class, char[].class);
-        oldC.setAccessible(true);
-      }
-      catch (NoSuchMethodException ignored) {
-
-      }
+    catch (Exception ignored) {
     }
-    sharingCtr = newC;
-    oldSharingCtr = oldC;
+    ourConstructorAccessor = constructorAccessor;
   }
 
+
+  /**
+   * @return new instance of String which backed by chars array.
+   *
+   * CAUTION. EXTREMELY DANGEROUS.
+   * DO NOT USE THIS METHOD UNLESS YOU ARE TOO DESPERATE
+   */
   @NotNull
   public static String createShared(@NotNull char[] chars) {
-    try {
-      if (sharingCtr != null) {
-        return sharingCtr.newInstance(chars, true);
+    if (ourConstructorAccessor != null) {
+      try {
+        return (String)ourConstructorAccessor.newInstance(new Object[]{chars, Boolean.TRUE});
       }
-      if (oldSharingCtr != null) {
-        return oldSharingCtr.newInstance(0, chars.length, chars);
+      catch (Exception e) {
+        throw new RuntimeException(e);
       }
-      return new String(chars);
     }
-    catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    return new String(chars);
   }
 }

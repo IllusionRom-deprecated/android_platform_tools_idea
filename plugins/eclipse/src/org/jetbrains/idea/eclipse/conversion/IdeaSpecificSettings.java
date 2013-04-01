@@ -27,7 +27,6 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.projectRoots.JavaSdk;
 import com.intellij.openapi.projectRoots.ProjectJdkTable;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.*;
@@ -38,6 +37,7 @@ import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -215,21 +215,41 @@ public class IdeaSpecificSettings extends AbstractIdeaSpecificSettings<Modifiabl
 
   @Override
   public void readContentEntry(Element root, ContentEntry entry, ModifiableRootModel model) {
+    final SourceFolder[] folders = entry.getSourceFolders();
+    final String[] sourceFoldersUrls = new String[folders.length];
+    for (int i = 0; i < folders.length; i++) {
+      final SourceFolder folder = folders[i];
+      sourceFoldersUrls[i] = folder.getUrl();
+      entry.removeSourceFolder(folder);
+    }
+
+    final boolean[] testFolders = new boolean[sourceFoldersUrls.length];
     for (Object o : root.getChildren(IdeaXml.TEST_FOLDER_TAG)) {
       final String url = ((Element)o).getAttributeValue(IdeaXml.URL_ATTR);
-      SourceFolder folderToBeTest = null;
-      for (SourceFolder folder : entry.getSourceFolders()) {
-        if (Comparing.strEqual(folder.getUrl(), url)) {
-          folderToBeTest = folder;
+      for (int i = 0; i < sourceFoldersUrls.length; i++) {
+        if (Comparing.strEqual(sourceFoldersUrls[i], url)) {
+          testFolders[i] = true;
           break;
         }
       }
-      if (folderToBeTest != null) {
-        entry.removeSourceFolder(folderToBeTest);
-      }
-      entry.addSourceFolder(url, true);
     }
 
+    for (int i = 0; i < sourceFoldersUrls.length; i++) {
+      entry.addSourceFolder(sourceFoldersUrls[i], testFolders[i]);
+    }
+    
+    for (Object o : root.getChildren(IdeaXml.PACKAGE_PREFIX_TAG)) {
+      Element ppElement = (Element)o;
+      final String prefix = ppElement.getAttributeValue(IdeaXml.PACKAGE_PREFIX_VALUE_ATTR);
+      final String url = ppElement.getAttributeValue(IdeaXml.URL_ATTR);
+      for (SourceFolder folder : entry.getSourceFolders()) {
+        if (Comparing.strEqual(folder.getUrl(), url)) {
+          folder.setPackagePrefix(prefix);
+          break;
+        }
+      }
+    }
+    
     final String url = entry.getUrl();
     for (Object o : root.getChildren(IdeaXml.EXCLUDE_FOLDER_TAG)) {
       final String excludeUrl = ((Element)o).getAttributeValue(IdeaXml.URL_ATTR);
@@ -278,6 +298,14 @@ public class IdeaSpecificSettings extends AbstractIdeaSpecificSettings<Modifiabl
           element.setAttribute(IdeaXml.URL_ATTR, sourceFolder.getUrl());
           isModified = true;
         }
+        final String packagePrefix = sourceFolder.getPackagePrefix();
+        if (!StringUtil.isEmptyOrSpaces(packagePrefix)) {
+          Element element = new Element(IdeaXml.PACKAGE_PREFIX_TAG);
+          contentEntryElement.addContent(element);
+          element.setAttribute(IdeaXml.URL_ATTR, sourceFolder.getUrl());
+          element.setAttribute(IdeaXml.PACKAGE_PREFIX_VALUE_ATTR, packagePrefix);
+          isModified = true;
+        }
       }
 
       final VirtualFile entryFile = entry.getFile();
@@ -315,8 +343,7 @@ public class IdeaSpecificSettings extends AbstractIdeaSpecificSettings<Modifiabl
       }
       if (entry instanceof JdkOrderEntry) {
         final Sdk jdk = ((JdkOrderEntry)entry).getJdk();
-        if (EclipseModuleManagerImpl.getInstance(entry.getOwnerModule()).getInvalidJdk() != null || 
-            (jdk != null && !(jdk.getSdkType() instanceof JavaSdk))) {
+        if (EclipseModuleManagerImpl.getInstance(entry.getOwnerModule()).getInvalidJdk() != null || jdk != null) {
           if (entry instanceof InheritedJdkOrderEntry) {
             root.setAttribute(INHERIT_JDK, "true");
           } else {

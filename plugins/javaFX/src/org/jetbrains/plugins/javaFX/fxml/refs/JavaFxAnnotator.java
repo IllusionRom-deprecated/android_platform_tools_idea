@@ -28,19 +28,20 @@ import com.intellij.openapi.editor.markup.GutterIconRenderer;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.presentation.java.SymbolPresentationUtil;
-import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.xml.XmlAttribute;
 import com.intellij.psi.xml.XmlAttributeValue;
+import com.intellij.psi.xml.XmlTag;
 import com.intellij.ui.ColorUtil;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.ui.ColorIcon;
-import com.intellij.xml.XmlAttributeDescriptor;
+import com.intellij.xml.util.ColorSampleLookupValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.javaFX.fxml.FxmlConstants;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxCommonClassNames;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxFileTypeFactory;
 import org.jetbrains.plugins.javaFX.fxml.JavaFxPsiUtil;
-import org.jetbrains.plugins.javaFX.fxml.descriptors.JavaFxPropertyAttributeDescriptor;
+import org.jetbrains.plugins.javaFX.fxml.codeInsight.intentions.JavaFxWrapWithDefineIntention;
+import org.jetbrains.plugins.javaFX.fxml.descriptors.JavaFxDefaultPropertyElementDescriptor;
 
 import javax.swing.*;
 import java.awt.*;
@@ -70,45 +71,55 @@ public class JavaFxAnnotator implements Annotator {
           }
         }
       }
-      if (references.length == 0) {
-        final String attributeValueText = StringUtil.stripQuotesAroundValue(element.getText());
-        if (attributeValueText.startsWith("#")) {
-          attachColorIcon(element, holder, attributeValueText);
-        }
+      if (references.length == 1 && references[0] instanceof JavaFxColorReference) {
+        attachColorIcon(element, holder, StringUtil.stripQuotesAroundValue(element.getText()));
       }
     } else if (element instanceof XmlAttribute) {
-      final String attributeName = ((XmlAttribute)element).getName();
-      if (!FxmlConstants.FX_DEFAULT_PROPERTIES.contains(attributeName) && 
-          !((XmlAttribute)element).isNamespaceDeclaration() &&
-          JavaFxPsiUtil.isReadOnly(attributeName,  ((XmlAttribute)element).getParent())) {
+      final XmlAttribute attribute = (XmlAttribute)element;
+      final String attributeName = attribute.getName();
+      if (!FxmlConstants.FX_DEFAULT_PROPERTIES.contains(attributeName) &&
+          !attribute.isNamespaceDeclaration() &&
+          JavaFxPsiUtil.isReadOnly(attributeName, attribute.getParent())) {
         holder.createErrorAnnotation(element.getNavigationElement(), "Property '" + attributeName + "' is read-only");
+      }
+      if (FxmlConstants.FX_ELEMENT_SOURCE.equals(attributeName)) {
+        final XmlAttributeValue valueElement = attribute.getValueElement();
+        if (valueElement != null) {
+          final XmlTag xmlTag = attribute.getParent();
+          if (xmlTag != null) {
+            final XmlTag referencedTag = JavaFxDefaultPropertyElementDescriptor.getReferencedTag(xmlTag);
+            if (referencedTag != null) {
+              if (referencedTag.getTextOffset() > xmlTag.getTextOffset()) {
+                holder.createErrorAnnotation(valueElement.getValueTextRange(), valueElement.getValue() + " not found");
+              } else if (xmlTag.getParentTag() == referencedTag.getParentTag()) {
+                final Annotation annotation = holder.createErrorAnnotation(valueElement.getValueTextRange(), "Duplicate child added");
+                annotation.registerFix(new JavaFxWrapWithDefineIntention(referencedTag, valueElement.getValue()));
+              }
+            }
+          }
+        }
       }
     }
   }
 
   private static void attachColorIcon(final PsiElement element, AnnotationHolder holder, String attributeValueText) {
-    final PsiElement parent = element.getParent();
-    if (parent instanceof XmlAttribute) {
-      final XmlAttributeDescriptor descriptor = ((XmlAttribute)parent).getDescriptor();
-      if (descriptor instanceof JavaFxPropertyAttributeDescriptor) {
-        final PsiElement declaration = descriptor.getDeclaration();
-        if (declaration instanceof PsiField) {
-          final PsiField field = (PsiField)declaration;
-          final PsiClassType propertyClassType = JavaFxPsiUtil.getPropertyClassType(field);
-          if (propertyClassType != null && InheritanceUtil.isInheritor(propertyClassType, JavaFxCommonClassNames.JAVAFX_SCENE_PAINT)) {
-            try {
-              final Color color = ColorUtil.fromHex(attributeValueText.substring(1));
-              if (color != null) {
-                final ColorIcon icon = new ColorIcon(8, color);
-                final Annotation annotation = holder.createInfoAnnotation(element, null);
-                annotation.setGutterIconRenderer(new ColorIconRenderer(icon, element));
-              }
-            }
-            catch (Exception ignored) {
-            }
-          }
+    try {
+      Color color = null;
+      if (attributeValueText.startsWith("#")) {
+        color = ColorUtil.fromHex(attributeValueText.substring(1));
+      } else {
+        final String hexCode = ColorSampleLookupValue.getHexCodeForColorName(StringUtil.toLowerCase(attributeValueText));
+        if (hexCode != null) {
+          color = ColorUtil.fromHex(hexCode);
         }
       }
+      if (color != null) {
+        final ColorIcon icon = new ColorIcon(8, color);
+        final Annotation annotation = holder.createInfoAnnotation(element, null);
+        annotation.setGutterIconRenderer(new ColorIconRenderer(icon, element));
+      }
+    }
+    catch (Exception ignored) {
     }
   }
 

@@ -25,6 +25,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -62,13 +63,15 @@ public class Executor {
     return ourCurrentDir;
   }
 
-  public static String touch(String fileName) {
+  public static String touch(String filePath) {
     try {
-      File file = child(fileName);
-      assert !file.exists();
+      File file = child(filePath);
+      assert !file.exists() : "File " + file + " shouldn't exist yet";
+      //noinspection ResultOfMethodCallIgnored
+      new File(file.getParent()).mkdirs(); // ensure to create the directories
       boolean fileCreated = file.createNewFile();
       assert fileCreated;
-      log("touch " + fileName);
+      log("touch " + filePath);
       return file.getPath();
     }
     catch (IOException e) {
@@ -147,7 +150,77 @@ public class Executor {
     return stdout;
   }
 
+  protected static List<String> splitCommandInParameters(String command) {
+    List<String> split = new ArrayList<String>();
+
+    boolean insideParam = false;
+    StringBuilder currentParam = new StringBuilder();
+    for (char c : command.toCharArray()) {
+      boolean flush = false;
+      if (insideParam) {
+        if (c == '\'') {
+          insideParam = false;
+          flush = true;
+        }
+        else {
+          currentParam.append(c);
+        }
+      }
+      else if (c == '\'') {
+        insideParam = true;
+      }
+      else if (c == ' ') {
+        flush = true;
+      }
+      else {
+        currentParam.append(c);
+      }
+
+      if (flush) {
+        if (!StringUtil.isEmptyOrSpaces(currentParam.toString())) {
+          split.add(currentParam.toString());
+        }
+        currentParam = new StringBuilder();
+      }
+    }
+
+    // last flush
+    if (!StringUtil.isEmptyOrSpaces(currentParam.toString())) {
+      split.add(currentParam.toString());
+    }
+    return split;
+  }
+
   protected static String findExecutable(String programName, String unixExec, String winExec, Collection<String> pathEnvs) {
+    String exec = findInPathEnvs(programName, pathEnvs);
+    if (exec != null) {
+      return exec;
+    }
+    exec = findInPath(programName, unixExec, winExec);
+    if (exec != null) {
+      return exec;
+    }
+    throw new IllegalStateException(programName + " executable not found. " +
+                                    "Please define a valid environment variable " + pathEnvs.iterator().next() +
+                                    " pointing to the " + programName + " executable.");
+  }
+
+  protected static String findInPath(String programName, String unixExec, String winExec) {
+    String path = System.getenv(SystemInfo.isWindows ? "Path" : "PATH");
+    if (path != null) {
+      String name = SystemInfo.isWindows ? winExec : unixExec;
+      for (String dir : path.split(File.pathSeparator)) {
+        File file = new File(dir, name);
+        if (file.canExecute()) {
+          log("Using " + programName + " from PATH: " + file.getPath());
+          return file.getPath();
+        }
+      }
+    }
+    return null;
+  }
+
+  protected static String findInPathEnvs(String programName, Collection<String> pathEnvs) {
     for (String pathEnv : pathEnvs) {
       String exec = System.getenv(pathEnv);
       if (exec != null && new File(exec).canExecute()) {
@@ -155,22 +228,7 @@ public class Executor {
         return exec;
       }
     }
-
-    String path = System.getenv(SystemInfo.isWindows ? "Path" : "PATH");
-    if (path != null) {
-      String name = SystemInfo.isWindows ? winExec : unixExec;
-      for (String dir : path.split(File.pathSeparator)) {
-        File file = new File(dir, name);
-        if (file.canExecute()) {
-          log("Using " + programName + " from PATH");
-          return file.getPath();
-        }
-      }
-    }
-
-    throw new IllegalStateException(programName + " executable not found. " +
-                                    "Please define a valid environment variable " + pathEnvs.iterator().next() +
-                                    " pointing to the " + programName + " executable.");
+    return null;
   }
 
   protected static void log(String msg) {

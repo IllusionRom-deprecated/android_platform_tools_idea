@@ -76,6 +76,7 @@ public class ExpressionParserTest extends JavaParsingTestCase {
   public void testNew14() { doParserTest("Q.new A()"); }
   public void testNew15() { doParserTest("new C<?>.B()"); }
   public void testNew16() { doParserTest("new C<>()"); }
+  public void testNew17() { doParserTest("new Map<String, >()"); }
 
   public void testExprList0() { doParserTest("f(1,2)"); }
   public void testExprList1() { doParserTest("f("); }
@@ -115,6 +116,8 @@ public class ExpressionParserTest extends JavaParsingTestCase {
   public void testPrimitiveFieldAccess() { doParserTest("int.x"); }
   public void testChainedClassObjectAccess() { doParserTest("A.class.B.class"); }
   public void testChainedThisObjectAccess() { doParserTest("A.this.B.this"); }
+  public void testAnnotatedRefExpr0() { doParserTest("@A C1.@B() C2"); }
+  public void testAnnotatedRefExpr1() { doParserTest("@A C1.@B() ()"); }
 
   public void testMethodRef0() { doParserTest("a.b.C::m"); }
   public void testMethodRef1() { doParserTest("a.b.C<T>::new"); }

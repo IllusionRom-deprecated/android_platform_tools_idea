@@ -60,7 +60,7 @@ public class PsiParameterStubImpl extends StubBase<PsiParameter> implements PsiP
   @Override
   @NotNull
   public TypeInfo getType(boolean doResolve) {
-    return doResolve ? PsiFieldStubImpl.addApplicableTypeAnnotationsFromChildModifierList(this, myType) : myType;
+    return doResolve ? myType.applyAnnotations(this) : myType;
   }
 
   @Override
@@ -97,6 +97,6 @@ public class PsiParameterStubImpl extends StubBase<PsiParameter> implements PsiP
 
   @Override
   public String toString() {
-    return "PsiParameterStub[" + myName + ':' + TypeInfo.createTypeText(getType(false)) + ']';
+    return "PsiParameterStub[" + myName + ':' + myType + ']';
   }
 }

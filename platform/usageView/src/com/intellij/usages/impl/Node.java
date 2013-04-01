@@ -28,9 +28,9 @@ import javax.swing.tree.DefaultTreeModel;
  */
 public abstract class Node extends DefaultMutableTreeNode {
   protected final DefaultTreeModel myTreeModel;
-  private String myText;
+  private String myCachedText;
 
-  private byte flags;
+  private byte myCachedFlags; // bit packed flags below:
   private static final int INVALID_FLAG = 0;
   private static final int READ_ONLY_FLAG = 1;
   private static final int READ_ONLY_COMPUTED_FLAG = 2;
@@ -41,13 +41,13 @@ public abstract class Node extends DefaultMutableTreeNode {
   @interface FlagConstant {}
 
   private boolean isFlagSet(@FlagConstant int flag) {
-    int state = flags >> flag;
+    int state = myCachedFlags >> flag;
     return (state & 1) != 0;
   }
 
   private void setFlag(@FlagConstant int flag, boolean value) {
     int state = value ? 1 : 0;
-    flags = (byte)(flags & ~(1 << flag) | state << flag);
+    myCachedFlags = (byte)(myCachedFlags & ~(1 << flag) | state << flag);
   }
 
   protected Node(@NotNull DefaultTreeModel model) {
@@ -59,9 +59,16 @@ public abstract class Node extends DefaultMutableTreeNode {
    */
   public abstract String tree2string(int indent, String lineSeparator);
 
+  /**
+   * isDataXXX methods perform actual (expensive) data computation.
+   * Called from  {@link #update(com.intellij.usages.UsageView)})
+   * to be compared later with cached data stored in {@link #myCachedFlags} and {@link #myCachedText}
+   */
   protected abstract boolean isDataValid();
   protected abstract boolean isDataReadOnly();
   protected abstract boolean isDataExcluded();
+
+
   protected abstract String getText(@NotNull UsageView view);
 
   public final boolean isValid() {
@@ -93,15 +100,15 @@ public abstract class Node extends DefaultMutableTreeNode {
     String text = getText(view);
 
     boolean cachedValid = isValid();
-    boolean cachedExcluded = isFlagSet(EXCLUDED_FLAG);
     boolean cachedReadOnly = isFlagSet(READ_ONLY_FLAG);
+    boolean cachedExcluded = isFlagSet(EXCLUDED_FLAG);
 
-    if (isDataValid != cachedValid || isReadOnly != cachedReadOnly || isExcluded != cachedExcluded || !Comparing.equal(myText, text)) {
+    if (isDataValid != cachedValid || isReadOnly != cachedReadOnly || isExcluded != cachedExcluded || !Comparing.equal(myCachedText, text)) {
       setFlag(INVALID_FLAG, !isDataValid);
       setFlag(READ_ONLY_FLAG, isReadOnly);
       setFlag(EXCLUDED_FLAG, isExcluded);
 
-      myText = text;
+      myCachedText = text;
       updateNotify();
       myTreeModel.nodeChanged(this);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import java.util.Map;
 
 public final class IconLoader {
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.util.IconLoader");
+  private static boolean USE_DARK_ICONS = UIUtil.isUnderDarcula();
 
   @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
   private static final ConcurrentHashMap<URL, Icon> ourIconsCache = new ConcurrentHashMap<URL, Icon>(100, 0.9f,2);
@@ -77,6 +78,8 @@ public final class IconLoader {
     ourDeprecatedIconsReplacements.put("/inspector/useFilter.png", "AllIcons.General.Filter");
 
     ourDeprecatedIconsReplacements.put("/actions/showSource.png", "AllIcons.Actions.Preview");
+    ourDeprecatedIconsReplacements.put("/actions/consoleHistory.png", "AllIcons.General.MessageHistory");
+    ourDeprecatedIconsReplacements.put("/vcs/messageHistory.png", "AllIcons.General.MessageHistory");
   }
 
   private static final ImageIcon EMPTY_ICON = new ImageIcon(UIUtil.createImage(1, 1, BufferedImage.TYPE_3BYTE_BGR)) {
@@ -94,6 +97,13 @@ public final class IconLoader {
   public static Icon getIcon(@NotNull final Image image) {
     return new MyImageIcon(image);
   }
+
+  public static void setUseDarkIcons(boolean useDarkIcons) {
+    USE_DARK_ICONS = useDarkIcons;
+    ourIconsCache.clear();
+    ourIcon2DisabledIcon.clear();
+  }
+
 
   //TODO[kb] support iconsets
   //public static Icon getIcon(@NotNull final String path, @NotNull final String darkVariantPath) {
@@ -263,10 +273,10 @@ public final class IconLoader {
       icon.paintIcon(LabelHolder.ourFakeComponent, graphics, 0, 0);
 
       graphics.dispose();
-      
+
       Image img = createDisabled(image);
       if (UIUtil.isRetina()) img = RetinaImage.createFrom(img, 2, ImageLoader.ourComponent);
-      
+
       disabledIcon = new MyImageIcon(img);
       ourIcon2DisabledIcon.put(icon, disabledIcon);
     }
@@ -332,7 +342,7 @@ public final class IconLoader {
           myRealIcon= new SoftReference<Icon>(icon);
         }
       }
-      
+
       return icon != null ? icon : EMPTY_ICON;
     }
 
@@ -367,6 +377,7 @@ public final class IconLoader {
   public abstract static class LazyIcon implements Icon {
     private boolean myWasComputed;
     private Icon myIcon;
+    private boolean isDarkVariant = USE_DARK_ICONS;
 
     @Override
     public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -389,7 +400,8 @@ public final class IconLoader {
     }
 
     protected synchronized final Icon getOrComputeIcon() {
-      if (!myWasComputed) {
+      if (!myWasComputed || isDarkVariant != USE_DARK_ICONS) {
+        isDarkVariant = USE_DARK_ICONS;
         myWasComputed = true;
         myIcon = compute();
       }

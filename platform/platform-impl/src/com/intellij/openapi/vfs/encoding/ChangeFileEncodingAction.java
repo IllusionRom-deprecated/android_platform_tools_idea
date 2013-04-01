@@ -52,7 +52,6 @@ public class ChangeFileEncodingAction extends AnAction implements DumbAware {
   }
 
   public ChangeFileEncodingAction(boolean allowDirectories) {
-    super("File Encoding");
     this.allowDirectories = allowDirectories;
   }
 
@@ -62,10 +61,7 @@ public class ChangeFileEncodingAction extends AnAction implements DumbAware {
     Document document = documentManager.getDocument(virtualFile);
     if (document == null) return false;
 
-    boolean canConvert = EncodingUtil.checkCanConvert(virtualFile) == null;
-    boolean canReload = EncodingUtil.checkCanReload(virtualFile).second == null;
-
-    return canConvert || canReload;
+    return EncodingUtil.checkCanConvert(virtualFile) == null || EncodingUtil.checkCanReload(virtualFile).second == null;
   }
 
   @Override
@@ -94,7 +90,7 @@ public class ChangeFileEncodingAction extends AnAction implements DumbAware {
     Editor editor = PlatformDataKeys.EDITOR.getData(dataContext);
     FileDocumentManager documentManager = FileDocumentManager.getInstance();
     final Document document = documentManager.getDocument(virtualFile);
-    if (!allowDirectories && !virtualFile.isDirectory() && document == null) return null;
+    if (!allowDirectories && virtualFile.isDirectory() || document == null && !virtualFile.isDirectory()) return null;
 
     final byte[] bytes;
     try {
@@ -127,9 +123,13 @@ public class ChangeFileEncodingAction extends AnAction implements DumbAware {
        return createCharsetsActionGroup(clearItemText, null, new Function<Charset, String>() {
          @Override
          public String fun(Charset charset) {
+           assert myFile.isDirectory() || text != null : charset;
            EncodingUtil.Magic8 safeToReload = myFile.isDirectory() ? EncodingUtil.Magic8.ABSOLUTELY : EncodingUtil.isSafeToReloadIn(myFile, text, bytes, charset);
-           EncodingUtil.Magic8 safeToConvert = myFile.isDirectory() ? EncodingUtil.Magic8.ABSOLUTELY : EncodingUtil.isSafeToConvertTo(myFile, text, bytes, charset);
-           boolean enabled = safeToReload != EncodingUtil.Magic8.NO_WAY || safeToConvert != EncodingUtil.Magic8.NO_WAY;
+           boolean enabled = safeToReload != EncodingUtil.Magic8.NO_WAY;
+           if (!enabled) {
+             EncodingUtil.Magic8 safeToConvert = myFile.isDirectory() ? EncodingUtil.Magic8.ABSOLUTELY : EncodingUtil.isSafeToConvertTo(myFile, text, bytes, charset);
+             enabled = safeToConvert != EncodingUtil.Magic8.NO_WAY;
+           }
            return enabled ? "Change encoding to '"+charset.displayName()+"'" : null;
          }
        }); // no 'clear'
@@ -163,7 +163,6 @@ public class ChangeFileEncodingAction extends AnAction implements DumbAware {
 
     if (isSafeToConvert == EncodingUtil.Magic8.ABSOLUTELY && isSafeToReload == EncodingUtil.Magic8.ABSOLUTELY) {
       //change and forget
-      EncodingManager.getInstance().setEncoding(virtualFile, charset);
       undo = new Runnable() {
         @Override
         public void run() {
@@ -178,7 +177,7 @@ public class ChangeFileEncodingAction extends AnAction implements DumbAware {
       };
     }
     else {
-      IncompatibleEncodingDialog dialog = new IncompatibleEncodingDialog(document, virtualFile, bytes, charset, isSafeToReload, isSafeToConvert);
+      IncompatibleEncodingDialog dialog = new IncompatibleEncodingDialog(virtualFile, charset, isSafeToReload, isSafeToConvert);
       dialog.show();
       if (dialog.getExitCode() == IncompatibleEncodingDialog.RELOAD_EXIT_CODE) {
         undo = new Runnable() {

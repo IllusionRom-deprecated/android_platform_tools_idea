@@ -128,6 +128,7 @@ public class CompileDriver {
   private static final boolean GENERATE_CLASSPATH_INDEX = "true".equals(System.getProperty("generate.classpath.index"));
   private static final String PROP_PERFORM_INITIAL_REFRESH = "compiler.perform.outputs.refresh.on.start";
   private static final Key<Boolean> REFRESH_DONE_KEY = Key.create("_compiler.initial.refresh.done_");
+  private static final Key<Boolean> COMPILATION_STARTED_AUTOMATICALLY = Key.create("compilation_started_automatically");
 
   private static final FileProcessingCompilerAdapterFactory FILE_PROCESSING_COMPILER_ADAPTER_FACTORY = new FileProcessingCompilerAdapterFactory() {
     public FileProcessingCompilerAdapter create(CompileContext context, FileProcessingCompiler compiler) {
@@ -221,7 +222,7 @@ public class CompileDriver {
       scope = addAdditionalRoots(scope, ALL_EXCEPT_SOURCE_PROCESSING);
     }
 
-    final CompilerTask task = new CompilerTask(myProject, "Classes up-to-date check", true, false, false);
+    final CompilerTask task = new CompilerTask(myProject, "Classes up-to-date check", true, false, false, isCompilationStartedAutomatically(scope));
     final DependencyCache cache = useOutOfProcessBuild()? null : createDependencyCache();
     final CompileContextImpl compileContext = new CompileContextImpl(myProject, task, scope, cache, true, false);
 
@@ -254,20 +255,7 @@ public class CompileDriver {
             return;
           }
           try {
-            final Collection<String> paths = CompileScopeUtil.fetchFiles(compileContext);
-            List<TargetTypeBuildScope> scopes = new ArrayList<TargetTypeBuildScope>();
-            if (paths.isEmpty()) {
-              if (!compileContext.isRebuild() && !CompileScopeUtil.allProjectModulesAffected(compileContext)) {
-                CompileScopeUtil.addScopesForModules(Arrays.asList(compileContext.getCompileScope().getAffectedModules()), scopes);
-              }
-              else {
-                scopes.addAll(CmdlineProtoUtil.createAllModulesScopes());
-              }
-              for (BuildTargetScopeProvider provider : BuildTargetScopeProvider.EP_NAME.getExtensions()) {
-                scopes = CompileScopeUtil.mergeScopes(scopes, provider.getBuildTargetScopes(compileContext.getCompileScope(), myCompilerFilter, myProject));
-              }
-            }
-            final RequestFuture future = compileInExternalProcess(compileContext, scopes, paths, true);
+            final RequestFuture future = compileInExternalProcess(compileContext, true);
             if (future != null) {
               while (!future.waitFor(200L , TimeUnit.MILLISECONDS)) {
                 if (indicator.isCanceled()) {
@@ -448,6 +436,15 @@ public class CompileDriver {
     return scope;
   }
 
+  public static void setCompilationStartedAutomatically(CompileScope scope) {
+    //todo[nik] pass this option as a parameter to compile/make methods instead
+    scope.putUserData(COMPILATION_STARTED_AUTOMATICALLY, Boolean.TRUE);
+  }
+
+  private static boolean isCompilationStartedAutomatically(CompileScope scope) {
+    return Boolean.TRUE.equals(scope.getUserData(COMPILATION_STARTED_AUTOMATICALLY));
+  }
+
   private void attachAnnotationProcessorsOutputDirectories(CompileContextEx context) {
     final LocalFileSystem lfs = LocalFileSystem.getInstance();
     final CompilerConfiguration config = CompilerConfiguration.getInstance(myProject);
@@ -474,12 +471,24 @@ public class CompileDriver {
   }
 
   @Nullable
-  private RequestFuture compileInExternalProcess(final @NotNull CompileContextImpl compileContext,
-                                                 @NotNull List<TargetTypeBuildScope> scopes,
-                                                 final @NotNull Collection<String> paths,
-                                                 final boolean onlyCheckUpToDate)
+  private RequestFuture compileInExternalProcess(final @NotNull CompileContextImpl compileContext, final boolean onlyCheckUpToDate)
     throws Exception {
     final CompileScope scope = compileContext.getCompileScope();
+    final Collection<String> paths = CompileScopeUtil.fetchFiles(compileContext);
+    List<TargetTypeBuildScope> scopes = new ArrayList<TargetTypeBuildScope>();
+    final boolean forceBuild = !compileContext.isMake();
+    if (!compileContext.isRebuild() && !CompileScopeUtil.allProjectModulesAffected(compileContext)) {
+      CompileScopeUtil.addScopesForModules(Arrays.asList(scope.getAffectedModules()), scopes, forceBuild);
+    }
+    else {
+      scopes.addAll(CmdlineProtoUtil.createAllModulesScopes(forceBuild));
+    }
+    if (paths.isEmpty()) {
+      for (BuildTargetScopeProvider provider : BuildTargetScopeProvider.EP_NAME.getExtensions()) {
+        scopes = CompileScopeUtil.mergeScopes(scopes, provider.getBuildTargetScopes(scope, myCompilerFilter, myProject, forceBuild));
+      }
+    }
+
     // need to pass scope's user data to server
     final Map<String, String> builderParams;
     if (onlyCheckUpToDate) {
@@ -630,12 +639,16 @@ public class CompileDriver {
 
     final String contentName =
       forceCompile ? CompilerBundle.message("compiler.content.name.compile") : CompilerBundle.message("compiler.content.name.make");
-    final CompilerTask compileTask = new CompilerTask(myProject, contentName, ApplicationManager.getApplication().isUnitTestMode(), true, true);
+    final CompilerTask compileTask = new CompilerTask(myProject, contentName, ApplicationManager.getApplication().isUnitTestMode(), true, true,
+                                                      isCompilationStartedAutomatically(scope));
 
     StatusBar.Info.set("", myProject, "Compiler");
     if (useExtProcessBuild) {
       // ensure the project model seen by build process is up-to-date
       myProject.save();
+      if (!ApplicationManager.getApplication().isUnitTestMode()) {
+        ApplicationManager.getApplication().saveSettings();
+      }
     }
     PsiDocumentManager.getInstance(myProject).commitAllDocuments();
     FileDocumentManager.getInstance().saveAllDocuments();
@@ -680,20 +693,7 @@ public class CompileDriver {
               return;
             }
 
-            final Collection<String> paths = CompileScopeUtil.fetchFiles(compileContext);
-            List<TargetTypeBuildScope> scopes = new ArrayList<TargetTypeBuildScope>();
-            if (paths.isEmpty()) {
-              if (!isRebuild && !CompileScopeUtil.allProjectModulesAffected(compileContext)) {
-                CompileScopeUtil.addScopesForModules(Arrays.asList(compileContext.getCompileScope().getAffectedModules()), scopes);
-              }
-              else {
-                scopes.addAll(CmdlineProtoUtil.createAllModulesScopes());
-              }
-              for (BuildTargetScopeProvider provider : BuildTargetScopeProvider.EP_NAME.getExtensions()) {
-                scopes = CompileScopeUtil.mergeScopes(scopes, provider.getBuildTargetScopes(scope, myCompilerFilter, myProject));
-              }
-            }
-            final RequestFuture future = compileInExternalProcess(compileContext, scopes, paths, false);
+            final RequestFuture future = compileInExternalProcess(compileContext, false);
             if (future != null) {
               while (!future.waitFor(200L , TimeUnit.MILLISECONDS)) {
                 if (indicator.isCanceled()) {
@@ -2272,7 +2272,7 @@ public class CompileDriver {
   }
 
   public void executeCompileTask(final CompileTask task, final CompileScope scope, final String contentName, final Runnable onTaskFinished) {
-    final CompilerTask progressManagerTask = new CompilerTask(myProject, contentName, false, false, true);
+    final CompilerTask progressManagerTask = new CompilerTask(myProject, contentName, false, false, true, isCompilationStartedAutomatically(scope));
     final CompileContextImpl compileContext = new CompileContextImpl(myProject, progressManagerTask, scope, null, false, false);
 
     FileDocumentManager.getInstance().saveAllDocuments();

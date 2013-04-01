@@ -21,6 +21,7 @@ import com.intellij.designer.designSurface.DesignerEditorPanel;
 import com.intellij.designer.designSurface.EditableArea;
 import com.intellij.designer.designSurface.tools.ComponentPasteFactory;
 import com.intellij.designer.designSurface.tools.PasteTool;
+import com.intellij.designer.model.IComponentDeletionParticipant;
 import com.intellij.designer.model.IGroupDeleteComponent;
 import com.intellij.designer.model.RadComponent;
 import com.intellij.ide.CopyProvider;
@@ -40,6 +41,7 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Alexander Lobas
@@ -94,27 +96,56 @@ public class CommonEditActionsProvider implements DeleteProvider, CopyProvider, 
         }
 
         myDesigner.getToolProvider().loadDefaultTool();
-
         List<RadComponent> components = RadComponent.getPureSelection(selection);
-
-        RadComponent newSelection = getNewSelection(components.get(0), selection);
-        if (newSelection == null) {
-          area.deselectAll();
-        }
-        else {
-          area.select(newSelection);
-        }
-
-        if (components.get(0) instanceof IGroupDeleteComponent) {
-          ((IGroupDeleteComponent)components.get(0)).delete(components);
-        }
-        else {
-          for (RadComponent component : components) {
-            component.delete();
-          }
-        }
+        updateSelectionBeforeDelete(area, components.get(0), selection);
+        handleDeletion(components);
       }
     }, DesignerBundle.message("command.delete.selection"), true);
+  }
+
+  private static void handleDeletion(@NotNull List<RadComponent> components) throws Exception {
+    // Segment the deleted components into lists of siblings
+    Map<RadComponent, List<RadComponent>> siblingLists = RadComponent.groupSiblings(components);
+
+    // Notify parent components about children getting deleted
+    for (Map.Entry<RadComponent, List<RadComponent>> entry : siblingLists.entrySet()) {
+      RadComponent parent = entry.getKey();
+      List<RadComponent> children = entry.getValue();
+      boolean finished = false;
+      if (parent instanceof IComponentDeletionParticipant) {
+        IComponentDeletionParticipant handler = (IComponentDeletionParticipant)parent;
+        finished = handler.deleteChildren(parent, children);
+      }
+      else if (parent.getLayout() instanceof IComponentDeletionParticipant) {
+        IComponentDeletionParticipant handler = (IComponentDeletionParticipant)parent.getLayout();
+        finished = handler.deleteChildren(parent, children);
+      }
+
+      if (!finished) {
+        deleteComponents(children);
+      }
+    }
+  }
+
+  private static void deleteComponents(List<RadComponent> components) throws Exception {
+    if (components.get(0) instanceof IGroupDeleteComponent) {
+      ((IGroupDeleteComponent)components.get(0)).delete(components);
+    }
+    else {
+      for (RadComponent component : components) {
+        component.delete();
+      }
+    }
+  }
+
+  public static void updateSelectionBeforeDelete(EditableArea area, RadComponent component, List<RadComponent> excludes) {
+    RadComponent newSelection = getNewSelection(component, excludes);
+    if (newSelection == null) {
+      area.deselectAll();
+    }
+    else {
+      area.select(newSelection);
+    }
   }
 
   @Nullable

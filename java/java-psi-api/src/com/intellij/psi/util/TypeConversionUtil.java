@@ -708,7 +708,7 @@ public class TypeConversionUtil {
     }
 
     if (left instanceof PsiCapturedWildcardType) {
-      return left.equals(right) || isAssignable(((PsiCapturedWildcardType)left).getLowerBound(), right, false);
+      return left.equals(right) || isAssignable(((PsiCapturedWildcardType)left).getLowerBound(), right, allowUncheckedConversion);
     }
     if (right instanceof PsiCapturedWildcardType) {
       return isAssignable(left, ((PsiCapturedWildcardType)right).getUpperBound(), allowUncheckedConversion);
@@ -896,7 +896,9 @@ public class TypeConversionUtil {
     PsiSubstitutor leftSubstitutor = leftResult.getSubstitutor();
 
     if (!leftClass.getManager().areElementsEquivalent(leftClass, rightClass)) {
-      if (!allowUncheckedConversion && PsiUtil.isRawSubstitutor(leftClass, leftSubstitutor) && !rightClass.hasTypeParameters() && !(rightClass instanceof PsiTypeParameter)) return false;
+      if (!allowUncheckedConversion && PsiUtil.isRawSubstitutor(leftClass, leftSubstitutor) && !rightClass.hasTypeParameters() && !(rightClass instanceof PsiTypeParameter)) {
+        return false;
+      }
       rightSubstitutor = getSuperClassSubstitutor(leftClass, rightClass, rightSubstitutor);
       rightClass = leftClass;
     }

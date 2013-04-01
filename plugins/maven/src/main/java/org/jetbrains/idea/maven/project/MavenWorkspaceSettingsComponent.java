@@ -16,7 +16,6 @@
 package org.jetbrains.idea.maven.project;
 
 import com.intellij.openapi.components.*;
-import com.intellij.openapi.components.StoragePathMacros;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 

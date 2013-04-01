@@ -29,7 +29,10 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
 
 public class UrlClassLoader extends ClassLoader {
   private final ClassPath myClassPath;
@@ -51,27 +54,30 @@ public class UrlClassLoader extends ClassLoader {
   }
 
   public UrlClassLoader(List<URL> urls, @Nullable ClassLoader parent, boolean canLockJars, boolean canUseCache) {
-    this(urls, parent, canLockJars, canUseCache, false);
+    this(urls, parent, canLockJars, canUseCache, false, true);
   }
 
-  public UrlClassLoader(List<URL> urls, @Nullable ClassLoader parent, boolean canLockJars, boolean canUseCache, boolean acceptUnescapedUrls) {
+  public UrlClassLoader(List<URL> urls, @Nullable ClassLoader parent, boolean canLockJars, boolean canUseCache, boolean acceptUnescapedUrls, final boolean preloadJarContents) {
     super(parent);
 
     List<URL> list = ContainerUtil.map(urls, new Function<URL, URL>() {
       @Override
       public URL fun(URL url) {
-        return internFileProtocol(url);
+        return internProtocol(url);
       }
     });
-    myClassPath = new ClassPath(list.toArray(new URL[list.size()]), canLockJars, canUseCache, acceptUnescapedUrls);
+    myClassPath = new ClassPath(list.toArray(new URL[list.size()]), canLockJars, canUseCache, acceptUnescapedUrls, preloadJarContents);
     myURLs = list;
   }
 
   @NotNull
-  private static URL internFileProtocol(@NotNull URL url) {
+  public static URL internProtocol(@NotNull URL url) {
     try {
       if ("file".equals(url.getProtocol())) {
         return new URL("file", url.getHost(), url.getPort(), url.getFile());
+      }
+      if ("jar".equals(url.getProtocol())) {
+        return new URL("jar", url.getHost(), url.getPort(), url.getFile());
       }
       return url;
     }
@@ -112,7 +118,7 @@ public class UrlClassLoader extends ClassLoader {
   }
 
   @Nullable
-  protected Class _findClass(final String name) {
+  protected Class _findClass(@NotNull String name) {
     Resource res = myClassPath.getResource(name.replace('.', '/').concat(CLASS_EXTENSION), false);
     if (res == null) {
       return null;
