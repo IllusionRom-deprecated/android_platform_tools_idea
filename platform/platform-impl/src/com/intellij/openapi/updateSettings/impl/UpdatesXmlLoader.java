@@ -16,6 +16,7 @@
 package com.intellij.openapi.updateSettings.impl;
 
 
+import com.google.common.net.HttpHeaders;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.reporter.ConnectionException;
 import com.intellij.openapi.application.ApplicationManager;
@@ -24,6 +25,7 @@ import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.net.HttpConfigurable;
+import org.apache.commons.httpclient.HttpStatus;
 import org.jdom.JDOMException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,7 +33,9 @@ import org.jetbrains.annotations.Nullable;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -67,7 +71,27 @@ public class UpdatesXmlLoader {
 
           URL requestUrl = prepareRequestUrl(updateUrl);
 
-          final InputStream inputStream = requestUrl.openStream();
+          URLConnection cnx;
+          int followCount = 2;
+          while(true) {
+            cnx = requestUrl.openConnection();
+
+            if (cnx instanceof HttpURLConnection) {
+              HttpURLConnection hcnx = (HttpURLConnection)cnx;
+              int code = hcnx.getResponseCode();
+              if (code >= 301 && code <= 307 && --followCount >= 0) {
+                String loc = hcnx.getHeaderField(HttpHeaders.LOCATION);
+                if (loc != null) {
+                  prepareUrl(loc);
+                  requestUrl = prepareRequestUrl(loc);
+                  continue;
+                }
+              }
+            }
+            break;
+          }
+
+          final InputStream inputStream = cnx.getInputStream();
           Reader reader = new InputStreamReader(inputStream);
           try {
             return new UpdatesInfo(JDOMUtil.loadDocument(inputStream).getRootElement());
