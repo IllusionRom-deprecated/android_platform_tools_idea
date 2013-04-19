@@ -19,6 +19,7 @@
       <module fileurl="file://$PROJECT_DIR$/plugins/ant/ant.iml" filepath="$PROJECT_DIR$/plugins/ant/ant.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/plugins/ant/jps-plugin/ant-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/ant/jps-plugin/ant-jps-plugin.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/jps/antLayout/antlayout.iml" filepath="$PROJECT_DIR$/jps/antLayout/antlayout.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/runtime/appEngine-runtime.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/runtime/appEngine-runtime.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/svn4idea/bindSvn/bindSvn.iml" filepath="$PROJECT_DIR$/plugins/svn4idea/bindSvn/bindSvn.iml" group="plugins/VCS" />
       <module fileurl="file://$PROJECT_DIR$/platform/boot/boot.iml" filepath="$PROJECT_DIR$/platform/boot/boot.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/platform/bootstrap/bootstrap.iml" filepath="$PROJECT_DIR$/platform/bootstrap/bootstrap.iml" group="platform" />
@@ -51,12 +52,15 @@
       <module fileurl="file://$PROJECT_DIR$/java/execution/impl/execution-impl.iml" filepath="$PROJECT_DIR$/java/execution/impl/execution-impl.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/java/execution/openapi/execution-openapi.iml" filepath="$PROJECT_DIR$/java/execution/openapi/execution-openapi.iml" group="java" />
       <module fileurl="file://$PROJECT_DIR$/platform/extensions/extensions.iml" filepath="$PROJECT_DIR$/platform/extensions/extensions.iml" group="platform" />
+      <module fileurl="file://$PROJECT_DIR$/platform/external-system/external-system.iml" filepath="$PROJECT_DIR$/platform/external-system/external-system.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/java/compiler/forms-compiler/forms-compiler.iml" filepath="$PROJECT_DIR$/java/compiler/forms-compiler/forms-compiler.iml" group="java/compiler" />
       <module fileurl="file://$PROJECT_DIR$/platform/forms_rt/forms_rt.iml" filepath="$PROJECT_DIR$/platform/forms_rt/forms_rt.iml" group="platform" />
       <module fileurl="file://$PROJECT_DIR$/plugins/generate-tostring/generate-tostring.iml" filepath="$PROJECT_DIR$/plugins/generate-tostring/generate-tostring.iml" group="plugins" />
       <module fileurl="file://$PROJECT_DIR$/plugins/git4idea/git4idea.iml" filepath="$PROJECT_DIR$/plugins/git4idea/git4idea.iml" group="plugins/VCS" />
       <module fileurl="file://$PROJECT_DIR$/plugins/git4idea/rt/git4idea-rt.iml" filepath="$PROJECT_DIR$/plugins/git4idea/rt/git4idea-rt.iml" group="plugins/VCS" />
       <module fileurl="file://$PROJECT_DIR$/plugins/github/github.iml" filepath="$PROJECT_DIR$/plugins/github/github.iml" group="plugins" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/google-app-engine.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/google-app-engine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/google-app-engine/jps-plugin/google-app-engine-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/google-app-engine/jps-plugin/google-app-engine-jps-plugin.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/gradle/gradle.iml" filepath="$PROJECT_DIR$/plugins/gradle/gradle.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/groovy/jps-plugin/groovy-jps-plugin.iml" filepath="$PROJECT_DIR$/plugins/groovy/jps-plugin/groovy-jps-plugin.iml" group="plugins/Groovy" />
       <module fileurl="file://$PROJECT_DIR$/plugins/groovy/rt-constants/groovy-rt-constants.iml" filepath="$PROJECT_DIR$/plugins/groovy/rt-constants/groovy-rt-constants.iml" group="plugins/Groovy" />

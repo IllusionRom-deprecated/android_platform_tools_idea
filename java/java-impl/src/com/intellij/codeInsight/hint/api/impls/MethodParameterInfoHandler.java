@@ -23,12 +23,14 @@ import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.lang.parameterInfo.*;
 import com.intellij.openapi.project.DumbAware;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.CompletionParameterTypeInferencePolicy;
 import com.intellij.psi.infos.CandidateInfo;
 import com.intellij.psi.infos.MethodCandidateInfo;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.MethodSignatureUtil;
+import com.intellij.psi.util.PsiUtilBase;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.containers.HashSet;
 import org.jetbrains.annotations.NotNull;
@@ -121,15 +123,18 @@ public class MethodParameterInfoHandler implements ParameterInfoHandlerWithTabAc
 
   @Override
   public void updateParameterInfo(@NotNull final PsiExpressionList o, final UpdateParameterInfoContext context) {
-    if (context.getParameterOwner() != o) {
+    PsiElement parameterOwner = context.getParameterOwner();
+    if (parameterOwner != o) {
       context.removeHint();
       return;
     }
+
     int index = ParameterInfoUtils.getCurrentParameterIndex(o.getNode(), context.getOffset(), JavaTokenType.COMMA);
     context.setCurrentParameter(index);
 
     Object[] candidates = context.getObjectsToView();
     PsiExpression[] args = o.getExpressions();
+    PsiElement realResolve = null;
 
     for (int i = 0; i < candidates.length; i++) {
       CandidateInfo candidate = (CandidateInfo)candidates[i];
@@ -198,7 +203,12 @@ public class MethodParameterInfoHandler implements ParameterInfoHandlerWithTabAc
           enabled &&
           parms.length == args.length &&
           isAssignableParametersBeforeGivenIndex(parms, args, args.length, substitutor)) {
-        context.setHighlightedParameter(candidate);
+        if (realResolve == null) {
+          PsiCall call = getCall(o);
+          if (call != null) realResolve = call.resolveMethod();
+          if (realResolve == null) realResolve = PsiUtilBase.NULL_PSI_ELEMENT;
+        }
+        if (realResolve == PsiUtilBase.NULL_PSI_ELEMENT || realResolve == method) context.setHighlightedParameter(candidate);
       }
     }
   }
@@ -301,12 +311,22 @@ public class MethodParameterInfoHandler implements ParameterInfoHandlerWithTabAc
       if (!(argList.getParent() instanceof PsiAnonymousClass)) {
         cand:
         for (CandidateInfo candidate : candidates) {
+          PsiMethod methodCandidate = (PsiMethod)candidate.getElement();
+
           for (CandidateInfo info : result) {
-            if (MethodSignatureUtil.isSuperMethod((PsiMethod)candidate.getElement(), (PsiMethod)info.getElement())) {
+            if (MethodSignatureUtil.isSuperMethod(methodCandidate, (PsiMethod)info.getElement())) {
               continue cand;
             }
           }
-          if (candidate.isStaticsScopeCorrect() && candidate.isAccessible()) result.add(candidate);
+          if (candidate.isStaticsScopeCorrect()) {
+            boolean accessible = candidate.isAccessible();
+            if (!accessible && methodCandidate.getModifierList().hasModifierProperty(PsiModifier.PRIVATE)) {
+              // privates are accessible within one file
+              accessible = JavaPsiFacade.getInstance(methodCandidate.getProject()).getResolveHelper()
+                .isAccessible(methodCandidate, methodCandidate.getModifierList(), call, null, null);
+            }
+            if (accessible) result.add(candidate);
+          }
         }
       }
       else {
@@ -377,7 +397,7 @@ public class MethodParameterInfoHandler implements ParameterInfoHandlerWithTabAc
             paramType = substitutor.substitute(paramType);
           }
           appendModifierList(buffer, param);
-          buffer.append(paramType.getPresentableText());
+          buffer.append(StringUtil.escapeXml(paramType.getPresentableText()));
           String name = param.getName();
           if (name != null) {
             buffer.append(" ");
