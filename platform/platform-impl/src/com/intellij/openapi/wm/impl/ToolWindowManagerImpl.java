@@ -116,6 +116,7 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
   @NonNls private static final String WIDTH_ATTR = "width";
   @NonNls private static final String HEIGHT_ATTR = "height";
   @NonNls private static final String EXTENDED_STATE_ATTR = "extended-state";
+  @NonNls private static final String LAYOUT_TO_RESTORE = "layout-to-restore";
 
   private final FileEditorManager myFileEditorManager;
   private final LafManager myLafManager;
@@ -199,11 +200,11 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
 
     project.getMessageBus().connect().subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, new FileEditorManagerListener() {
       @Override
-      public void fileOpened(FileEditorManager source, VirtualFile file) {
+      public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
       }
 
       @Override
-      public void fileClosed(FileEditorManager source, VirtualFile file) {
+      public void fileClosed(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
         getFocusManagerImpl(myProject).doWhenFocusSettlesDown(new ExpirableRunnable.ForProject(myProject) {
           @Override
           public void run() {
@@ -215,7 +216,7 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
       }
 
       @Override
-      public void selectionChanged(FileEditorManagerEvent event) {
+      public void selectionChanged(@NotNull FileEditorManagerEvent event) {
       }
     });
 
@@ -620,6 +621,7 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
         @Override
         public void run() {
           requestor.requestFocus(new FocusCommand() {
+            @NotNull
             @Override
             public ActionCallback run() {
               runnable.run();
@@ -656,6 +658,7 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
       public void run() {
         if (forced) {
           getFocusManagerImpl(myProject).requestFocus(new FocusCommand() {
+            @NotNull
             @Override
             public ActionCallback run() {
               final ArrayList<FinalizableCommand> cmds = new ArrayList<FinalizableCommand>();
@@ -1876,6 +1879,10 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
       else if (DesktopLayout.TAG.equals(e.getName())) { // read layout of tool windows
         myLayout.readExternal(e);
       }
+      else if (LAYOUT_TO_RESTORE.equals(e.getName())) {
+        myLayoutToRestoreLater = new DesktopLayout();
+        myLayoutToRestoreLater.readExternal(e);
+      }
     }
   }
 
@@ -1914,6 +1921,11 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
     final Element layoutElement = new Element(DesktopLayout.TAG);
     element.addContent(layoutElement);
     myLayout.writeExternal(layoutElement);
+    if (myLayoutToRestoreLater != null) {
+      Element layoutToRestoreElement = new Element(LAYOUT_TO_RESTORE);
+      element.addContent(layoutToRestoreElement);
+      myLayoutToRestoreLater.writeExternal(layoutToRestoreElement);
+    }
   }
 
   public void setDefaultState(@NotNull final ToolWindowImpl toolWindow,
@@ -2253,6 +2265,7 @@ public final class ToolWindowManagerImpl extends ToolWindowManagerEx implements 
 
   public ActionCallback requestDefaultFocus(final boolean forced) {
     return getFocusManagerImpl(myProject).requestFocus(new FocusCommand() {
+      @NotNull
       @Override
       public ActionCallback run() {
         return processDefaultFocusRequest(forced);

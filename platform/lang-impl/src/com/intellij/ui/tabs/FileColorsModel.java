@@ -51,7 +51,7 @@ public class FileColorsModel implements Cloneable {
   static {
     globalScopes = new HashMap<String, String>();
     globalScopes.put(NonProjectFilesScope.NAME, "file.colors.enable.non.project");
-    if (PlatformUtils.isIntelliJ()) {
+    if (PlatformUtils.isIntelliJ() || PlatformUtils.isRubyMine()) {
       globalScopes.put(TestsScope.NAME, "file.colors.enable.tests");
     }
 
@@ -92,8 +92,8 @@ public class FileColorsModel implements Cloneable {
 
   private void initGlobalScopes() {
     for (String scopeName : globalScopes.keySet()) {
-      if (findConfiguration(scopeName, false) == null) {        
-        final String color = PropertiesComponent.getInstance().getOrInit(globalScopes.get(scopeName), globalScopesColors.get(scopeName));        
+      if (findConfiguration(scopeName, false) == null) {
+        final String color = PropertiesComponent.getInstance().getOrInit(globalScopes.get(scopeName), globalScopesColors.get(scopeName));
         if (color.length() != 0) {
           final Color col = ColorUtil.fromHex(color, null);
           final String name = col == null ? null : FileColorManagerImpl.getColorName(col);
@@ -146,6 +146,7 @@ public class FileColorsModel implements Cloneable {
     }
   }
 
+  @Override
   public FileColorsModel clone() throws CloneNotSupportedException {
     final List<FileColorConfiguration> regular = new ArrayList<FileColorConfiguration>();
     for (final FileColorConfiguration configuration : myConfigurations) {

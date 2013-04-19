@@ -30,7 +30,6 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
@@ -175,14 +174,6 @@ public abstract class AbstractConsoleRunnerWithHistory<T extends LanguageConsole
   protected void showConsole(Executor defaultExecutor, RunContentDescriptor myDescriptor) {
     // Show in run toolwindow
     ExecutionManager.getInstance(myProject).getContentManager().showRunContent(defaultExecutor, myDescriptor);
-
-// Request focus
-    final ToolWindow window = ToolWindowManager.getInstance(myProject).getToolWindow(defaultExecutor.getId());
-    window.activate(new Runnable() {
-      public void run() {
-        IdeFocusManager.getInstance(myProject).requestFocus(getLanguageConsole().getCurrentEditor().getContentComponent(), true);
-      }
-    });
   }
 
   protected void finishConsole() {
@@ -270,10 +261,12 @@ public abstract class AbstractConsoleRunnerWithHistory<T extends LanguageConsole
       EmptyAction.setupAction(this, consoleExecuteActionHandler.getEmptyExecuteAction(), null);
     }
 
+    @Override
     public void actionPerformed(final AnActionEvent e) {
       myConsoleExecuteActionHandler.runExecuteAction(myLanguageConsole);
     }
 
+    @Override
     public void update(final AnActionEvent e) {
       final EditorEx editor = myLanguageConsole.getConsoleEditor();
       final Lookup lookup = LookupManager.getActiveLookup(editor);

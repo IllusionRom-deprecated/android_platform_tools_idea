@@ -54,6 +54,7 @@ public class CreateFileAction extends CreateElementActionBase implements DumbAwa
     return CreateFileAction.class.equals(getClass());
   }
 
+  @Override
   @NotNull
   protected PsiElement[] invokeDialog(final Project project, PsiDirectory directory) {
     MyInputValidator validator = new MyValidator(project, directory);
@@ -72,30 +73,46 @@ public class CreateFileAction extends CreateElementActionBase implements DumbAwa
     }
   }
 
+  @Override
   @NotNull
   protected PsiElement[] create(String newName, PsiDirectory directory) throws Exception {
-    if (SystemInfo.isWindows) {
-      newName = newName.replace('\\', '/');
-    }
-    if (newName.contains("/")) {
-      final List<String> subDirs = StringUtil.split(newName, "/");
-      newName = subDirs.remove(subDirs.size() - 1);
-      for (String dir : subDirs) {
-        final PsiDirectory sub = directory.findSubdirectory(dir);
-        directory = sub == null ? directory.createSubdirectory(dir) : sub;
-      }
-    }
-    return new PsiElement[]{directory.createFile(getFileName(newName))};
+    MkDirs mkdirs = new MkDirs(newName, directory);
+    return new PsiElement[]{mkdirs.directory.createFile(getFileName(mkdirs.newName))};
   }
 
+  public static class MkDirs {
+    public final String newName;
+    public final PsiDirectory directory;
+
+    public MkDirs(String newName, PsiDirectory directory) {
+      if (SystemInfo.isWindows) {
+        newName = newName.replace('\\', '/');
+      }
+      if (newName.contains("/")) {
+        final List<String> subDirs = StringUtil.split(newName, "/");
+        newName = subDirs.remove(subDirs.size() - 1);
+        for (String dir : subDirs) {
+          final PsiDirectory sub = directory.findSubdirectory(dir);
+          directory = sub == null ? directory.createSubdirectory(dir) : sub;
+        }
+      }
+
+      this.newName = newName;
+      this.directory = directory;
+    }
+  }
+
+  @Override
   protected String getActionName(PsiDirectory directory, String newName) {
     return IdeBundle.message("progress.creating.file", directory.getVirtualFile().getPresentableUrl(), File.separator, newName);
   }
 
+  @Override
   protected String getErrorTitle() {
     return IdeBundle.message("title.cannot.create.file");
   }
 
+  @Override
   protected String getCommandName() {
     return IdeBundle.message("command.create.file");
   }
@@ -144,6 +161,7 @@ public class CreateFileAction extends CreateElementActionBase implements DumbAwa
       return super.create(newName);
     }
 
+    @Override
     public boolean canClose(String inputString) {
       if (inputString.length() == 0) {
         return super.canClose(inputString);

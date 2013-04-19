@@ -26,6 +26,7 @@ import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -54,6 +55,14 @@ public class PathMappingSettings implements Cloneable {
 
   public PathMappingSettings() {
     myPathMappings = ContainerUtil.newArrayList();
+  }
+
+  public List<String> convertToRemote(Collection<String> paths) {
+    List<String> result = ContainerUtil.newArrayList();
+    for (String p: paths) {
+      result.add(convertToRemote(p));
+    }
+    return result;
   }
 
   private static class BestMappingSelector {
@@ -200,7 +209,7 @@ public class PathMappingSettings implements Cloneable {
     element.addContent(XmlSerializer.serialize(mappings));
   }
 
-  public void addAll(PathMappingSettings settings) {
+  public void addAll(@NotNull PathMappingSettings settings) {
     myPathMappings.addAll(settings.getPathMappings());
   }
 

@@ -38,10 +38,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.arguments.GrArgument
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.blocks.GrClosableBlock;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.blocks.GrOpenBlock;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.branch.*;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.clauses.GrCaseSection;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.clauses.GrForClause;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.clauses.GrForInClause;
-import org.jetbrains.plugins.groovy.lang.psi.api.statements.clauses.GrTraditionalForClause;
+import org.jetbrains.plugins.groovy.lang.psi.api.statements.clauses.*;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.*;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrStringInjection;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.path.GrMethodCallExpression;
@@ -70,18 +67,6 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   private final PsiConstantEvaluationHelper myConstantEvaluator;
   private GroovyPsiElement myScope;
 
-  private static class ExceptionInfo {
-    final GrCatchClause myClause;
-
-    /**
-     * list of nodes containing throw statement with corresponding exception
-     */
-    final List<InstructionImpl> myThrowers = new ArrayList<InstructionImpl>();
-
-    private ExceptionInfo(GrCatchClause clause) {
-      myClause = clause;
-    }
-  }
 
   /**
    * stack of current catch blocks
@@ -110,8 +95,14 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   private List<Pair<InstructionImpl, GroovyPsiElement>> myPending;
 
   private int myInstructionNumber;
+  private final boolean myForRefactoring;
 
   public ControlFlowBuilder(Project project) {
+    this(project, false);
+  }
+
+  public ControlFlowBuilder(Project project, boolean refactoring) {
+    myForRefactoring = refactoring;
     myConstantEvaluator = JavaPsiFacade.getInstance(project).getConstantEvaluationHelper();
   }
 
@@ -924,7 +915,7 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
   private static boolean containsAllCases(GrSwitchStatement statement) {
     final GrCaseSection[] sections = statement.getCaseSections();
     for (GrCaseSection section : sections) {
-      if (section.getCaseLabel().isDefault()) return true;
+      if (section.isDefault()) return true;
     }
 
     final GrExpression condition = statement.getCondition();
@@ -957,9 +948,11 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
 
   @Override
   public void visitCaseSection(GrCaseSection caseSection) {
-    GrExpression value = caseSection.getCaseLabel().getValue();
-    if (value != null) {
-      value.accept(this);
+    for (GrCaseLabel label : caseSection.getCaseLabels()) {
+      GrExpression value = label.getValue();
+      if (value != null) {
+        value.accept(this);
+      }
     }
 
     final GrStatement[] statements = caseSection.getStatements();
@@ -1193,12 +1186,18 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
 
   public void visitVariable(GrVariable variable) {
     super.visitVariable(variable);
-    if (variable.getInitializerGroovy() != null ||
-        variable.getParent() instanceof GrVariableDeclaration &&
-        ((GrVariableDeclaration)variable.getParent()).getTupleInitializer() != null) {
+
+    if (myForRefactoring ||
+        variable.getInitializerGroovy() != null ||
+        hasTupleInitializer(variable)) {
       ReadWriteVariableInstruction writeInst = new ReadWriteVariableInstruction(variable.getName(), variable, WRITE);
       addNodeAndCheckPending(writeInst);
     }
+  }
+
+  private static boolean hasTupleInitializer(@NotNull GrVariable variable) {
+    final PsiElement parent = variable.getParent();
+    return parent instanceof GrVariableDeclaration && ((GrVariableDeclaration)parent).getTupleInitializer() != null;
   }
 
   @Nullable
@@ -1217,4 +1216,16 @@ public class ControlFlowBuilder extends GroovyRecursiveElementVisitor {
     super.visitElement(element);
   }
 
+  private static class ExceptionInfo {
+    final GrCatchClause myClause;
+
+    /**
+     * list of nodes containing throw statement with corresponding exception
+     */
+    final List<InstructionImpl> myThrowers = new ArrayList<InstructionImpl>();
+
+    private ExceptionInfo(GrCatchClause clause) {
+      myClause = clause;
+    }
+  }
 }

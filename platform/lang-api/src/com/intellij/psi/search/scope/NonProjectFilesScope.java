@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,12 +29,13 @@ import com.intellij.util.ArrayUtil;
 /**
  * @author Konstantin Bulenkov
  */
-@Colored(color = "ffffe4", darkVariant = "000029")
+@Colored(color = "ffffe4", darkVariant = "494539")
 public class NonProjectFilesScope extends NamedScope {
   public static final String NAME = "Non-Project Files";
 
   public NonProjectFilesScope() {
     super(NAME, new AbstractPackageSet("NonProject") {
+      @Override
       public boolean contains(VirtualFile file, NamedScopesHolder holder) {
         if (file == null) return true;
         if (file.getFileSystem() != LocalFileSystem.getInstance()) return true;
