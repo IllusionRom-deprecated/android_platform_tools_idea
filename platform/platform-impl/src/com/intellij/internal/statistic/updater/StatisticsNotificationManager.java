@@ -7,6 +7,7 @@ import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationListener;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
+import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.options.ShowSettingsUtil;
@@ -41,7 +42,8 @@ public class StatisticsNotificationManager {
   }
 
   private static String getTitle() {
-    return "Help improve "+ ApplicationNamesInfo.getInstance().getFullProductName() +" by sending anonymous usage statistics to JetBrains";
+    return "Help improve " + ApplicationNamesInfo.getInstance().getFullProductName() +
+           " by sending anonymous usage statistics to " + ApplicationInfo.getInstance().getCompanyName();
   }
 
   private static class MyNotificationListener implements NotificationListener {

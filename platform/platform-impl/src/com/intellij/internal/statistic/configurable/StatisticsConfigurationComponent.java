@@ -16,6 +16,7 @@
 package com.intellij.internal.statistic.configurable;
 
 import com.intellij.internal.statistic.persistence.UsageStatisticsPersistenceComponent;
+import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.util.ui.UIUtil;
 
@@ -35,8 +36,13 @@ public class StatisticsConfigurationComponent {
   private JPanel myRadioButtonPanel;
 
   public StatisticsConfigurationComponent() {
-    myTitle.setText("Help improve "+ ApplicationNamesInfo.getInstance().getFullProductName() + " by sending anonymous usage statistics to JetBrains");
-    myLabel.setText("<html>We're asking your permission to send information about your plugins configuration (what is enabled <br>and what is not) and feature usage statistics (e.g. how frequently you're using code completion).<br>    This data is anonymous, does not contain any personal information, collected for use only by JetBrains<br> and will never be transmitted to any third party.</html>");
+
+    String company = ApplicationInfo.getInstance().getCompanyName();
+
+    myTitle.setText("Help improve " + ApplicationNamesInfo.getInstance().getFullProductName() +
+                    " by sending anonymous usage statistics to " + company);
+    myLabel.setText("<html>We're asking your permission to send information about your plugins configuration (what is enabled <br>and what is not) and feature usage statistics (e.g. how frequently you're using code completion).<br>    " +
+                    "This data is anonymous, does not contain any personal information, collected for use only by " + company  + "<br> and will never be transmitted to any third party.</html>");
     myLabel.setFont(UIUtil.getLabelFont(UIUtil.FontSize.SMALL));
 
     myAllowToSendUsagesCheckBox.addActionListener(new ActionListener() {
@@ -45,6 +51,10 @@ public class StatisticsConfigurationComponent {
         setRadioButtonsEnabled();
       }
     });
+
+    myTitle.setText(myTitle.getText().replace("%company%", company));
+    myLabel.setText(myLabel.getText().replace("%company%", company));
+    myAllowToSendUsagesCheckBox.setText(myAllowToSendUsagesCheckBox.getText().replace("%company%", company));
   }
 
   private void setRadioButtonsEnabled() {
