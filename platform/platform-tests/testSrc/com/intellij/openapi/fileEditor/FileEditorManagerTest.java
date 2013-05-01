@@ -20,14 +20,11 @@ import com.intellij.mock.Mock;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.ExpandMacroToPathMap;
 import com.intellij.openapi.fileEditor.impl.EditorWithProviderComposite;
-import com.intellij.openapi.fileEditor.impl.FileEditorManagerImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.PlatformTestCase;
 import com.intellij.testFramework.PlatformTestUtil;
-import com.intellij.testFramework.fixtures.LightPlatformCodeInsightFixtureTestCase;
-import com.intellij.ui.docking.DockManager;
 import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 import org.jdom.Document;
@@ -48,9 +45,8 @@ import java.util.concurrent.Future;
  * @author Dmitry Avdeev
  *         Date: 4/16/13
  */
-public class FileEditorManagerTest extends LightPlatformCodeInsightFixtureTestCase {
+public class FileEditorManagerTest extends FileEditorManagerTestCase {
 
-  private FileEditorManagerImpl myManager;
   @SuppressWarnings("JUnitTestCaseWithNonTrivialConstructors")
   public FileEditorManagerTest() {
     PlatformTestCase.initPlatformLangPrefix();
@@ -96,6 +92,21 @@ public class FileEditorManagerTest extends LightPlatformCodeInsightFixtureTestCa
     FileEditor[] selectedEditors = myManager.getSelectedEditors();
     assertEquals(1, selectedEditors.length);
     assertEquals("mockEditor", selectedEditors[0].getName());
+  }
+
+  public void testTrackSelectedEditor() throws Exception {
+    PlatformTestUtil.registerExtension(FileEditorProvider.EP_FILE_EDITOR_PROVIDER, new MyFileEditorProvider(), getTestRootDisposable());
+    VirtualFile file = getFile("/src/1.txt");
+    assertNotNull(file);
+    FileEditor[] editors = myManager.openFile(file, true);
+    assertEquals(2, editors.length);
+    assertEquals("Text", myManager.getSelectedEditor(file).getName());
+    myManager.setSelectedEditor(file, "mock");
+    assertEquals("mockEditor", myManager.getSelectedEditor(file).getName());
+
+    VirtualFile file1 = getFile("/src/2.txt");
+    myManager.openFile(file1, true);
+    assertEquals("mockEditor", myManager.getSelectedEditor(file).getName());
   }
 
   private static final String STRING = "<component name=\"FileEditorManager\">\n" +
@@ -164,28 +175,12 @@ public class FileEditorManagerTest extends LightPlatformCodeInsightFixtureTestCa
     future.get();
   }
 
-  public void setUp() throws Exception {
-    super.setUp();
-    myManager = new FileEditorManagerImpl(getProject(), DockManager.getInstance(getProject()));
-  }
-
-  @Override
-  protected void tearDown() throws Exception {
-    myManager.closeAllFiles();
-    super.tearDown();
-  }
-
   @Override
   protected String getTestDataPath() {
     return PlatformTestUtil.getCommunityPath().replace(File.separatorChar, '/') + "/platform/platform-tests/testData/fileEditorManager";
   }
 
-  @Override
-  protected boolean isWriteActionRequired() {
-    return false;
-  }
-
-  private static class MyFileEditorProvider implements FileEditorProvider {
+  static class MyFileEditorProvider implements FileEditorProvider {
     @NotNull
     @Override
     public String getEditorTypeId() {

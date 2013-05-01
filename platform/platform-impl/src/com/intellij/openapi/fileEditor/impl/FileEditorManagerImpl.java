@@ -745,7 +745,7 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
       providers = newSelectedComposite.getProviders();
     }
     else {
-      if (UISettings.getInstance().EDITOR_TAB_PLACEMENT == UISettings.TABS_NONE) {
+      if (UISettings.getInstance().EDITOR_TAB_PLACEMENT == UISettings.TABS_NONE || UISettings.getInstance().PRESENTATION_MODE) {
         for (EditorWithProviderComposite composite : window.getEditors()) {
           Disposer.dispose(composite);
         }
@@ -847,10 +847,18 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
     }
 
     // Restore selected editor
-    final FileEditorProvider selectedProvider = entry == null ? getSelectedFileEditorProvider(editorHistoryManager, file) : entry.mySelectedProvider;
+    final FileEditorProvider[] _providers = newSelectedComposite.getProviders();
+
+    final FileEditorProvider selectedProvider;
+    if (entry == null) {
+      selectedProvider = ((FileEditorProviderManagerImpl)FileEditorProviderManager.getInstance())
+        .getSelectedFileEditorProvider(editorHistoryManager, file, _providers);
+    }
+    else {
+      selectedProvider = entry.mySelectedProvider;
+    }
     if (selectedProvider != null) {
       final FileEditor[] _editors = newSelectedComposite.getEditors();
-      final FileEditorProvider[] _providers = newSelectedComposite.getProviders();
       for (int i = _editors.length - 1; i >= 0; i--) {
         final FileEditorProvider provider = _providers[i];//getProvider(_editors[i]);
         if (provider.equals(selectedProvider)) {
@@ -915,18 +923,6 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
     IdeDocumentHistory.getInstance(myProject).includeCurrentCommandAsNavigation();
 
     return Pair.create(editors, providers);
-  }
-
-  @Nullable
-  private FileEditorProvider getSelectedFileEditorProvider(EditorHistoryManager editorHistoryManager, VirtualFile file) {
-    for (SelectedFileEditorProvider selectedEditorProvider : Extensions
-      .getExtensions(SelectedFileEditorProvider.EP_SELECTED_FILE_EDITOR_PROVIDER)) {
-      FileEditorProvider provider = selectedEditorProvider.getSelectedProvider(myProject, file);
-      if (file != null) {
-        return provider;
-      }
-    }
-    return editorHistoryManager.getSelectedProvider(file);
   }
 
   @NotNull
@@ -1768,7 +1764,7 @@ public class FileEditorManagerImpl extends FileEditorManagerEx implements Projec
   private final class MyUISettingsListener implements UISettingsListener {
     public void uiSettingsChanged(final UISettings source) {
       assertDispatchThread();
-      setTabsMode(source.EDITOR_TAB_PLACEMENT != UISettings.TABS_NONE);
+      setTabsMode(source.EDITOR_TAB_PLACEMENT != UISettings.TABS_NONE && !UISettings.getInstance().PRESENTATION_MODE);
 
       for (EditorsSplitters each : getAllSplitters()) {
         each.setTabsPlacement(source.EDITOR_TAB_PLACEMENT);

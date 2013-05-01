@@ -142,7 +142,7 @@ public class FSRecords implements Forceable {
       int count = filelength / RECORD_SIZE;
       for (int n = 2; n < count; n++) {
         if ((getFlags(n) & FREE_RECORD_FLAG) != 0) {
-          addFreeRecord(n);
+          myFreeRecords.add(n);
         }
       }
     }
@@ -460,10 +460,6 @@ public class FSRecords implements Forceable {
       return new RuntimeException(e);
     }
 
-    private static void addFreeRecord(final int id) {
-      myFreeRecords.add(id);
-    }
-
     private static class AttrPageAwareCapacityAllocationPolicy extends CapacityAllocationPolicy {
       boolean myAttrPageRequested;
 
@@ -593,7 +589,7 @@ public class FSRecords implements Forceable {
   }
 
   private static void addToFreeRecordsList(int id) {
-    DbConnection.addFreeRecord(id);
+    // DbConnection.addFreeRecord(id); // do not add fileId to free list until restart
     setFlags(id, FREE_RECORD_FLAG, false);
   }
 
@@ -1271,7 +1267,7 @@ public class FSRecords implements Forceable {
   }
 
   public static void writeContent(int fileId, ByteSequence bytes, boolean readOnly) throws IOException {
-    new ContentOutputStream(fileId, readOnly).writeBytes(bytes, fileId);
+    new ContentOutputStream(fileId, readOnly).writeBytes(bytes);
   }
 
   public static int storeUnlinkedContent(byte[] bytes) {
@@ -1308,29 +1304,27 @@ public class FSRecords implements Forceable {
 
       try {
         final BufferExposingByteArrayOutputStream _out = (BufferExposingByteArrayOutputStream)out;
-        writeBytes(new ByteSequence(_out.getInternalBuffer(), 0, _out.size()), myFileId);
+        writeBytes(new ByteSequence(_out.getInternalBuffer(), 0, _out.size()));
       }
       catch (Throwable e) {
         throw DbConnection.handleError(e);
       }
     }
 
-    public void writeBytes(ByteSequence bytes, int fileId) throws IOException {
-      final int page;
+    public void writeBytes(ByteSequence bytes) throws IOException {
+      int page;
       RefCountingStorage contentStorage = getContentStorage();
       try {
         w.lock();
-        incModCount(fileId);
+        incModCount(myFileId);
 
         checkFileIsValid(myFileId);
 
-        int recordId = getContentRecordId(myFileId);
-        if (recordId == 0 || contentStorage.getRefCount(recordId) > 1) {
-          recordId = contentStorage.acquireNewRecord();
-          setContentRecordId(myFileId, recordId);
+        page = getContentRecordId(myFileId);
+        if (page == 0 || contentStorage.getRefCount(page) > 1) {
+          page = contentStorage.acquireNewRecord();
+          setContentRecordId(myFileId, page);
         }
-
-        page = recordId;
       }
       finally {
         w.unlock();

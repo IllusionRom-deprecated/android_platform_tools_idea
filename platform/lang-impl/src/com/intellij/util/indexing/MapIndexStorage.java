@@ -17,6 +17,7 @@
 package com.intellij.util.indexing;
 
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.util.LowMemoryWatcher;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.CommonProcessors;
 import com.intellij.util.Processor;
@@ -50,6 +51,20 @@ public final class MapIndexStorage<Key, Value> implements IndexStorage<Key, Valu
   private final Lock l = new ReentrantLock();
   private final DataExternalizer<Value> myDataExternalizer;
   private boolean myHighKeySelectivity;
+  private final LowMemoryWatcher myLowMemoryFlusher = LowMemoryWatcher.register(new Runnable() {
+    @Override
+    public void run() {
+      l.lock();
+      try {
+        if (!myMap.isClosed()) {
+          myCache.clear();
+          if (myMap.isDirty()) myMap.force();
+        }
+      } finally {
+        l.unlock();
+      }
+    }
+  });
 
   public MapIndexStorage(@NotNull File storageFile,
                          @NotNull KeyDescriptor<Key> keyDescriptor,
@@ -137,6 +152,7 @@ public final class MapIndexStorage<Key, Value> implements IndexStorage<Key, Valu
   @Override
   public void close() throws StorageException {
     try {
+      myLowMemoryFlusher.stop();
       flush();
       myMap.close();
     }

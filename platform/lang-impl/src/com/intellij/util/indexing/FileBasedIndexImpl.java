@@ -21,6 +21,7 @@ import com.intellij.history.LocalHistory;
 import com.intellij.ide.caches.CacheUpdater;
 import com.intellij.ide.util.DelegatingProgressIndicator;
 import com.intellij.lang.ASTNode;
+import com.intellij.lang.LangBundle;
 import com.intellij.notification.NotificationDisplayType;
 import com.intellij.notification.NotificationGroup;
 import com.intellij.notification.NotificationType;
@@ -387,13 +388,19 @@ public class FileBasedIndexImpl extends FileBasedIndex {
 
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
-        storage = new MapIndexStorage<K, V>(
-          IndexInfrastructure.getStorageFile(name),
-          extension.getKeyDescriptor(),
-          extension.getValueExternalizer(),
-          extension.getCacheSize(),
-          extension.isKeyHighlySelective()
-        );
+        storage = ProgressManager.getInstance().runProcessWithProgressSynchronously(new ThrowableComputable<MapIndexStorage<K, V>, IOException>() {
+          @Override
+          public MapIndexStorage<K, V> compute() throws IOException {
+            return new MapIndexStorage<K, V>(
+              IndexInfrastructure.getStorageFile(name),
+              extension.getKeyDescriptor(),
+              extension.getValueExternalizer(),
+              extension.getCacheSize(),
+              extension.isKeyHighlySelective()
+            );
+          }
+        }, LangBundle.message("compacting.indices.title"), false, null);
+
         final MemoryIndexStorage<K, V> memStorage = new MemoryIndexStorage<K, V>(storage);
         final UpdatableIndex<K, V, FileContent> index = createIndex(name, extension, memStorage);
         final InputFilter inputFilter = extension.getInputFilter();
@@ -495,7 +502,32 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       @Override
       public PersistentHashMap<Integer, Collection<K>> create() {
         try {
-          return createIdToDataKeysIndex(indexId, keyDescriptor, storage);
+          // this factory method may be called either on index creation from dispatch thread, or on index rebuild
+          // from arbitrary thread and under some existing progress indicator
+          final ProgressManager progressManager = ProgressManager.getInstance();
+          final ProgressIndicator currentProgress = progressManager.getProgressIndicator();
+          if (currentProgress == null && ApplicationManager.getApplication().isDispatchThread()) {
+            return progressManager.runProcessWithProgressSynchronously(
+              new ThrowableComputable<PersistentHashMap<Integer, Collection<K>>, IOException>() {
+                @Override
+                public PersistentHashMap<Integer, Collection<K>> compute() throws IOException {
+                  return createIdToDataKeysIndex(indexId, keyDescriptor, storage);
+                }
+              }, LangBundle.message("compacting.indices.title"), false, null);
+          }
+          if (currentProgress != null)  {
+            // reuse existing progress indicator if available
+            currentProgress.pushState();
+            currentProgress.setText(LangBundle.message("compacting.indices.title"));
+          }
+          try {
+            return createIdToDataKeysIndex(indexId, keyDescriptor, storage);
+          }
+          finally {
+            if (currentProgress != null) {
+              currentProgress.popState();
+            }
+          }
         }
         catch (IOException e) {
           throw new RuntimeException(e);
@@ -1364,17 +1396,21 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         try {
           for (Document document : documents) {
             allDocsProcessed &= indexUnsavedDocument(document, indexId, project, filter, restrictedFile);
+            ProgressManager.checkCanceled();
           }
         }
         finally {
           semaphore.up();
 
           while (!semaphore.waitFor(500)) { // may need to wait until another thread is done with indexing
+            ProgressManager.checkCanceled();
             if (Thread.holdsLock(PsiLock.LOCK)) {
               break; // hack. Most probably that other indexing threads is waiting for PsiLock, which we're are holding.
             }
           }
           if (allDocsProcessed && !hasActiveTransactions()) {
+            ProgressManager.checkCanceled();
+            // assume all tasks were finished or cancelled in the same time
             myUpToDateIndices.add(indexId); // safe to set the flag here, because it will be cleared under the WriteAction
           }
         }
@@ -1470,7 +1506,8 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     }
 
     final long currentDocStamp = content.getModificationStamp();
-    if (currentDocStamp != myLastIndexedDocStamps.get(document, requestedIndexId)) {
+    final long previousDocStamp = myLastIndexedDocStamps.getAndSet(document, requestedIndexId, currentDocStamp);
+    if (currentDocStamp != previousDocStamp) {
       final String contentText = content.getText();
       if (!isTooLarge(vFile, contentText.length()) && getInputFilter(requestedIndexId).acceptInput(vFile)) {
         // Reasonably attempt to use same file content when calculating indices as we can evaluate them several at once and store in file content
@@ -1494,11 +1531,14 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         final int inputId = Math.abs(getFileId(vFile));
         try {
           getIndex(requestedIndexId).update(inputId, newFc);
-        } finally {
+        } catch (ProcessCanceledException pce) {
+          myLastIndexedDocStamps.getAndSet(document, requestedIndexId, previousDocStamp);
+          throw pce;
+        }
+        finally {
           cleanFileContent(newFc, dominantContentFile);
         }
       }
-      myLastIndexedDocStamps.set(document, requestedIndexId, currentDocStamp);
     }
     return true;
   }
