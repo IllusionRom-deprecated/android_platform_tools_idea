@@ -18,6 +18,7 @@ package com.intellij.find.impl.livePreview;
 
 import com.intellij.codeInsight.highlighting.HighlightManager;
 import com.intellij.find.FindModel;
+import com.intellij.find.FindResult;
 import com.intellij.ide.IdeTooltipManager;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
@@ -83,14 +84,7 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
   public interface Delegate {
 
     @Nullable
-    String getStringToReplace(Editor editor, LiveOccurrence liveOccurrence);
-
-    @Nullable
-    TextRange performReplace(LiveOccurrence occurrence, String replacement, Editor editor);
-
-    void performReplaceAll(Editor e);
-
-    void getFocusBack();
+    String getStringToReplace(Editor editor, FindResult findResult);
 
   }
 
@@ -106,41 +100,11 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
     return textAttributes;
   }
 
-  private static final TextAttributes OTHER_TARGETS_ATTRIBUTES = new TextAttributes(Color.BLACK, JBColor.GREEN, null, null, 0);
-
   private Delegate myDelegate;
 
   private SearchResults mySearchResults;
 
   private Balloon myReplacementBalloon;
-
-  @Override
-  public void performReplacement(LiveOccurrence occurrence, String replacement) {
-    if (myDelegate != null) {
-      myDelegate.performReplace(occurrence, replacement, mySearchResults.getEditor());
-      myDelegate.getFocusBack();
-    }
-  }
-
-  @Override
-  public void performReplaceAll() {
-    myDelegate.performReplaceAll(mySearchResults.getEditor());
-  }
-
-  @Override
-  public boolean isExcluded(LiveOccurrence occurrence) {
-    return mySearchResults.isExcluded(occurrence);
-  }
-
-  @Override
-  public void exclude(LiveOccurrence occurrence) {
-    mySearchResults.exclude(occurrence);
-    myDelegate.getFocusBack();
-  }
-
-  public boolean hasMatches() {
-    return mySearchResults.hasMatches();
-  }
 
   @Override
   public void searchResultsUpdated(SearchResults sr) {
@@ -201,17 +165,17 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
       myCursorHighlighter = null;
     }
 
-    LiveOccurrence cursor = mySearchResults.getCursor();
+    FindResult cursor = mySearchResults.getCursor();
     Editor editor = mySearchResults.getEditor();
     if (cursor != null) {
       Set<RangeHighlighter> dummy = new HashSet<RangeHighlighter>();
-      highlightRange(cursor.getPrimaryRange(), new TextAttributes(null, null, Color.BLACK, EffectType.ROUNDED_BOX, 0), dummy);
+      highlightRange(cursor, new TextAttributes(null, null, Color.BLACK, EffectType.ROUNDED_BOX, 0), dummy);
       if (!dummy.isEmpty()) {
         myCursorHighlighter = dummy.iterator().next();
       }
 
-      if (!SearchResults.insideVisibleArea(editor, cursor.getPrimaryRange()) && scroll) {
-        editor.getScrollingModel().scrollTo(editor.offsetToLogicalPosition(cursor.getPrimaryRange().getStartOffset()),
+      if (!SearchResults.insideVisibleArea(editor, cursor) && scroll) {
+        editor.getScrollingModel().scrollTo(editor.offsetToLogicalPosition(cursor.getStartOffset()),
                                             ScrollType.CENTER);
         editor.getScrollingModel().runActionOnScrollingFinished(new Runnable() {
           @Override
@@ -230,6 +194,7 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
     mySearchResults = searchResults;
     searchResultsUpdated(searchResults);
     searchResults.addListener(this);
+    myListeningSelection = true;
     mySearchResults.getEditor().getSelectionModel().addSelectionListener(this);
   }
 
@@ -247,6 +212,7 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
   }
 
   public void dispose() {
+    cleanUp();
     mySearchResults.removeListener(this);
   }
 
@@ -284,19 +250,14 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
     if (mySearchResults.getEditor() == null) return;
     if (mySearchResults.getMatchesCount() >= mySearchResults.getMatchesLimit())
       return;
-    for (LiveOccurrence o : mySearchResults.getOccurrences()) {
-      for (TextRange textRange : o.getSecondaryRanges()) {
-        highlightRange(textRange, OTHER_TARGETS_ATTRIBUTES, myHighlighters);
-      }
-      final TextRange range = o.getPrimaryRange();
-
+    for (FindResult range : mySearchResults.getOccurrences()) {
       TextAttributes attributes = EditorColorsManager.getInstance().getGlobalScheme().getAttributes(EditorColors.TEXT_SEARCH_RESULT_ATTRIBUTES);
       if (range.getLength() == 0) {
         attributes = attributes.clone();
         attributes.setEffectType(EffectType.BOXED);
         attributes.setEffectColor(attributes.getBackgroundColor());
       }
-      if (mySearchResults.isExcluded(o)) {
+      if (mySearchResults.isExcluded(range)) {
         highlightRange(range, strikout(attributes), myHighlighters);
       } else {
         highlightRange(range, attributes, myHighlighters);
@@ -319,10 +280,6 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
     final HashSet<RangeHighlighter> toRemove = new HashSet<RangeHighlighter>();
     Set<RangeHighlighter> toAdd = new HashSet<RangeHighlighter>();
     for (RangeHighlighter highlighter : myHighlighters) {
-      if (myCursorHighlighter != null && highlighter.getStartOffset() == myCursorHighlighter.getStartOffset() &&
-        highlighter.getEndOffset() == myCursorHighlighter.getEndOffset()) continue;
-
-
       boolean intersectsWithSelection = false;
       for (int i = 0; i < starts.length; ++i) {
         TextRange selectionRange = new TextRange(starts[i], ends[i]);
@@ -343,8 +300,11 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
           }
         }
       } else if (intersectsWithSelection) {
+        TextRange cursor = mySearchResults.getCursor();
+        if (cursor != null && highlighter.getStartOffset() == cursor.getStartOffset() &&
+            highlighter.getEndOffset() == cursor.getEndOffset()) continue;
         final RangeHighlighter toAnnotate = highlightRange(new TextRange(highlighter.getStartOffset(), highlighter.getEndOffset()),
-                                                                 new TextAttributes(null, null, Color.WHITE, EffectType.BOXED, 0), toAdd);
+                                                                 new TextAttributes(null, null, Color.WHITE, EffectType.ROUNDED_BOX, 0), toAdd);
         highlighter.putUserData(IN_SELECTION_KEY, IN_SELECTION1);
         toAnnotate.putUserData(IN_SELECTION_KEY, IN_SELECTION2);
       }
@@ -355,7 +315,7 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
 
   private void showReplacementPreview() {
     hideBalloon();
-    final LiveOccurrence cursor = mySearchResults.getCursor();
+    final FindResult cursor = mySearchResults.getCursor();
     final Editor editor = mySearchResults.getEditor();
     if (myDelegate != null && cursor != null) {
       String replacementPreviewText = myDelegate.getStringToReplace(editor, cursor);
@@ -466,9 +426,9 @@ public class LivePreview extends DocumentAdapter implements ReplacementView.Dele
 
     @Override
     public RelativePoint recalculateLocation(final Balloon object) {
-      LiveOccurrence cursor = mySearchResults.getCursor();
+      FindResult cursor = mySearchResults.getCursor();
       if (cursor == null) return null;
-      final TextRange cur = cursor.getPrimaryRange();
+      final TextRange cur = cursor;
       int startOffset = cur.getStartOffset();
       int endOffset = cur.getEndOffset();
 

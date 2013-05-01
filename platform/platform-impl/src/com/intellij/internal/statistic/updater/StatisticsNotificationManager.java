@@ -1,5 +1,6 @@
 package com.intellij.internal.statistic.updater;
 
+import com.intellij.internal.statistic.StatisticsBundle;
 import com.intellij.internal.statistic.configurable.StatisticsConfigurable;
 import com.intellij.internal.statistic.connect.RemotelyConfigurableStatisticsService;
 import com.intellij.internal.statistic.persistence.UsageStatisticsPersistenceComponent;

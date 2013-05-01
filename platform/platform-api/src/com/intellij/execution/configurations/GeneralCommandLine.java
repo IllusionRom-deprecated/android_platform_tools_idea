@@ -48,7 +48,7 @@ public class GeneralCommandLine implements UserDataHolder {
 
   private String myExePath = null;
   private File myWorkDirectory = null;
-  private Map<String, String> myEnvParams = null;
+  private final Map<String, String> myEnvParams = new MyTHashMap();
   private boolean myPassParentEnvironment = true;
   private final ParametersList myProgramParams = new ParametersList();
   private Charset myCharset = CharsetToolkit.getDefaultSystemCharset();
@@ -91,42 +91,27 @@ public class GeneralCommandLine implements UserDataHolder {
     myWorkDirectory = workDirectory;
   }
 
+  /**
+   * Note: the map returned is forgiving to passing null values into putAll().
+   */
   @NotNull
   public Map<String, String> getEnvironment() {
-    return myEnvParams != null ? Collections.unmodifiableMap(myEnvParams) : Collections.<String, String>emptyMap();
+    return myEnvParams;
   }
 
   /** @deprecated use {@link #getEnvironment()} (to remove in IDEA 14) */
   @SuppressWarnings("unused")
   public Map<String, String> getEnvParams() {
-    return myEnvParams;
+    return getEnvironment();
   }
 
-  public void setEnvironment(@Nullable Map<String, String> envVars) {
-    if (envVars != null) {
-      if (myEnvParams == null) myEnvParams = ContainerUtil.newHashMap();
-      myEnvParams.putAll(envVars);
-    }
-  }
-
-  public void setEnvironment(@NotNull String name, @NotNull String value) {
-    if (myEnvParams == null) myEnvParams = ContainerUtil.newHashMap();
-    myEnvParams.put(name, value);
-  }
-
-  public void removeEnvironment(@NotNull String name) {
-    if (myEnvParams != null) {
-      myEnvParams.remove(name);
-      if (myEnvParams.isEmpty()) {
-        myEnvParams = null;
-      }
-    }
-  }
-
-  /** @deprecated use {@link #setEnvironment(Map)} (to remove in IDEA 14) */
+  /** @deprecated use {@link #getEnvironment()} (to remove in IDEA 14) */
   @SuppressWarnings("unused")
-  public void setEnvParams(@Nullable final Map<String, String> envParams) {
-    myEnvParams = envParams;
+  public void setEnvParams(@Nullable Map<String, String> envParams) {
+    myEnvParams.clear();
+    if (envParams != null) {
+      myEnvParams.putAll(envParams);
+    }
   }
 
   public void setPassParentEnvironment(boolean passParentEnvironment) {
@@ -271,7 +256,7 @@ public class GeneralCommandLine implements UserDataHolder {
       environment.clear();
     }
 
-    if (myEnvParams != null && !myEnvParams.isEmpty()) {
+    if (!myEnvParams.isEmpty()) {
       if (SystemInfo.isWindows) {
         THashMap<String, String> envVars = new THashMap<String, String>(CaseInsensitiveStringHashingStrategy.INSTANCE);
         envVars.putAll(environment);
@@ -317,5 +302,14 @@ public class GeneralCommandLine implements UserDataHolder {
       myUserData = ContainerUtil.newHashMap();
     }
     myUserData.put(key, value);
+  }
+
+  private static class MyTHashMap extends THashMap<String, String> {
+    @Override
+    public void putAll(Map<? extends String, ? extends String> map) {
+      if (map != null) {
+        super.putAll(map);
+      }
+    }
   }
 }

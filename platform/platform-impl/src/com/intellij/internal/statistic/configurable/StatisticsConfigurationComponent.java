@@ -15,6 +15,7 @@
  */
 package com.intellij.internal.statistic.configurable;
 
+import com.intellij.internal.statistic.StatisticsBundle;
 import com.intellij.internal.statistic.persistence.UsageStatisticsPersistenceComponent;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationNamesInfo;
@@ -45,6 +46,7 @@ public class StatisticsConfigurationComponent {
                     "This data is anonymous, does not contain any personal information, collected for use only by " + company  + "<br> and will never be transmitted to any third party.</html>");
     myLabel.setFont(UIUtil.getLabelFont(UIUtil.FontSize.SMALL));
 
+    myAllowToSendUsagesCheckBox.setText(StatisticsBundle.message("stats.config.allow.send.stats.text", company));
     myAllowToSendUsagesCheckBox.addActionListener(new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent e) {

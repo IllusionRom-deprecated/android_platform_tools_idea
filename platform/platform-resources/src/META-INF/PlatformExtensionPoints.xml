@@ -30,9 +30,6 @@
     <extensionPoint name="fileEditorProvider"
                     interface="com.intellij.openapi.fileEditor.FileEditorProvider"/>
 
-    <extensionPoint name="selectedFileEditorProvider"
-                    interface="com.intellij.openapi.fileEditor.SelectedFileEditorProvider"/>
-
     <extensionPoint name="fileTypeFactory"
                     interface="com.intellij.openapi.fileTypes.FileTypeFactory"/>
 
@@ -141,6 +138,7 @@
     <extensionPoint name="welcomeFrameProvider" interface="com.intellij.openapi.wm.WelcomeFrameProvider"/>
     <extensionPoint name="frameEditorComponentProvider" interface="com.intellij.openapi.wm.ex.FrameEditorComponentProvider"/>
 
+    <extensionPoint name="statisticsService" interface="com.intellij.internal.statistic.connect.StatisticsService"/>
     <extensionPoint name="productivityFeaturesProvider" interface="com.intellij.featureStatistics.ProductivityFeaturesProvider"/>
 
     <extensionPoint name="fileIconProvider" interface="com.intellij.ide.FileIconProvider"/>

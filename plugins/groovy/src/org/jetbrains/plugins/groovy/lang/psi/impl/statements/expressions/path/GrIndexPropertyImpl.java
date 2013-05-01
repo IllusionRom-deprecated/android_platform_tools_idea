@@ -72,7 +72,10 @@ public class GrIndexPropertyImpl extends GrExpressionImpl implements GrIndexProp
     GrExpression selected = getInvokedExpression();
     PsiType thisType = selected.getType();
 
-    if (thisType == null) return null;
+    if (thisType == null) {
+      thisType = TypesUtil.getJavaLangObject(this);
+    }
+
 
     GrArgumentList argList = getArgumentList();
 
@@ -153,7 +156,9 @@ public class GrIndexPropertyImpl extends GrExpressionImpl implements GrIndexProp
     GrExpression invoked = getInvokedExpression();
     PsiType thisType = invoked.getType();
 
-    if (thisType == null) return GroovyResolveResult.EMPTY_ARRAY;
+    if (thisType == null) {
+      thisType = TypesUtil.getJavaLangObject(this);
+    }
 
     GrArgumentList argList = getArgumentList();
 
@@ -216,6 +221,7 @@ public class GrIndexPropertyImpl extends GrExpressionImpl implements GrIndexProp
       final GroovyResolveResult[] tupleCandidates = ResolveUtil.getMethodCandidates(thisType, name, invoked, tupleType);
       if (incompleteCode) {
         candidates = ArrayUtil.mergeArrays(candidates, tupleCandidates, new ArrayFactory<GroovyResolveResult>() {
+          @NotNull
           @Override
           public GroovyResolveResult[] create(int count) {
             return new GroovyResolveResult[count];
@@ -289,7 +295,7 @@ public class GrIndexPropertyImpl extends GrExpressionImpl implements GrIndexProp
   @Override
   public PsiType getNominalType() {
     if (getParent() instanceof GrThrowStatement) return super.getNominalType();
-    
+
     GroovyResolveResult[] candidates = multiResolve(true);
     if (candidates.length == 1) {
       return extractLastParameterType(candidates[0]);

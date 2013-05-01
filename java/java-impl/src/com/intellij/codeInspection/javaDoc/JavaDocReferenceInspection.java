@@ -16,7 +16,7 @@
 package com.intellij.codeInspection.javaDoc;
 
 import com.intellij.codeHighlighting.HighlightDisplayLevel;
-import com.intellij.codeInsight.CodeInsightUtilBase;
+import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.daemon.QuickFixBundle;
 import com.intellij.codeInsight.daemon.impl.quickfix.ImportClassFix;
 import com.intellij.codeInsight.lookup.LookupElement;
@@ -24,7 +24,6 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.codeInsight.lookup.LookupManager;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.ex.BaseLocalInspectionTool;
-import com.intellij.codeInspection.ex.ProblemDescriptorImpl;
 import com.intellij.ide.DataManager;
 import com.intellij.ide.util.FQNameCellRenderer;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -57,16 +56,19 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
     return manager.createProblemDescriptor(element, template, onTheFly, null, ProblemHighlightType.LIKE_UNKNOWN_SYMBOL);
   }
 
+  @Override
   @Nullable
   public ProblemDescriptor[] checkMethod(@NotNull PsiMethod psiMethod, @NotNull InspectionManager manager, boolean isOnTheFly) {
     return checkMember(psiMethod, manager, isOnTheFly);
   }
 
+  @Override
   @Nullable
   public ProblemDescriptor[] checkField(@NotNull PsiField field, @NotNull InspectionManager manager, boolean isOnTheFly) {
     return checkMember(field, manager, isOnTheFly);
   }
 
+  @Override
   @Nullable
   public ProblemDescriptor[] checkClass(@NotNull PsiClass aClass, @NotNull InspectionManager manager, boolean isOnTheFly) {
     return checkMember(aClass, manager, isOnTheFly);
@@ -193,21 +195,25 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
     return InspectionsBundle.message("inspection.javadoc.problem.cannot.resolve", params);
   }
 
+  @Override
   @NotNull
   public String getDisplayName() {
     return InspectionsBundle.message("inspection.javadoc.ref.display.name");
   }
 
+  @Override
   @NotNull
   public String getGroupDisplayName() {
     return InspectionsBundle.message("group.names.javadoc.issues");
   }
 
+  @Override
   @NotNull
   public String getShortName() {
     return SHORT_NAME;
   }
 
+  @Override
   @NotNull
   public HighlightDisplayLevel getDefaultLevel() {
     return HighlightDisplayLevel.ERROR;
@@ -220,16 +226,19 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
       this.originalClasses = originalClasses;
     }
 
+    @Override
     @NotNull
     public String getName() {
       return QuickFixBundle.message("add.qualifier");
     }
 
+    @Override
     @NotNull
     public String getFamilyName() {
       return QuickFixBundle.message("add.qualifier");
     }
 
+    @Override
     public void applyFix(@NotNull final Project project, @NotNull final ProblemDescriptor descriptor) {
       final PsiElement element = PsiTreeUtil.getParentOfType(descriptor.getPsiElement(), PsiJavaCodeReferenceElement.class);
       if (element instanceof PsiJavaCodeReferenceElement) {
@@ -238,11 +247,13 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
         final JList list = new JBList(originalClasses.toArray(new PsiClass[originalClasses.size()]));
         list.setCellRenderer(new FQNameCellRenderer());
         final Runnable runnable = new Runnable() {
+          @Override
           public void run() {
             if (!element.isValid()) return;
             final int index = list.getSelectedIndex();
             if (index < 0) return;
             new WriteCommandAction(project, element.getContainingFile()){
+              @Override
               protected void run(final Result result) throws Throwable {
                 final PsiClass psiClass = originalClasses.get(index);
                 if (psiClass.isValid()) {
@@ -275,16 +286,19 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
       myUnboundParams = unboundParams;
     }
 
+    @Override
     @NotNull
     public String getName() {
       return "Change to ...";
     }
 
+    @Override
     @NotNull
     public String getFamilyName() {
       return getName();
     }
 
+    @Override
     public void applyFix(@NotNull final Project project, @NotNull final ProblemDescriptor descriptor) {
       final AsyncResult<DataContext> asyncResult = DataManager.getInstance().getDataContextFromFocus();
       asyncResult.doWhenDone(new AsyncResult.Handler<DataContext>() {
@@ -292,7 +306,7 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
         public void run(DataContext dataContext) {
           final Editor editor = PlatformDataKeys.EDITOR.getData(dataContext);
           assert editor != null;
-          final TextRange textRange = ((ProblemDescriptorImpl)descriptor).getTextRange();
+          final TextRange textRange = ((ProblemDescriptorBase)descriptor).getTextRange();
           editor.getSelectionModel().setSelection(textRange.getStartOffset(), textRange.getEndOffset());
 
           final String word = editor.getSelectionModel().getSelectedText();
@@ -319,20 +333,23 @@ public class JavaDocReferenceInspection extends BaseLocalInspectionTool {
       myParamName = paramName;
     }
 
+    @Override
     @NotNull
     public String getName() {
       return "Remove @" + myTagName + " " + myParamName;
     }
 
+    @Override
     @NotNull
     public String getFamilyName() {
       return getName();
     }
 
+    @Override
     public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
       final PsiDocTag myTag = PsiTreeUtil.getParentOfType(descriptor.getPsiElement(), PsiDocTag.class);
       if (myTag == null) return;
-      if (!CodeInsightUtilBase.preparePsiElementForWrite(myTag)) return;
+      if (!FileModificationService.getInstance().preparePsiElementForWrite(myTag)) return;
       myTag.delete();
     }
   }
