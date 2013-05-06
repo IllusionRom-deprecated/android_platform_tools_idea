@@ -73,7 +73,10 @@ public class GenericsHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testAutoboxingMethods() { doTest5(false); }
   public void testAutoboxingConstructors() { doTest5(false); }
   public void testEnumWithAbstractMethods() { doTest5(false); }
-  public void testEnum() { doTest5(false); }
+  public void testEnum() {
+    doTest(LanguageLevel.JDK_1_5, JavaSdkVersion.JDK_1_5, false);
+  }
+  public void testEnum56239() { doTest(LanguageLevel.JDK_1_6, JavaSdkVersion.JDK_1_6, false); }
   public void testSameErasure() { doTest5(false); }
   public void testMethods() { doTest5(false); }
   public void testFields() { doTest5(false); }
@@ -211,10 +214,37 @@ public class GenericsHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testIDEA57446(){ doTest5(false); }
   public void testIDEA67677(){ doTest5(false); }
   public void testIDEA67798(){ doTest5(false); }
+  public void testIDEA57534(){ doTest5(false); }
+  public void testIDEA57482(){ doTest5(false); }
+  public void testIDEA67577(){ doTest5(false); }
+  public void testIDEA57413(){ doTest5(false); }
+  public void testIDEA57265(){ doTest5(false); }
+  public void testIDEA57271(){ doTest5(false); }
+  public void testIDEA57272(){ doTest5(false); }
+  public void testIDEA57285(){ doTest5(false); }
+  public void testIDEA65066(){ doTest5(false); }
+  public void testIDEA67998(){ doTest5(false); }
+  public void testIDEA18425(){ doTest5(false); }
+  public void testIDEA27080(){ doTest5(false); }
+  public void testIDEA22079(){ doTest5(false); }
+  public void testIDEA21602(){ doTest5(false); }
+  public void testIDEA21602_7(){ doTest(LanguageLevel.JDK_1_7, JavaSdkVersion.JDK_1_7, false); }
+
+  public void testIDEA21597() throws Exception { doTest5(false);}
+  public void testIDEA20573() throws Exception { doTest5(false);}
+  public void testIDEA20244() throws Exception { doTest5(false);}
+  public void testIDEA22005() throws Exception { doTest5(false);}
+
+  public void testIDEA27185(){ doTest(LanguageLevel.JDK_1_6, JavaSdkVersion.JDK_1_6, false); }
+  public void testIDEA67571(){ doTest(LanguageLevel.JDK_1_7, JavaSdkVersion.JDK_1_7, false); }
 
   public void testWildcardsOnRawTypes() { doTest5(false); }
   public void testDisableWithinBoundsCheckForSuperWildcards() {
     doTest(LanguageLevel.JDK_1_7, JavaSdkVersion.JDK_1_7, false);
+  }
+
+  public void testDisableCastingToNestedWildcards() throws Exception {
+    doTest5(false);
   }
 
   public void testBooleanInferenceFromIfCondition() throws Exception {
