@@ -19,10 +19,7 @@ package org.jetbrains.plugins.groovy.formatter.processors;
 import com.intellij.formatting.Spacing;
 import com.intellij.lang.ASTNode;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiMethod;
-import com.intellij.psi.PsiParameter;
 import com.intellij.psi.codeStyle.CommonCodeStyleSettings;
 import com.intellij.psi.formatter.FormatterUtil;
 import com.intellij.psi.impl.source.SourceTreeToPsiMap;
@@ -32,6 +29,7 @@ import com.intellij.psi.tree.TokenSet;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.groovy.codeStyle.GroovyCodeStyleSettings;
+import org.jetbrains.plugins.groovy.formatter.FormattingContext;
 import org.jetbrains.plugins.groovy.formatter.GeeseUtil;
 import org.jetbrains.plugins.groovy.lang.groovydoc.psi.api.*;
 import org.jetbrains.plugins.groovy.lang.lexer.TokenSets;
@@ -39,7 +37,6 @@ import org.jetbrains.plugins.groovy.lang.psi.GroovyElementVisitor;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFileBase;
 import org.jetbrains.plugins.groovy.lang.psi.GroovyPsiElement;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.GrListOrMap;
-import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.GrModifierList;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.annotation.GrAnnotation;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.annotation.GrAnnotationArgumentList;
 import org.jetbrains.plugins.groovy.lang.psi.api.auxiliary.modifiers.annotation.GrAnnotationArrayInitializer;
@@ -102,6 +99,8 @@ import static org.jetbrains.plugins.groovy.lang.lexer.TokenSets.COMMENT_SET;
  */
 public class GroovySpacingProcessor extends GroovyElementVisitor {
   private PsiElement myParent;
+
+  private final GroovyCodeStyleSettings myGroovySettings;
   private final CommonCodeStyleSettings mySettings;
 
   private Spacing myResult;
@@ -109,11 +108,10 @@ public class GroovySpacingProcessor extends GroovyElementVisitor {
   private ASTNode myChild2;
   private IElementType myType1;
   private IElementType myType2;
-  private GroovyCodeStyleSettings myGroovySettings;
 
-  public GroovySpacingProcessor(ASTNode node, CommonCodeStyleSettings settings, GroovyCodeStyleSettings groovySettings) {
-    mySettings = settings;
-    myGroovySettings = groovySettings;
+  public GroovySpacingProcessor(ASTNode node, FormattingContext context) {
+    mySettings = context.getSettings();
+    myGroovySettings = context.getGroovySettings();
 
     if (init(node)) return;
     if (manageComments()) return;
@@ -466,7 +464,7 @@ public class GroovySpacingProcessor extends GroovyElementVisitor {
       }
     }
     else if (myType2 == TYPE_PARAMETER_LIST) {
-      manageSpaceBeforeTypeParameters();
+      createSpaceInCode(false);
     }
     else if (myType2 == ARGUMENTS) {
       manageSpaceBeforeCallLParenth();
@@ -582,11 +580,8 @@ public class GroovySpacingProcessor extends GroovyElementVisitor {
                               new TextRange(dependencyStart, myChild1.getTextRange().getEndOffset()),
                               mySettings.KEEP_SIMPLE_METHODS_IN_ONE_LINE);
     }
-    else if (myType1 == MODIFIERS) {
-      processModifierList(myChild1);
-    }
     else if (myType2 == TYPE_PARAMETER_LIST) {
-      manageSpaceBeforeTypeParameters();
+      createSpaceInCode(true);
     }
     else {
       processParentheses(mLPAREN,
@@ -635,22 +630,6 @@ public class GroovySpacingProcessor extends GroovyElementVisitor {
     }
   }
 
-
-  private void manageSpaceBeforeTypeParameters() {
-    createSpaceInCode(false);
-  }
-
-  @Override
-  public void visitModifierList(GrModifierList modifierList) {
-    int annotationWrap = getAnnotationWrap(myParent.getParent());
-    if (myChild1.getElementType() == ANNOTATION && annotationWrap == CommonCodeStyleSettings.WRAP_ALWAYS) {
-      createLF(true);
-    }
-    else {
-      createSpaceProperty(true, false, 0);
-    }
-
-  }
 
   @Override
   public void visitAnnotationMethod(GrAnnotationMethod annotationMethod) {
@@ -964,39 +943,6 @@ public class GroovySpacingProcessor extends GroovyElementVisitor {
     }
     else {
       createLF(true);
-    }
-  }
-
-
-  private void processModifierList(ASTNode modifierList) {
-    int annotationWrap = getAnnotationWrap(myParent);
-    if (modifierList.getLastChildNode().getElementType() == ANNOTATION && annotationWrap == CommonCodeStyleSettings.WRAP_ALWAYS ||
-        mySettings.MODIFIER_LIST_WRAP) {
-      createLF(true);
-    }
-    else {
-      createSpaceProperty(true, false, 0);
-    }
-  }
-
-  private int getAnnotationWrap(final PsiElement parent) {
-    if (parent instanceof PsiMethod) {
-      return mySettings.METHOD_ANNOTATION_WRAP;
-    }
-    else if (parent instanceof PsiClass) {
-      return mySettings.CLASS_ANNOTATION_WRAP;
-    }
-    else if (parent instanceof GrVariableDeclaration && parent.getParent() instanceof GrTypeDefinitionBody) {
-      return mySettings.FIELD_ANNOTATION_WRAP;
-    }
-    else if (parent instanceof GrVariableDeclaration) {
-      return mySettings.VARIABLE_ANNOTATION_WRAP;
-    }
-    else if (parent instanceof PsiParameter) {
-      return mySettings.PARAMETER_ANNOTATION_WRAP;
-    }
-    else {
-      return CommonCodeStyleSettings.DO_NOT_WRAP;
     }
   }
 

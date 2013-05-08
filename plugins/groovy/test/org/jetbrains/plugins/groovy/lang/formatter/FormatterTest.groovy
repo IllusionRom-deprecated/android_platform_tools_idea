@@ -30,14 +30,6 @@ public class FormatterTest extends GroovyFormatterTestCase {
 
   final String basePath = TestUtils.testDataPath + "groovy/formatter/"
 
-  @Override
-  protected void setUp() throws Exception {
-    super.setUp();
-    groovySettings.CLASS_BRACE_STYLE = CommonCodeStyleSettings.END_OF_LINE;
-    groovySettings.METHOD_BRACE_STYLE = CommonCodeStyleSettings.END_OF_LINE;
-    groovySettings.BRACE_STYLE = CommonCodeStyleSettings.END_OF_LINE;
-  }
-
   public void testAddign1() throws Throwable { doTest(); }
   public void testArg1() throws Throwable { doTest(); }
   public void testArg2() throws Throwable { doTest(); }
