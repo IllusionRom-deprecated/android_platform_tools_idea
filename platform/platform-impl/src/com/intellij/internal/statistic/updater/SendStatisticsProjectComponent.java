@@ -69,40 +69,29 @@ public class SendStatisticsProjectComponent implements ProjectComponent {
   }
 
   private void runStatisticsService() {
-    final RemotelyConfigurableStatisticsService statisticsService =
-      new RemotelyConfigurableStatisticsService(new StatisticsConnectionService(),
-                                                new StatisticsHttpClientSender(),
-                                                new StatisticsUploadAssistant());
+    StatisticsService statisticsService = StatisticsUploadAssistant.getStatisticsService();
+
     if (StatisticsUploadAssistant.showNotification()) {
       StatisticsNotificationManager.showNotification(statisticsService, myProject);
     }
-    else {
-      Collection<StatisticsService> services = ContainerUtilRt.newArrayList();
-      if (StatisticsUploadAssistant.isSendAllowed() && StatisticsUploadAssistant.isTimeToSend()) {
-        services.add(statisticsService);
-      }
-      services.addAll(Arrays.asList(StatisticsService.EP_NAME.getExtensions()));
-      if (!services.isEmpty()) {
-        runWithDelay(services);
-      }
+    else if (StatisticsUploadAssistant.isSendAllowed() && StatisticsUploadAssistant.isTimeToSend()) {
+        runWithDelay(statisticsService);
     }
   }
 
-  private void runWithDelay(final @NotNull Collection<StatisticsService> statisticsServices) {
+  private void runWithDelay(final @NotNull StatisticsService statisticsService) {
     myAlarm.addRequest(new Runnable() {
       @Override
       public void run() {
         if (DumbService.isDumb(myProject)) {
-          runWithDelay(statisticsServices);
+          runWithDelay(statisticsService);
         }
         else {
-          for (StatisticsService service : statisticsServices) {
-            try {
-              service.send();
-            }
-            catch (Exception e) {
-              LOG.warn("Unexpected error during sending stats data via service " + service, e);
-            }
+          try {
+            statisticsService.send();
+          }
+          catch (Exception e) {
+            LOG.warn("Unexpected error during sending stats data via service " + statisticsService, e);
           }
         }
       }

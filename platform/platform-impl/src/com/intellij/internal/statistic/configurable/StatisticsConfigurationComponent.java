@@ -16,6 +16,8 @@
 package com.intellij.internal.statistic.configurable;
 
 import com.intellij.internal.statistic.StatisticsBundle;
+import com.intellij.internal.statistic.StatisticsUploadAssistant;
+import com.intellij.internal.statistic.connect.StatisticsService;
 import com.intellij.internal.statistic.persistence.UsageStatisticsPersistenceComponent;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationNamesInfo;
@@ -24,6 +26,7 @@ import com.intellij.util.ui.UIUtil;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Map;
 
 public class StatisticsConfigurationComponent {
 
@@ -53,6 +56,26 @@ public class StatisticsConfigurationComponent {
         setRadioButtonsEnabled();
       }
     });
+
+    // Let current statistics service override labels
+    StatisticsService service = StatisticsUploadAssistant.getStatisticsService();
+    if (service != null) {
+      Map<String, String> overrides = service.getStatisticsConfigurationLabels();
+      if (overrides != null) {
+        String s = overrides.get("title");
+        if (s != null) {
+          myTitle.setText(s);
+        }
+        s = overrides.get("details");
+        if (s != null) {
+          myLabel.setText(s);
+        }
+        s = overrides.get("allow-checkbox");
+        if (s != null) {
+          myAllowToSendUsagesCheckBox.setText(s);
+        }
+      }
+    }
 
     myTitle.setText(myTitle.getText().replace("%company%", company));
     myLabel.setText(myLabel.getText().replace("%company%", company));

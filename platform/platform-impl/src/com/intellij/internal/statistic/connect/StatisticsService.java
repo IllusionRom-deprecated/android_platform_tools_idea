@@ -16,12 +16,22 @@
 package com.intellij.internal.statistic.connect;
 
 
+import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationListener;
 import com.intellij.openapi.extensions.ExtensionPointName;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Map;
 
 public interface StatisticsService {
 
-  ExtensionPointName<StatisticsService> EP_NAME =
-    ExtensionPointName.create("com.intellij.statisticsService");
+  ExtensionPointName<StatisticsService> EP_NAME = ExtensionPointName.create("com.intellij.statisticsService");
 
   StatisticsResult send();
+
+  Notification createNotification(@NotNull String groupDisplayId, @Nullable NotificationListener listener);
+
+  @Nullable
+  Map<String, String> getStatisticsConfigurationLabels();
 }
