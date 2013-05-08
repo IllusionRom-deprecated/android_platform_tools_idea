@@ -15,13 +15,13 @@
  */
 package com.intellij.find;
 
-import com.intellij.find.impl.FindResultImpl;
+import com.intellij.find.impl.livePreview.LivePreview;
 import com.intellij.find.impl.livePreview.LivePreviewController;
 import com.intellij.find.impl.livePreview.SearchResults;
 import com.intellij.testFramework.LightCodeInsightTestCase;
-import com.intellij.testFramework.LightPlatformCodeInsightTestCase;
 
-import java.util.List;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 
 public class FindInEditorTest extends LightCodeInsightTestCase {
 
@@ -29,31 +29,61 @@ public class FindInEditorTest extends LightCodeInsightTestCase {
   private SearchResults mySearchResults;
   private FindModel myFindModel;
 
+  private ByteArrayOutputStream myOutputStream;
+
   @Override
   protected void setUp() throws Exception {
     super.setUp();
 
     myFindModel = new FindModel();
+
+    myOutputStream = new ByteArrayOutputStream();
+    LivePreview.ourTestOutput = new PrintStream(myOutputStream);
+  }
+
+  private void initFind() {
+    mySearchResults = new SearchResults(getEditor(), getProject());
+    myLivePreviewController = new LivePreviewController(mySearchResults, null);
     myFindModel.addObserver(new FindModel.FindModelObserver() {
       @Override
       public void findModelChanged(FindModel findModel) {
         myLivePreviewController.updateInBackground(myFindModel, true);
       }
     });
-  }
-
-  private void initFind() {
-    mySearchResults = new SearchResults(getEditor(), getProject());
-    myLivePreviewController = new LivePreviewController(mySearchResults, null);
     myLivePreviewController.on();
   }
 
-  public void test1() throws Exception {
-    configureFromFileText("file.txt", "abc");
+  public void testBasicFind() throws Exception {
+    configureFromFileText("file.txt", "ab");
     initFind();
     myFindModel.setStringToFind("a");
-    type("a");
-    List<FindResult> occurrences = mySearchResults.getOccurrences();
-    assertContainsElements(occurrences, new FindResultImpl(0, 1));
+    checkResults();
+  }
+
+  public void testEmacsLikeFallback() throws Exception {
+    configureFromFileText("file.txt", "a\nab");
+    initFind();
+    myFindModel.setStringToFind("a");
+    myFindModel.setStringToFind("ab");
+    myFindModel.setStringToFind("a");
+    checkResults();
+  }
+
+  public void testReplacementWithEmptyString() throws Exception {
+    configureFromFileText("file.txt", "a");
+    initFind();
+
+    myFindModel.setRegularExpressions(true);
+    myFindModel.setStringToFind("a");
+    myFindModel.setStringToReplace("");
+    myFindModel.setReplaceState(true);
+
+    myLivePreviewController.performReplace();
+    checkResults();
+  }
+
+  private void checkResults() {
+    String name = getTestName(false);
+    assertSameLinesWithFile(getTestDataPath() + "/find/findInEditor/" + name + ".gold", myOutputStream.toString());
   }
 }

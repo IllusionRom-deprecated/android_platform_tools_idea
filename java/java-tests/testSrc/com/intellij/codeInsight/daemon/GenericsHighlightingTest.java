@@ -177,7 +177,8 @@ public class GenericsHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testContinueInferenceAfterFirstRawResult() { doTest5(false); }
   public void testDoNotAcceptLowerBoundIfRaw() { doTest5(false); }
   public void testStaticOverride() { doTest5(false); }
-  public void testTypeArgumentsGivenOnRawType() { doTest5(false); }
+  public void testTypeArgumentsGivenOnRawType() { doTest7Incompatibility(false); }
+  public void testSelectFromTypeParameter() { doTest5(false); }
   public void testTypeArgumentsGivenOnAnonymousClassCreation() { doTest5(false); }
   //public void testIDEA94011() { doTest5(false); }
   public void testDifferentTypeParamsInOverloadedMethods() { doTest5(true); }
@@ -234,6 +235,11 @@ public class GenericsHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testIDEA20573() throws Exception { doTest5(false);}
   public void testIDEA20244() throws Exception { doTest5(false);}
   public void testIDEA22005() throws Exception { doTest5(false);}
+
+  public void testIDEA57877() throws Exception { doTest5(false);}
+  public void testTypeParamsCyclicInference() throws Exception { doTest5(false);}
+  public void testCaptureTopLevelWildcardsForConditionalExpression() throws Exception { doTest5(false);}
+  public void testGenericsOverrideMethodInRawInheritor() throws Exception { doTest5(false);}
 
   public void testIDEA27185(){ doTest(LanguageLevel.JDK_1_6, JavaSdkVersion.JDK_1_6, false); }
   public void testIDEA67571(){ doTest(LanguageLevel.JDK_1_7, JavaSdkVersion.JDK_1_7, false); }

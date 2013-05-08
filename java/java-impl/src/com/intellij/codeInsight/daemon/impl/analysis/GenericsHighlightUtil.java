@@ -548,6 +548,17 @@ public class GenericsHighlightUtil {
     for (HierarchicalMethodSignature superSignature : supers) {
       info = checkSameErasureNotSubSignatureInner(superSignature, manager, aClass, sameErasureMethods);
       if (info != null) return info;
+
+      if (superSignature.isRaw() && !signature.isRaw()) {
+        final PsiType[] parameterTypes = signature.getParameterTypes();
+        PsiType[] types = superSignature.getParameterTypes();
+        for (int i = 0; i < types.length; i++) {
+          if (!Comparing.equal(parameterTypes[i], TypeConversionUtil.erasure(types[i]))) {
+            return getSameErasureMessage(false, method, superSignature.getMethod(), HighlightNamesUtil.getClassDeclarationTextRange(aClass));
+          }
+        }
+      }
+
     }
     return null;
   }
@@ -987,6 +998,8 @@ public class GenericsHighlightUtil {
 
     for (int i = 0; i < typeParameters.length; i++) {
       final PsiTypeParameter typeParameter1 = typeParameters[i];
+      final HighlightInfo cyclicInheritance = HighlightClassUtil.checkCyclicInheritance(typeParameter1);
+      if (cyclicInheritance != null) return cyclicInheritance;
       String name1 = typeParameter1.getName();
       for (int j = i + 1; j < typeParameters.length; j++) {
         final PsiTypeParameter typeParameter2 = typeParameters[j];
