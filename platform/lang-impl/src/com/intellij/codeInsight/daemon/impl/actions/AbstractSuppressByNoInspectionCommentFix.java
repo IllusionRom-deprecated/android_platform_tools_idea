@@ -16,20 +16,18 @@
 
 package com.intellij.codeInsight.daemon.impl.actions;
 
-import com.google.common.base.Strings;
 import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.SuppressIntentionAction;
 import com.intellij.codeInspection.SuppressionUtil;
-import com.intellij.lang.Commenter;
-import com.intellij.lang.LanguageCommenters;
+import com.intellij.lang.Language;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.undo.UndoUtil;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.PsiComment;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiParserFacade;
 import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
@@ -44,7 +42,7 @@ import java.util.List;
  * @date Aug 13, 2009
  */
 public abstract class AbstractSuppressByNoInspectionCommentFix extends SuppressIntentionAction {
-  protected final String myID;
+  @NotNull protected final String myID;
   private final boolean myReplaceOtherSuppressionIds;
 
   @Nullable
@@ -55,71 +53,29 @@ public abstract class AbstractSuppressByNoInspectionCommentFix extends SuppressI
    * @param replaceOtherSuppressionIds Merge suppression policy. If false new tool id will be append to the end
    *                                   otherwise replace other ids
    */
-  public AbstractSuppressByNoInspectionCommentFix(final String ID, final boolean replaceOtherSuppressionIds) {
+  public AbstractSuppressByNoInspectionCommentFix(@NotNull String ID, final boolean replaceOtherSuppressionIds) {
     myID = ID;
     myReplaceOtherSuppressionIds = replaceOtherSuppressionIds;
   }
 
   protected final void replaceSuppressionComment(@NotNull final PsiElement comment) {
-    final String oldSuppressionCommentText = comment.getText();
-    final String lineCommentPrefix = getLineCommentPrefix(comment);
-    Pair<String, String> blockPrefixSuffix = null;
-    if (lineCommentPrefix == null) {
-      blockPrefixSuffix = getBlockPrefixSuffixPair(comment);
-    }
-    assert (blockPrefixSuffix != null && oldSuppressionCommentText.startsWith(blockPrefixSuffix.first)) && oldSuppressionCommentText.endsWith(blockPrefixSuffix.second)
-           || (lineCommentPrefix != null && oldSuppressionCommentText.startsWith(lineCommentPrefix))
-      : "Unexpected suppression comment " + oldSuppressionCommentText;
-
-    // append new suppression tool id or replace
-    final String newText;
-    if(myReplaceOtherSuppressionIds) {
-      newText = SuppressionUtil.SUPPRESS_INSPECTIONS_TAG_NAME + " " + myID;
-    } else {
-      if (lineCommentPrefix != null) {
-        newText = oldSuppressionCommentText.substring(lineCommentPrefix.length()) + "," + myID;
-      } else {
-        newText = oldSuppressionCommentText.substring(blockPrefixSuffix.first.length(),
-                                                      oldSuppressionCommentText.length() - blockPrefixSuffix.second.length()) + "," + myID;
-      }
-    }
-
-    PsiElement parent = comment.getParent();
-    comment.replace(createComment(comment.getProject(), parent != null ? parent : comment, newText));
+    SuppressionUtil.replaceSuppressionComment(comment, myID, myReplaceOtherSuppressionIds, getCommentLanguage(comment));
   }
 
-  @Nullable
-  private static String getLineCommentPrefix(@NotNull final PsiElement comment) {
-    final Commenter commenter = LanguageCommenters.INSTANCE.forLanguage(comment.getLanguage());
-    return commenter == null ? null : commenter.getLineCommentPrefix();
+  protected void createSuppression(@NotNull Project project,
+                                   @NotNull PsiElement element,
+                                   @NotNull PsiElement container) throws IncorrectOperationException {
+    SuppressionUtil.createSuppression(project, container, myID, getCommentLanguage(element));
   }
 
-  @Nullable
-  private static Pair<String, String> getBlockPrefixSuffixPair(PsiElement comment) {
-    final Commenter commenter = LanguageCommenters.INSTANCE.forLanguage(comment.getLanguage());
-    if (commenter != null) {
-      final String prefix = commenter.getBlockCommentPrefix();
-      final String suffix = commenter.getBlockCommentSuffix();
-      if (prefix != null || suffix != null) {
-        return Pair.create(Strings.nullToEmpty(prefix), Strings.nullToEmpty(suffix));
-      }
-    }
-    return null;
-  }
-
-  protected void createSuppression(final Project project,
-                                 final Editor editor,
-                                 final PsiElement element,
-                                 final PsiElement container) throws IncorrectOperationException {
-    final String text = SuppressionUtil.SUPPRESS_INSPECTIONS_TAG_NAME + " " + myID;
-    PsiComment comment = createComment(project, element, text);
-    container.getParent().addBefore(comment, container);
-  }
-
+  /**
+   * @param element quickfix target or existing comment element
+   * @return language that will be used for comment creating.
+   * In common case language will be the same as language of quickfix target
+   */
   @NotNull
-  protected PsiComment createComment(Project project, PsiElement element, String commentText) {
-    final PsiParserFacade parserFacade = PsiParserFacade.SERVICE.getInstance(project);
-    return parserFacade.createLineOrBlockCommentFromText(element.getLanguage(), commentText);
+  protected Language getCommentLanguage(@NotNull PsiElement element) {
+    return element.getLanguage();
   }
 
   @Override
@@ -137,7 +93,7 @@ public abstract class AbstractSuppressByNoInspectionCommentFix extends SuppressI
     final List<? extends PsiElement> comments = getCommentsFor(container);
     if (comments != null) {
       for (PsiElement comment : comments) {
-        if (comment instanceof PsiComment && isSuppressionComment(comment)) {
+        if (comment instanceof PsiComment && SuppressionUtil.isSuppressionComment(comment)) {
           replaceSuppressionComment(comment);
           return;
         }
@@ -145,24 +101,20 @@ public abstract class AbstractSuppressByNoInspectionCommentFix extends SuppressI
     }
 
     boolean caretWasBeforeStatement = editor != null && editor.getCaretModel().getOffset() == container.getTextRange().getStartOffset();
-    createSuppression(project, editor, element, container);
+    try {
+      createSuppression(project, element, container);
+    }
+    catch (IncorrectOperationException e) {
+      if (!ApplicationManager.getApplication().isUnitTestMode() && editor != null) {
+        Messages.showErrorDialog(editor.getComponent(),
+                                 InspectionsBundle.message("suppress.inspection.annotation.syntax.error", e.getMessage()));
+      }
+    }
 
     if (caretWasBeforeStatement) {
       editor.getCaretModel().moveToOffset(container.getTextRange().getStartOffset());
     }
     UndoUtil.markPsiFileForUndo(element.getContainingFile());
-  }
-
-  public static boolean isSuppressionComment(PsiElement comment) {
-    final String prefix = getLineCommentPrefix(comment);
-    final String commentText = comment.getText();
-    if (prefix != null) {
-      return commentText.startsWith(prefix + SuppressionUtil.SUPPRESS_INSPECTIONS_TAG_NAME);
-    }
-    final Pair<String, String> prefixSuffixPair = getBlockPrefixSuffixPair(comment);
-    return prefixSuffixPair != null
-           && commentText.startsWith(prefixSuffixPair.first + SuppressionUtil.SUPPRESS_INSPECTIONS_TAG_NAME)
-           && commentText.endsWith(prefixSuffixPair.second);
   }
 
   @Nullable

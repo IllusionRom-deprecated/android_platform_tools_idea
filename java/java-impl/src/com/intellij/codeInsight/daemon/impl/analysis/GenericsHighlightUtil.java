@@ -415,7 +415,6 @@ public class GenericsHighlightUtil {
   }
 
   public static HighlightInfo checkInterfaceMultipleInheritance(PsiClass aClass) {
-    if (aClass instanceof PsiTypeParameter) return null;
     final PsiClassType[] types = aClass.getSuperTypes();
     if (types.length < 2) return null;
     Map<PsiClass, PsiSubstitutor> inheritedClasses = new HashMap<PsiClass, PsiSubstitutor>();
@@ -442,8 +441,8 @@ public class GenericsHighlightUtil {
       if (inheritedSubstitutor != null) {
         final PsiTypeParameter[] typeParameters = superClass.getTypeParameters();
         for (PsiTypeParameter typeParameter : typeParameters) {
-          PsiType type1 = inheritedSubstitutor.substitute(typeParameter);
-          PsiType type2 = superTypeSubstitutor.substitute(typeParameter);
+          PsiType type1 = GenericsUtil.eliminateWildcards(inheritedSubstitutor.substitute(typeParameter));
+          PsiType type2 = GenericsUtil.eliminateWildcards(superTypeSubstitutor.substitute(typeParameter));
 
           if (!Comparing.equal(type1, type2)) {
             String description = JavaErrorMessages.message("generics.cannot.be.inherited.with.different.type.arguments",
@@ -1009,6 +1008,14 @@ public class GenericsHighlightUtil {
           return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(typeParameter2).descriptionAndTooltip(message).create();
         }
       }
+      if (!JavaVersionService.getInstance().isAtLeast(parameterList, JavaSdkVersion.JDK_1_7)) {
+        for (PsiJavaCodeReferenceElement referenceElement : typeParameter1.getExtendsList().getReferenceElements()) {
+          final PsiElement resolve = referenceElement.resolve();
+          if (resolve instanceof PsiTypeParameter && ArrayUtilRt.find(typeParameters, resolve) > i) {
+            return HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(referenceElement.getTextRange()).descriptionAndTooltip("Illegal forward reference").create();
+          }
+        }
+      }
     }
     return null;
   }
@@ -1399,6 +1406,27 @@ public class GenericsHighlightUtil {
       if (containingClass != null && PsiUtil.isRawSubstitutor(containingClass, resolveResult.getSubstitutor())) {
         if ((parent instanceof PsiCallExpression || parent instanceof PsiMethodReferenceExpression) && PsiUtil.isLanguageLevel7OrHigher(parent)) {
           return null;
+        }
+        
+        if (element instanceof PsiMethod) {
+          if (((PsiMethod)element).findSuperMethods().length > 0) return null;
+          if (qualifier instanceof PsiReferenceExpression){
+            final PsiClass typeParameter = PsiUtil.resolveClassInType(((PsiReferenceExpression)qualifier).getType());
+            if (typeParameter instanceof PsiTypeParameter) {
+              if (JavaVersionService.getInstance().isAtLeast(element, JavaSdkVersion.JDK_1_7)) return null;
+              for (PsiClassType classType : typeParameter.getExtendsListTypes()) {
+                final PsiClass resolve = classType.resolve();
+                if (resolve != null) {
+                  final PsiMethod[] superMethods = resolve.findMethodsBySignature((PsiMethod)element, true);
+                  for (PsiMethod superMethod : superMethods) {
+                    if (!PsiUtil.isRawSubstitutor(superMethod, resolveResult.getSubstitutor())) {
+                      return null;
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
         final String message = element instanceof PsiClass
                                ? JavaErrorMessages.message("generics.type.arguments.on.raw.type")
