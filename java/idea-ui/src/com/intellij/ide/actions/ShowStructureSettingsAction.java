@@ -15,15 +15,20 @@
  */
 package com.intellij.ide.actions;
 
+import com.intellij.facet.Facet;
+import com.intellij.facet.FacetManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.options.newEditor.OptionsEditorDialog;
 import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.ui.configuration.ProjectStructureConfigurable;
+import com.intellij.openapi.ui.Messages;
 
 public class ShowStructureSettingsAction extends AnAction implements DumbAware {
   public void actionPerformed(AnActionEvent e) {
@@ -32,6 +37,31 @@ public class ShowStructureSettingsAction extends AnAction implements DumbAware {
       project = ProjectManager.getInstance().getDefaultProject();
     }
 
+    // TEMPORARY HACK! DO NOT MERGE INTO INTELLIJ. This just works around a lot
+    // of confusion caused by the fact that the structure dialog lets you edit
+    // project state which is ignored by gradle, so temporarily disable this
+    // dialog for Android-Gradle-based projects.
+    if (isGradleProject(project)) {
+      Messages.showInfoMessage(
+        "We will provide a UI to configure project settings later. " +
+        "Until then, please manually edit your build.gradle file(s.)",
+        "Project Structure");
+      return;
+    }
+
     ShowSettingsUtil.getInstance().editConfigurable(project, OptionsEditorDialog.DIMENSION_KEY, ProjectStructureConfigurable.getInstance(project));
+  }
+
+  private static boolean isGradleProject(Project project) {
+    ModuleManager moduleManager = ModuleManager.getInstance(project);
+    for (Module module : moduleManager.getModules()) {
+      FacetManager facetManager = FacetManager.getInstance(module);
+      for (Facet facet : facetManager.getAllFacets()) {
+        if ("android-gradle".equals(facet.getType().getStringId())) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }
