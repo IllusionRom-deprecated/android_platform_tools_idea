@@ -42,17 +42,21 @@ public class ShowStructureSettingsAction extends AnAction implements DumbAware {
     // project state which is ignored by gradle, so temporarily disable this
     // dialog for Android-Gradle-based projects.
     if (isGradleProject(project)) {
-      Messages.showInfoMessage(
-        "We will provide a UI to configure project settings later. " +
-        "Until then, please manually edit your build.gradle file(s.)",
-        "Project Structure");
+      showDisabledProjectStructureDialogMessage();
       return;
     }
 
     ShowSettingsUtil.getInstance().editConfigurable(project, OptionsEditorDialog.DIMENSION_KEY, ProjectStructureConfigurable.getInstance(project));
   }
 
-  private static boolean isGradleProject(Project project) {
+  public static void showDisabledProjectStructureDialogMessage() {
+    Messages.showInfoMessage(
+      "We will provide a UI to configure project settings later. " +
+      "Until then, please manually edit your build.gradle file(s.)",
+      "Project Structure");
+  }
+
+  public static boolean isGradleProject(Project project) {
     ModuleManager moduleManager = ModuleManager.getInstance(project);
     for (Module module : moduleManager.getModules()) {
       FacetManager facetManager = FacetManager.getInstance(module);
