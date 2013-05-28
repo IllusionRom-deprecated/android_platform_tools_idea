@@ -115,6 +115,7 @@
       <w>hdpi</w>
       <w>holo</w>
       <w>horiz</w>
+      <w>intelli</w>
       <w>httpclient</w>
       <w>hvga</w>
       <w>iaload</w>
@@ -229,6 +230,7 @@
       <w>recurse</w>
       <w>reflow</w>
       <w>reformats</w>
+      <w>reimplement</w>
       <w>renderscript</w>
       <w>reparse</w>
       <w>resampling</w>
