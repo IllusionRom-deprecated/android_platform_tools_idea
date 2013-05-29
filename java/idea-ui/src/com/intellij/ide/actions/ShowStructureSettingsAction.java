@@ -43,16 +43,18 @@ public class ShowStructureSettingsAction extends AnAction implements DumbAware {
     // dialog for Android-Gradle-based projects.
     if (isGradleProject(project)) {
       showDisabledProjectStructureDialogMessage();
-      return;
     }
 
     ShowSettingsUtil.getInstance().editConfigurable(project, OptionsEditorDialog.DIMENSION_KEY, ProjectStructureConfigurable.getInstance(project));
   }
 
   public static void showDisabledProjectStructureDialogMessage() {
-    Messages.showInfoMessage(
+    Messages.showWarningDialog(
       "We will provide a UI to configure project settings later. " +
-      "Until then, please manually edit your build.gradle file(s.)",
+      "Until then, please manually edit your build.gradle file to " +
+      "configure source folders, libraries and dependencies.\n\n" +
+      "NOTE THAT EDITS MADE IN THE FOLLOWING DIALOG DO NOT AFFECT THE GRADLE BUILD.\n" +
+      "The dialog can be used for temporary adjustments to SDKs etc.",
       "Project Structure");
   }
 
