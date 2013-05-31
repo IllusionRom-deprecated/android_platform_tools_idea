@@ -711,13 +711,10 @@ public class PsiUtil {
   }
 
   @Nullable
-  public static PsiElement findEnclosingStatement(@Nullable PsiElement context) {
-    if (context == null) return null;
-    context = PsiTreeUtil.getParentOfType(context, GrStatement.class, false);
+  public static GrStatement findEnclosingStatement(@Nullable PsiElement context) {
     while (context != null) {
-      final PsiElement parent = context.getParent();
-      if (parent instanceof GrControlFlowOwner) return context;
-      context = parent;
+      if (isExpressionStatement(context)) return (GrStatement)context;
+      context = PsiTreeUtil.getParentOfType(context, GrStatement.class, true);
     }
     return null;
   }
@@ -747,11 +744,21 @@ public class PsiUtil {
 
 
   @Nullable
+  public static PsiElement skipWhitespacesAndComments(@Nullable PsiElement elem, boolean forward, boolean skipNLs) {
+    return skipSet(elem, forward, TokenSets.WHITE_SPACES_OR_COMMENTS, skipNLs);
+  }
+
+
+  @Nullable
   public static PsiElement skipWhitespacesAndComments(@Nullable PsiElement elem, boolean forward) {
-    //noinspection ConstantConditions
+    return skipSet(elem, forward, TokenSets.WHITE_SPACES_OR_COMMENTS, true);
+  }
+
+  private static PsiElement skipSet(PsiElement elem, boolean forward, TokenSet set, boolean skipNLs) {
     while (elem != null &&
            elem.getNode() != null &&
-           TokenSets.WHITE_SPACES_OR_COMMENTS.contains(elem.getNode().getElementType())) {
+           set.contains(elem.getNode().getElementType()) &&
+           (skipNLs || elem.getText().indexOf('\n') == -1)) {
       if (forward) {
         elem = elem.getNextSibling();
       }
@@ -764,18 +771,7 @@ public class PsiUtil {
 
   @Nullable
   public static PsiElement skipWhitespaces(@Nullable PsiElement elem, boolean forward) {
-    //noinspection ConstantConditions
-    while (elem != null &&
-           elem.getNode() != null &&
-           TokenSets.WHITE_SPACES_SET.contains(elem.getNode().getElementType())) {
-      if (forward) {
-        elem = elem.getNextSibling();
-      }
-      else {
-        elem = elem.getPrevSibling();
-      }
-    }
-    return elem;
+    return skipSet(elem, forward, TokenSets.WHITE_SPACES_SET, true);
   }
 
 
@@ -1245,26 +1241,14 @@ public class PsiUtil {
   }
 
   public static boolean isThisReference(@Nullable PsiElement expression) {
-    if (!(expression instanceof GrReferenceExpression)) return false;
-    GrReferenceExpression ref = (GrReferenceExpression)expression;
-
-    PsiElement nameElement = ref.getReferenceNameElement();
-    if (nameElement == null) return false;
-
-    IElementType type = nameElement.getNode().getElementType();
-    if (type != GroovyTokenTypes.kTHIS) return false;
-
-    GrExpression qualifier = ref.getQualifier();
-    if (qualifier == null) {
-      return true;
-    }
-    else {
-      PsiElement resolved = ref.resolve();
-      return resolved instanceof PsiClass && hasEnclosingInstanceInScope((PsiClass)resolved, ref, false);
-    }
+    return isThisOrSuperRef(expression, GroovyTokenTypes.kTHIS, false);
   }
 
   public static boolean isSuperReference(@Nullable PsiElement expression) {
+    return isThisOrSuperRef(expression, GroovyTokenTypes.kSUPER, true);
+  }
+
+  private static boolean isThisOrSuperRef(PsiElement expression, IElementType token, boolean superClassAccepted) {
     if (!(expression instanceof GrReferenceExpression)) return false;
     GrReferenceExpression ref = (GrReferenceExpression)expression;
 
@@ -1272,7 +1256,7 @@ public class PsiUtil {
     if (nameElement == null) return false;
 
     IElementType type = nameElement.getNode().getElementType();
-    if (type != GroovyTokenTypes.kSUPER) return false;
+    if (type != token) return false;
 
     GrExpression qualifier = ref.getQualifier();
     if (qualifier == null) {
@@ -1280,7 +1264,7 @@ public class PsiUtil {
     }
     else {
       PsiElement resolved = ref.resolve();
-      return resolved instanceof PsiClass && hasEnclosingInstanceInScope(((PsiClass)resolved), ref, true);
+      return resolved instanceof PsiClass && hasEnclosingInstanceInScope(((PsiClass)resolved), ref, superClassAccepted);
     }
   }
 
@@ -1308,5 +1292,21 @@ public class PsiUtil {
 
   public static boolean isSingleBindingVariant(GroovyResolveResult[] candidates) {
     return candidates.length == 1 && candidates[0].getElement() instanceof GrBindingVariable;
+  }
+
+  @Nullable
+  public static GrConstructorInvocation getConstructorInvocation(@NotNull GrMethod constructor) {
+    assert constructor.isConstructor();
+
+    final GrOpenBlock body = constructor.getBlock();
+    if (body == null) return null;
+
+    final GrStatement[] statements = body.getStatements();
+    if (statements.length > 0 && statements[0] instanceof GrConstructorInvocation) {
+      return ((GrConstructorInvocation)statements[0]);
+    }
+    else {
+      return null;
+    }
   }
 }

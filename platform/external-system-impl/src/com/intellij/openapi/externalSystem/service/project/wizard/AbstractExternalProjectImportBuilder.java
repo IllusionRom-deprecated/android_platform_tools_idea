@@ -3,11 +3,9 @@ package com.intellij.openapi.externalSystem.service.project.wizard;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
-import com.intellij.openapi.externalSystem.model.ProjectKeys;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
-import com.intellij.openapi.externalSystem.model.project.LibraryData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
-import com.intellij.openapi.externalSystem.model.task.ExternalSystemResolveProjectTask;
+import com.intellij.openapi.externalSystem.service.internal.ExternalSystemResolveProjectTask;
 import com.intellij.openapi.externalSystem.service.project.ExternalProjectRefreshCallback;
 import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager;
 import com.intellij.openapi.externalSystem.service.settings.AbstractImportFromExternalSystemControl;
@@ -42,7 +40,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 /**
  * GoF builder for gradle-backed projects.
@@ -137,7 +138,7 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
         onProjectInit(project);
 
         if (externalProjectNode != null) {
-          ExternalSystemApiUtil.executeProjectChangeAction(project, myExternalSystemId, project, new Runnable() {
+          ExternalSystemApiUtil.executeProjectChangeAction(new Runnable() {
             @Override
             public void run() {
               ProjectRootManagerEx.getInstanceEx(project).mergeRootsChangesDuring(new Runnable() {
@@ -152,8 +153,7 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
           final Runnable resolveDependenciesTask = new Runnable() {
             @Override
             public void run() {
-              String progressText
-                = ExternalSystemBundle.message("progress.resolve.libraries", ExternalSystemApiUtil.toReadableName(myExternalSystemId));
+              String progressText = ExternalSystemBundle.message("progress.resolve.libraries", myExternalSystemId.getReadableName());
               ProgressManager.getInstance().run(
                 new Task.Backgroundable(project, progressText, false) {
                   @Override
@@ -203,8 +203,7 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
    *                                      dependencies information available at the given gradle project
    */
   private void setupLibraries(@NotNull final DataNode<ProjectData> projectWithResolvedLibraries, final Project project) {
-    Collection<DataNode<LibraryData>> libraries = ExternalSystemApiUtil.findAll(projectWithResolvedLibraries, ProjectKeys.LIBRARY);
-    ExternalSystemApiUtil.executeProjectChangeAction(project, projectWithResolvedLibraries.getData().getOwner(), libraries, new Runnable() {
+    ExternalSystemApiUtil.executeProjectChangeAction(new Runnable() {
       @Override
       public void run() {
         ProjectRootManagerEx.getInstanceEx(project).mergeRootsChangesDuring(new Runnable() {
@@ -254,7 +253,7 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
    * @throws ConfigurationException   if gradle project is not defined and can't be constructed
    */
   public void ensureProjectIsDefined(@NotNull WizardContext wizardContext) throws ConfigurationException {
-    String externalSystemName = ExternalSystemApiUtil.toReadableName(myExternalSystemId);
+    String externalSystemName = myExternalSystemId.getReadableName();
     File projectFile = getProjectFile();
     if (projectFile == null) {
       throw new ConfigurationException(ExternalSystemBundle.message("error.project.undefined"));
@@ -310,14 +309,12 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
   }
 
   /**
-   * Applies gradle-plugin-specific settings like project files location etc to the given context.
+   * Applies external system-specific settings like project files location etc to the given context.
    * 
    * @param context  storage for the project/module settings.
    */
   public void applyProjectSettings(@NotNull WizardContext context) {
-    if (!ExternalSystemApiUtil.isNewProjectConstruction()) {
-      return;
-    }
+    
     if (myExternalProjectNode == null) {
       assert false;
       return;

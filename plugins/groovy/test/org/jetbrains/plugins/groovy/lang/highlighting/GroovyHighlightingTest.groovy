@@ -568,7 +568,7 @@ int method(x, y, z) {
         42
     }
     else if (z) {
-      return <error descr="Cannot assign 'String' to 'int'">'abc'</error>
+      <error descr="Cannot assign 'String' to 'int'">return</error> 'abc'
     }
     else {
       return 43
@@ -1236,6 +1236,13 @@ def e
 
 @A(values=<error descr="Expected ''ABC' + 'CDE'' to be an inline constant">[C.CONST1, C.CONST2]</error>)
 def f
+
+@interface X {
+  Class value()
+}
+
+@X(String.class)
+def g
 ''')
   }
 
@@ -1361,5 +1368,62 @@ def bar
 ''')
   }
 
+ void testFinalFieldRewrite() {
+   testHighlighting('''\
+class A {
+  final foo = 1
 
+  def A() {
+    foo = 2 //no error
+  }
+
+  def foo() {
+    <error descr="Cannot assign a value to final field 'foo'">foo</error> = 2
+  }
+}
+
+new A().foo = 2 //no error
+''')
+ }
+
+  void testStaticFinalFieldRewrite() {
+    testHighlighting('''\
+class A {
+  static final foo = 1
+
+  def A() {
+    <error descr="Cannot assign a value to final field 'foo'">foo</error> = 2
+  }
+
+  static {
+    foo = 2 //no error
+  }
+
+  def foo() {
+    <error descr="Cannot assign a value to final field 'foo'">foo</error> = 2
+  }
+
+  static def bar() {
+    <error descr="Cannot assign a value to final field 'foo'">foo</error> = 2
+  }
+}
+
+A.foo = 3 //no error
+''')
+  }
+
+  void testSOEIfExtendsItself() {
+    testHighlighting('''\
+<error descr="Cyclic inheritance involving 'A'"><error descr="Method 'invokeMethod' is not implemented">class A extends A</error></error> {
+  def foo
+}
+
+<error descr="Cyclic inheritance involving 'B'"><error descr="Method 'invokeMethod' is not implemented">class B extends C</error></error> {
+  def foo
+}
+
+<error descr="Cyclic inheritance involving 'C'"><error descr="Method 'invokeMethod' is not implemented">class C extends B</error></error> {
+}
+''')
+  }
 }

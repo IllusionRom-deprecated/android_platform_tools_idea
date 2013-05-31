@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,9 @@
  */
 package org.jetbrains.plugins.groovy.refactoring.introduce.parameter;
 
+import com.intellij.lang.findUsages.DescriptiveNameUtil;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Ref;
 import com.intellij.psi.*;
@@ -23,6 +25,7 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.searches.MethodReferencesSearch;
 import com.intellij.psi.search.searches.OverridingMethodsSearch;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiUtilBase;
 import com.intellij.refactoring.BaseRefactoringProcessor;
 import com.intellij.refactoring.IntroduceParameterRefactoring;
 import com.intellij.refactoring.RefactoringBundle;
@@ -42,6 +45,8 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.GrVariable;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.blocks.GrOpenBlock;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.GrExpression;
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.typedef.members.GrMethod;
+import org.jetbrains.plugins.groovy.refactoring.introduce.GrIntroduceHandlerBase;
+import org.jetbrains.plugins.groovy.refactoring.introduce.StringPartInfo;
 import org.jetbrains.plugins.groovy.refactoring.util.AnySupers;
 
 import java.util.ArrayList;
@@ -62,7 +67,12 @@ public class GrIntroduceParameterProcessor extends BaseRefactoringProcessor impl
 
     LOG.assertTrue(mySettings.getToReplaceIn() instanceof GrMethod);
     LOG.assertTrue(mySettings.getToSearchFor() instanceof PsiMethod);
-    myParameterInitializer = new GrExpressionWrapper(mySettings.getExpression());
+
+    final StringPartInfo stringPartInfo = mySettings.getStringPartInfo();
+    final GrExpression expression = stringPartInfo != null
+                                    ? GrIntroduceHandlerBase.generateExpressionFromStringPart(stringPartInfo, settings.getProject())
+                                    : mySettings.getExpression();
+    myParameterInitializer = new GrExpressionWrapper(expression);
   }
 
   @NotNull
@@ -230,6 +240,17 @@ public class GrIntroduceParameterProcessor extends BaseRefactoringProcessor impl
       }
     }
 
+    final StringPartInfo stringPartInfo = mySettings.getStringPartInfo();
+    if (stringPartInfo != null) {
+      final GrExpression expr =
+        GrIntroduceHandlerBase.processLiteral(mySettings.getName(), mySettings.getStringPartInfo(), mySettings.getProject());
+      final Editor editor = PsiUtilBase.findEditor(expr);
+      if (editor != null) {
+        editor.getSelectionModel().removeSelection();
+        editor.getCaretModel().moveToOffset(expr.getTextRange().getEndOffset());
+      }
+    }
+
     final GrVariable var = mySettings.getVar();
     if (var != null && mySettings.removeLocalVariable()) {
       var.delete();
@@ -239,7 +260,7 @@ public class GrIntroduceParameterProcessor extends BaseRefactoringProcessor impl
 
   @Override
   protected String getCommandName() {
-    return RefactoringBundle.message("introduce.parameter.command", UsageViewUtil.getDescriptiveName(mySettings.getToReplaceIn()));
+    return RefactoringBundle.message("introduce.parameter.command", DescriptiveNameUtil.getDescriptiveName(mySettings.getToReplaceIn()));
   }
 
   @NotNull

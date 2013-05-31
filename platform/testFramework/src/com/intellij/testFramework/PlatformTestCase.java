@@ -150,7 +150,13 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
     if (resource == null) {
       resource = PlatformTestCase.class.getClassLoader().getResource("idea/IdeaApplicationInfo.xml");
       if (resource == null) {
-        setPlatformPrefix("PlatformLangXml");
+        resource = PlatformTestCase.class.getClassLoader().getResource("META-INF/UltimateLangXmlPlugin.xml");
+        if (resource == null) {
+          setPlatformPrefix("PlatformLangXml");
+        }
+        else {
+          setPlatformPrefix("UltimateLangXml");
+        }
       }
       else {
         setPlatformPrefix("Idea");
@@ -629,12 +635,18 @@ public abstract class PlatformTestCase extends UsefulTestCase implements DataPro
             runTest();
             myAssertionsInTestDetected = false;
           }
+          catch (Throwable e) {
+            throwables[0] = e;
+            throw e;
+          }
           finally {
             tearDown();
           }
         }
         catch (Throwable throwable) {
-          throwables[0] = throwable;
+          if (throwables[0] == null) {  // report tearDown() problems if only no exceptions thrown from runTest()
+            throwables[0] = throwable;
+          }
         }
         finally {
           ourTestThread = null;

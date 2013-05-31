@@ -30,6 +30,7 @@ import com.intellij.openapi.vfs.encoding.EncodingRegistry;
 import com.intellij.openapi.vfs.newvfs.NewVirtualFile;
 import com.intellij.openapi.vfs.newvfs.persistent.PersistentFS;
 import com.intellij.psi.SingleRootFileViewProvider;
+import com.intellij.util.LocalTimeCounter;
 import com.intellij.util.text.StringFactory;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -44,20 +45,22 @@ import java.nio.charset.Charset;
  */
 public abstract class VirtualFileSystemEntry extends NewVirtualFile {
   public static final VirtualFileSystemEntry[] EMPTY_ARRAY = new VirtualFileSystemEntry[0];
-
   protected static final PersistentFS ourPersistence = PersistentFS.getInstance();
 
   private static final Key<String> SYMLINK_TARGET = Key.create("local.vfs.symlink.target");
 
-  private static final int DIRTY_FLAG = 0x0100;
-  private static final int IS_SYMLINK_FLAG = 0x0200;
-  private static final int HAS_SYMLINK_FLAG = 0x0400;
-  private static final int IS_SPECIAL_FLAG = 0x0800;
-  private static final int INT_FLAGS_MASK = 0xff00;
+  private static final int DIRTY_FLAG =       0x10000000;
+  private static final int IS_SYMLINK_FLAG =  0x20000000;
+  private static final int HAS_SYMLINK_FLAG = 0x40000000;
+  private static final int IS_SPECIAL_FLAG =  0x80000000;
+  private static final int INDEXED_FLAG =     0x04000000;
+  static final int CHILDREN_CACHED =          0x08000000;
+  private static final int ALL_FLAGS_MASK =
+    DIRTY_FLAG | IS_SYMLINK_FLAG | HAS_SYMLINK_FLAG | IS_SPECIAL_FLAG | INDEXED_FLAG | CHILDREN_CACHED;
 
   private volatile int myNameId;
   private volatile VirtualDirectoryImpl myParent;
-  private volatile short myFlags = 0;
+  private volatile int myFlags;
   private volatile int myId;
 
   public VirtualFileSystemEntry(@NotNull String name, VirtualDirectoryImpl parent, int id, @PersistentFS.Attributes int attributes) {
@@ -71,6 +74,8 @@ public abstract class VirtualFileSystemEntry extends NewVirtualFile {
       setFlagInt(IS_SPECIAL_FLAG, PersistentFS.isSpecialFile(attributes));
       updateLinkStatus();
     }
+    
+    setModificationStamp(LocalTimeCounter.currentTime());
   }
 
   private void storeName(@NotNull String name) {
@@ -122,28 +127,35 @@ public abstract class VirtualFileSystemEntry extends NewVirtualFile {
   }
 
   @Override
-  public boolean getFlag(int mask) {
-    assert (mask & INT_FLAGS_MASK) == 0 : "Mask '" + Integer.toBinaryString(mask) + "' is in reserved range.";
-    return getFlagInt(mask);
+  public long getModificationStamp() {
+    return myFlags & ~ALL_FLAGS_MASK;
   }
 
-  private boolean getFlagInt(int mask) {
+  public synchronized void setModificationStamp(long modificationStamp) {
+    myFlags = (myFlags & ALL_FLAGS_MASK) | ((int)modificationStamp & ~ALL_FLAGS_MASK);
+  }
+
+  boolean getFlagInt(int mask) {
+    assert (mask & ~ALL_FLAGS_MASK) == 0 : "Unexpected flag";
     return (myFlags & mask) != 0;
   }
 
-  @Override
-  public void setFlag(int mask, boolean value) {
-    assert (mask & INT_FLAGS_MASK) == 0 : "Mask '" + Integer.toBinaryString(mask) + "' is in reserved range.";
-    setFlagInt(mask, value);
-  }
-
-  private void setFlagInt(int mask, boolean value) {
+  synchronized void setFlagInt(int mask, boolean value) {
+    assert (mask & ~ALL_FLAGS_MASK) == 0 : "Unexpected flag";
     if (value) {
       myFlags |= mask;
     }
     else {
       myFlags &= ~mask;
     }
+  }
+
+  public boolean isFileIndexed() {
+    return getFlagInt(INDEXED_FLAG);
+  }
+
+  public void setFileIndexed(boolean indexed) {
+    setFlagInt(INDEXED_FLAG, indexed);
   }
 
   @Override

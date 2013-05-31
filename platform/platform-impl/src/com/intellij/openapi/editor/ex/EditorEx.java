@@ -19,6 +19,7 @@ import com.intellij.ide.CopyProvider;
 import com.intellij.ide.CutProvider;
 import com.intellij.ide.DeleteProvider;
 import com.intellij.ide.PasteProvider;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.LogicalPosition;
@@ -106,6 +107,8 @@ public interface EditorEx extends Editor {
 
   void addFocusListener(@NotNull FocusChangeListener listener);
 
+  void addFocusListener(@NotNull FocusChangeListener listener, @NotNull Disposable parentDisposable);
+
   void setOneLineMode(boolean b);
 
   JScrollPane getScrollPane();
@@ -183,7 +186,7 @@ public interface EditorEx extends Editor {
    * <p/>
    * Feel free to see the detailed feature
    * definition <a href="http://dev.w3.org/html5/spec/Overview.html#the-placeholder-attribute">here</a>.
-   * 
+   *
    * @param text    virtual text to show until user data is entered or the editor is focused
    */
   void setPlaceholder(@Nullable CharSequence text);
@@ -193,14 +196,14 @@ public interface EditorEx extends Editor {
    * <p/>
    * 'Sticky selection' means that every time caret position changes, selection end offset is automatically set to the same position.
    * Selection start is always caret offset on {@link #setStickySelection(boolean)} call with <code>'true'</code> argument.
-   * 
+   *
    * @return      <code>true</code> if 'sticky selection' mode is active at the current editor; <code>false</code> otherwise
    */
   boolean isStickySelection();
 
   /**
    * Allows to set current {@link #isStickySelection() sticky selection} mode.
-   * 
+   *
    * @param enable      flag that identifies if <code>'sticky selection'</code> mode should be enabled
    */
   void setStickySelection(boolean enable);
@@ -213,7 +216,7 @@ public interface EditorEx extends Editor {
 
   /**
    * Allows to define prefix to be displayed on every editor line and text attributes to use for its coloring.
-   * 
+   *
    * @param prefixText  target prefix text
    * @param attributes  text attributes to use during given prefix painting
    */
@@ -224,7 +227,7 @@ public interface EditorEx extends Editor {
    * @see #setPurePaintingMode(boolean)
    */
   boolean isPurePaintingMode();
-  
+
   /**
    * We often re-use the logic encapsulated at the editor. For example, every time we show editor fragment (folding, preview etc) we
    * create a dedicated graphics object and ask the editor to paint into it.
@@ -233,7 +236,7 @@ public interface EditorEx extends Editor {
    * (e.g. soft wraps recalculation is triggered by the paint request and newly calculated soft wraps cause caret to change its position).
    * <p/>
    * This method allows to inform the editor that all subsequent painting request should not change the editor state.
-   * 
+   *
    * @param enabled  'pure painting mode' status to use
    */
   void setPurePaintingMode(boolean enabled);

@@ -54,7 +54,7 @@ import com.intellij.pom.Navigatable;
 import com.intellij.profile.codeInspection.InspectionProjectProfileManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.util.PsiUtilBase;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.ui.*;
 import com.intellij.util.OpenSourceUtil;
 import com.intellij.util.ui.tree.TreeUtil;
@@ -95,7 +95,11 @@ public class InspectionResultsView extends JPanel implements Disposable, Occuren
   private final Map<HighlightDisplayLevel, InspectionSeverityGroupNode> mySeverityGroupNodes = new TreeMap<HighlightDisplayLevel, InspectionSeverityGroupNode>(new Comparator<HighlightDisplayLevel>() {
     @Override
     public int compare(HighlightDisplayLevel o1, HighlightDisplayLevel o2) {
-      return o1.getSeverity().compareTo(o2.getSeverity());
+      final int severityDiff = o1.getSeverity().compareTo(o2.getSeverity());
+      if (severityDiff == 0) {
+        return o1.toString().compareTo(o2.toString());
+      }
+      return severityDiff;
     }
   });
 
@@ -699,7 +703,7 @@ public class InspectionResultsView extends JPanel implements Disposable, Occuren
       }
     }
 
-    return PsiUtilBase.toPsiElementArray(psiElements);
+    return PsiUtilCore.toPsiElementArray(psiElements);
   }
 
   private void popupInvoked(Component component, int x, int y) {

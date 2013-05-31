@@ -115,7 +115,6 @@
       <w>hdpi</w>
       <w>holo</w>
       <w>horiz</w>
-      <w>intelli</w>
       <w>httpclient</w>
       <w>hvga</w>
       <w>iaload</w>
@@ -129,6 +128,7 @@
       <w>insn</w>
       <w>instantiatable</w>
       <w>instrumentations</w>
+      <w>intelli</w>
       <w>interpolator</w>
       <w>ints</w>
       <w>invokestatic</w>

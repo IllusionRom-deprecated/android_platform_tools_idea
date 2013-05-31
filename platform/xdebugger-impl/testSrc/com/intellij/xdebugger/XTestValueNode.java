@@ -3,6 +3,7 @@ package com.intellij.xdebugger;
 import com.intellij.util.NotNullFunction;
 import com.intellij.xdebugger.frame.XFullValueEvaluator;
 import com.intellij.xdebugger.frame.XValueNode;
+import com.intellij.xdebugger.frame.XValuePresenter;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,8 +32,13 @@ public class XTestValueNode implements XValueNode {
   }
 
   @Override
-  public void setGroupingPresentation(@Nullable Icon icon, @NonNls @Nullable String type, boolean expand) {
-    setPresentation(icon, type, "", true);
+  public void setGroupingPresentation(@Nullable Icon icon, @NonNls @Nullable String value, @Nullable XValuePresenter valuePresenter, boolean expand) {
+    setPresentation(icon, value, valuePresenter, true);
+  }
+
+  @Override
+  public void setPresentation(@Nullable Icon icon, @NonNls @Nullable String value, @Nullable XValuePresenter valuePresenter, boolean hasChildren) {
+    setPresentation(icon, null, value, hasChildren);
   }
 
   @Override

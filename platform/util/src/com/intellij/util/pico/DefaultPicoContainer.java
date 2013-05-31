@@ -17,6 +17,7 @@ package com.intellij.util.pico;
 
 import com.intellij.util.ReflectionCache;
 import com.intellij.util.containers.ConcurrentHashMap;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.FList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -35,8 +36,6 @@ public class DefaultPicoContainer implements MutablePicoContainer, Serializable 
 
   private final Map<Object, ComponentAdapter> componentKeyToAdapterCache = new ConcurrentHashMap<Object, ComponentAdapter>();
   private final LinkedHashSetWrapper<ComponentAdapter> componentAdapters = new LinkedHashSetWrapper<ComponentAdapter>();
-  // Keeps track of instantiation order.
-  private final LinkedHashSetWrapper<ComponentAdapter> orderedComponentAdapters = new LinkedHashSetWrapper<ComponentAdapter>();
   private final Map<String, ComponentAdapter> classNameToAdapter = new ConcurrentHashMap<String, ComponentAdapter>();
   private final AtomicReference<FList<ComponentAdapter>> nonAssignableComponentAdapters = new AtomicReference<FList<ComponentAdapter>>(FList.<ComponentAdapter>emptyList());
 
@@ -58,9 +57,14 @@ public class DefaultPicoContainer implements MutablePicoContainer, Serializable 
     return Collections.unmodifiableMap(classNameToAdapter);
   }
 
-
-  public Collection<ComponentAdapter> getNonAssignableAdapters() {
-    return nonAssignableComponentAdapters.get().getReversedList();
+  protected LinkedList<ComponentAdapter> getNonAssignableAdaptersOfType(final Class componentType) {
+    LinkedList<ComponentAdapter> result = new LinkedList<ComponentAdapter>();
+    for (final ComponentAdapter componentAdapter : nonAssignableComponentAdapters.get()) {
+      if (ReflectionCache.isAssignable(componentType, componentAdapter.getComponentImplementation())) {
+        result.addFirst(componentAdapter);
+      }
+    }
+    return result;
   }
 
   @Override
@@ -164,13 +168,8 @@ public class DefaultPicoContainer implements MutablePicoContainer, Serializable 
     ComponentAdapter adapter = componentKeyToAdapterCache.remove(componentKey);
 
     componentAdapters.remove(adapter);
-    orderedComponentAdapters.remove(adapter);
 
     return adapter;
-  }
-
-  private void addOrderedComponentAdapter(ComponentAdapter componentAdapter) {
-    orderedComponentAdapters.add(componentAdapter);
   }
 
   @Override
@@ -184,25 +183,11 @@ public class DefaultPicoContainer implements MutablePicoContainer, Serializable 
       return Collections.emptyList();
     }
 
-    Map<ComponentAdapter, Object> adapterToInstanceMap = new HashMap<ComponentAdapter, Object>();
+    List<Object> result = new ArrayList<Object>();
     for (final ComponentAdapter componentAdapter : componentAdapters.getImmutableSet()) {
       if (ReflectionCache.isAssignable(componentType, componentAdapter.getComponentImplementation())) {
-        Object componentInstance = getInstance(componentAdapter);
-        adapterToInstanceMap.put(componentAdapter, componentInstance);
-
-        // This is to ensure all are added. (Indirect dependencies will be added
-        // from InstantiatingComponentAdapter).
-        addOrderedComponentAdapter(componentAdapter);
-      }
-    }
-
-    List<Object> result = new ArrayList<Object>();
-    for (ComponentAdapter componentAdapter : orderedComponentAdapters.getImmutableSet()) {
-      final Object componentInstance = adapterToInstanceMap.get(componentAdapter);
-      if (componentInstance != null) {
-        // may be null in the case of the "implicit" adapter
-        // representing "this".
-        result.add(componentInstance);
+        // may be null in the case of the "implicit" adapter representing "this".
+        ContainerUtil.addIfNotNull(result, getInstance(componentAdapter));
       }
     }
     return result;
@@ -256,7 +241,6 @@ public class DefaultPicoContainer implements MutablePicoContainer, Serializable 
 
       throw firstLevelException;
     }
-    addOrderedComponentAdapter(componentAdapter);
 
     return instance;
   }

@@ -64,7 +64,7 @@ import com.intellij.packageDependencies.ui.*;
 import com.intellij.problems.WolfTheProblemSolver;
 import com.intellij.psi.*;
 import com.intellij.psi.search.scope.packageSet.*;
-import com.intellij.psi.util.PsiUtilBase;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.ui.*;
 import com.intellij.util.EditSourceOnDoubleClickHandler;
 import com.intellij.util.Function;
@@ -119,6 +119,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
                                                FunctionUtil.<PsiElement>id());
     }
   };
+  @NotNull
   private final Project myProject;
   private FileTreeModelBuilder myBuilder;
 
@@ -170,7 +171,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
   private ScopeTreeViewPanel.MyChangesListListener myChangesListListener = new MyChangesListListener();
   protected ActionCallback myActionCallback;
 
-  public ScopeTreeViewPanel(final Project project) {
+  public ScopeTreeViewPanel(@NotNull Project project) {
     super(new BorderLayout());
     myUpdateQueue.setPassThrough(false);  // we don't want passthrough mode, even in unit tests
     myProject = project;
@@ -307,7 +308,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
           result.add(psiElement);
         }
       }
-      return PsiUtilBase.toPsiElementArray(result);
+      return PsiUtilCore.toPsiElementArray(result);
     }
     return PsiElement.EMPTY_ARRAY;
   }
@@ -332,7 +333,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
     myBuilder = new FileTreeModelBuilder(myProject, new Marker() {
       @Override
       public boolean isMarked(VirtualFile file) {
-        return packageSet != null && (packageSet instanceof PackageSetBase ? ((PackageSetBase)packageSet).contains(file, holder) : packageSet.contains(PackageSetBase.getPsiFile(file, holder), holder));
+        return packageSet != null && (packageSet instanceof PackageSetBase ? ((PackageSetBase)packageSet).contains(file, myProject, holder) : packageSet.contains(PackageSetBase.getPsiFile(file, myProject), holder));
       }
     }, settings);
     myTree.setPaintBusy(true);
@@ -393,7 +394,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
             }
           }
         }
-        return psiElements.isEmpty() ? null : PsiUtilBase.toPsiElementArray(psiElements);
+        return psiElements.isEmpty() ? null : PsiUtilCore.toPsiElementArray(psiElements);
       }
     }
     if (LangDataKeys.IDE_VIEW.is(dataId)) {
@@ -812,7 +813,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
         if (virtualFile != null) {
           final ProjectView projectView = ProjectView.getInstance(myProject);
           final NamedScopesHolder holder = NamedScopesHolder.getHolder(myProject, CURRENT_SCOPE_NAME, myDependencyValidationManager);
-          if (packageSet instanceof PackageSetBase && !((PackageSetBase)packageSet).contains(virtualFile, holder) ||
+          if (packageSet instanceof PackageSetBase && !((PackageSetBase)packageSet).contains(virtualFile, myProject, holder) ||
               psiFile != null && !packageSet.contains(psiFile, holder)) {
             projectView.changeView(ProjectViewPane.ID);
           }
@@ -879,7 +880,7 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
       for (PsiElement psiElement : allElements) {
         if (psiElement != null && psiElement.isValid()) validElements.add(psiElement);
       }
-      final PsiElement[] elements = PsiUtilBase.toPsiElementArray(validElements);
+      final PsiElement[] elements = PsiUtilCore.toPsiElementArray(validElements);
 
       LocalHistoryAction a = LocalHistory.getInstance().startAction(IdeBundle.message("progress.deleting"));
       try {

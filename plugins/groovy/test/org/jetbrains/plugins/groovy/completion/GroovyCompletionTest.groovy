@@ -1135,9 +1135,11 @@ public class KeyVO {
     assert 'final' in myFixture.lookupElementStrings
   }
 
-  public void testSpaceTail() {
-    checkCompletion 'class A <caret> ArrayList {}', ' ', 'class A extends <caret> ArrayList {}'
-    checkCompletion 'class A <caret> ArrayList {}', '\n', 'class A extends<caret> ArrayList {}'
+  public void testSpaceTail1() {
+    checkCompletion 'class A ex<caret> ArrayList {}', ' ', 'class A extends <caret> ArrayList {}'
+  }
+
+  public void testSpaceTail3() {
     checkSingleItemCompletion 'class Foo impl<caret> {}', 'class Foo implements <caret> {}'
   }
 
@@ -1782,5 +1784,27 @@ def foo(Util util) {
   util.CONS<caret>T = 3
 }
 ''', '', CompletionType.BASIC, CompletionResult.contain, 'CONST')
+  }
+
+  void testInnerClassOfAnonymous() {
+    doCompletionTest(
+      '''
+        def r = new Runnable() {
+          void run() {
+            Data data = new <caret>
+          }
+
+          private static class Data {}
+        }
+      ''',
+      '''
+        def r = new Runnable() {
+          void run() {
+            Data data = new Data()<caret>
+          }
+
+          private static class Data {}
+        }
+      ''', CompletionType.SMART)
   }
 }

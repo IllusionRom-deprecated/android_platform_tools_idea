@@ -19,7 +19,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.Key;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
-import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.model.project.ModuleDependencyData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
@@ -37,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static com.intellij.openapi.externalSystem.model.ProjectKeys.MODULE;
@@ -66,8 +66,8 @@ public class ModuleDependencyDataService extends AbstractDependencyDataService<M
 
   @Override
   public void importData(@NotNull Collection<DataNode<ModuleDependencyData>> toImport, @NotNull Project project, boolean synchronous) {
-    Map<DataNode<ModuleData>, Collection<DataNode<ModuleDependencyData>>> byModule= ExternalSystemApiUtil.groupBy(toImport, MODULE);
-    for (Map.Entry<DataNode<ModuleData>, Collection<DataNode<ModuleDependencyData>>> entry : byModule.entrySet()) {
+    Map<DataNode<ModuleData>, List<DataNode<ModuleDependencyData>>> byModule= ExternalSystemApiUtil.groupBy(toImport, MODULE);
+    for (Map.Entry<DataNode<ModuleData>, List<DataNode<ModuleDependencyData>>> entry : byModule.entrySet()) {
       Module ideModule = myProjectStructureHelper.findIdeModule(entry.getKey().getData(), project);
       if (ideModule == null) {
         myModuleDataManager.importData(Collections.singleton(entry.getKey()), project, true);
@@ -80,16 +80,15 @@ public class ModuleDependencyDataService extends AbstractDependencyDataService<M
         ));
         continue;
       }
-      importData(entry.getValue(), entry.getKey().getData().getOwner(), ideModule, synchronous);
+      importData(entry.getValue(), ideModule, synchronous);
     }
   }
 
   public void importData(@NotNull final Collection<DataNode<ModuleDependencyData>> toImport,
-                         @NotNull ProjectSystemId externalSystemId,
                          @NotNull final Module module,
                          final boolean synchronous)
   {
-    ExternalSystemApiUtil.executeProjectChangeAction(module.getProject(), externalSystemId, toImport, synchronous, new Runnable() {
+    ExternalSystemApiUtil.executeProjectChangeAction(synchronous, new Runnable() {
       @Override
       public void run() {
         ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
