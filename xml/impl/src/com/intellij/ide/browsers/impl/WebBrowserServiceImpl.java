@@ -20,6 +20,8 @@ import com.intellij.ide.browsers.Urls;
 import com.intellij.ide.browsers.WebBrowserService;
 import com.intellij.ide.browsers.WebBrowserUrlProvider;
 import com.intellij.openapi.project.DumbService;
+import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.impl.http.HttpVirtualFile;
 import com.intellij.psi.PsiElement;
@@ -55,11 +57,17 @@ public class WebBrowserServiceImpl extends WebBrowserService {
     }
 
     if (!(preferLocalUrl && HtmlUtil.isHtmlFile(psiFile))) {
-      WebBrowserUrlProvider provider = getProvider(psiElement);
+      Pair<WebBrowserUrlProvider, Url> provider = getProvider(psiElement);
       if (provider != null) {
+        if (provider.second != null) {
+          return provider.second;
+        }
+
         try {
-          // I (develar) don't want to change API right now, so, just wrap result
-          return Urls.newFromIdea(provider.getUrl(psiElement, psiFile, virtualFile));
+          Url url = provider.first.getUrl(psiElement, psiFile, virtualFile);
+          if (url != null) {
+            return url;
+          }
         }
         catch (WebBrowserUrlProvider.BrowserException e) {
           if (!HtmlUtil.isHtmlFile(psiFile)) {
@@ -71,29 +79,31 @@ public class WebBrowserServiceImpl extends WebBrowserService {
     return Urls.newFromVirtualFile(virtualFile);
   }
 
+  @Override
   @Nullable
   public Url getUrlToOpen(@NotNull PsiElement psiElement) {
     try {
       return getUrlToOpen(psiElement, false);
     }
-    catch (WebBrowserUrlProvider.BrowserException e) {
+    catch (WebBrowserUrlProvider.BrowserException ignored) {
       return null;
     }
   }
 
   @Nullable
-  public static WebBrowserUrlProvider getProvider(@Nullable PsiElement element) {
-    if (element == null) {
+  public static Pair<WebBrowserUrlProvider, Url> getProvider(@Nullable PsiElement element) {
+    PsiFile psiFile = element == null ? null : element.getContainingFile();
+    if (psiFile == null) {
       return null;
     }
 
-    final List<WebBrowserUrlProvider> allProviders = Arrays.asList(WebBrowserUrlProvider.EP_NAME.getExtensions());
+    Ref<Url> result = Ref.create();
+    List<WebBrowserUrlProvider> allProviders = Arrays.asList(WebBrowserUrlProvider.EP_NAME.getExtensions());
     for (WebBrowserUrlProvider urlProvider : DumbService.getInstance(element.getProject()).filterByDumbAwareness(allProviders)) {
-      if (urlProvider.canHandleElement(element)) {
-        return urlProvider;
+      if (urlProvider.canHandleElement(element, psiFile, result)) {
+        return Pair.create(urlProvider, result.get());
       }
     }
-
     return null;
   }
 }

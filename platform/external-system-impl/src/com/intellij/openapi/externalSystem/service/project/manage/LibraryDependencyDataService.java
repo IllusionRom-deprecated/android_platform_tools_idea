@@ -15,12 +15,10 @@
  */
 package com.intellij.openapi.externalSystem.service.project.manage;
 
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.Key;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
-import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.model.project.LibraryData;
 import com.intellij.openapi.externalSystem.model.project.LibraryDependencyData;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
@@ -32,7 +30,6 @@ import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
 import com.intellij.openapi.externalSystem.util.Order;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ExportableOrderEntry;
 import com.intellij.openapi.roots.LibraryOrderEntry;
 import com.intellij.openapi.roots.ModifiableRootModel;
 import com.intellij.openapi.roots.ModuleRootManager;
@@ -86,8 +83,8 @@ public class LibraryDependencyDataService extends AbstractDependencyDataService<
       return;
     }
 
-    Map<DataNode<ModuleData>, Collection<DataNode<LibraryDependencyData>>> byModule = ExternalSystemApiUtil.groupBy(toImport, MODULE);
-    for (Map.Entry<DataNode<ModuleData>, Collection<DataNode<LibraryDependencyData>>> entry : byModule.entrySet()) {
+    Map<DataNode<ModuleData>, List<DataNode<LibraryDependencyData>>> byModule = ExternalSystemApiUtil.groupBy(toImport, MODULE);
+    for (Map.Entry<DataNode<ModuleData>, List<DataNode<LibraryDependencyData>>> entry : byModule.entrySet()) {
       Module module = myProjectStructureHelper.findIdeModule(entry.getKey().getData(), project);
       if (module == null) {
         myModuleManager.importData(Collections.singleton(entry.getKey()), project, true);
@@ -100,16 +97,15 @@ public class LibraryDependencyDataService extends AbstractDependencyDataService<
           continue;
         }
       }
-      importData(entry.getValue(), entry.getKey().getData().getOwner(), module, synchronous);
+      importData(entry.getValue(), module, synchronous);
     }
   }
 
   public void importData(@NotNull final Collection<DataNode<LibraryDependencyData>> nodesToImport,
-                         @NotNull ProjectSystemId externalSystemId,
                          @NotNull final Module module,
                          final boolean synchronous)
   {
-    ExternalSystemApiUtil.executeProjectChangeAction(module.getProject(), externalSystemId, nodesToImport, synchronous, new Runnable() {
+    ExternalSystemApiUtil.executeProjectChangeAction(synchronous, new Runnable() {
       @Override
       public void run() {
         LibraryTable libraryTable = myPlatformFacade.getProjectLibraryTable(module.getProject());

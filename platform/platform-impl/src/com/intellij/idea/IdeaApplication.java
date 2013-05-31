@@ -215,7 +215,7 @@ public class IdeaApplication {
     @Override
     public void main(String[] args) {
 
-      SystemDock.initialize();
+      SystemDock.updateMenu();
       // Event queue should not be changed during initialization of application components.
       // It also cannot be changed before initialization of application components because IdeEventQueue uses other
       // application components. So it is proper to perform replacement only here.

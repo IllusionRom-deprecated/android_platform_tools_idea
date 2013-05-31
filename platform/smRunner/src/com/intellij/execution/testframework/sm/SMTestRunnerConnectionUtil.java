@@ -26,10 +26,8 @@ import com.intellij.execution.process.ProcessEvent;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.testframework.TestConsoleProperties;
 import com.intellij.execution.testframework.sm.runner.*;
-import com.intellij.execution.testframework.sm.runner.ui.SMTRunnerConsoleView;
-import com.intellij.execution.testframework.sm.runner.ui.SMTRunnerNotificationsHandler;
-import com.intellij.execution.testframework.sm.runner.ui.SMTRunnerUIActionsHandler;
-import com.intellij.execution.testframework.sm.runner.ui.SMTestRunnerResultsForm;
+import com.intellij.execution.testframework.sm.runner.TestProxyFilterProvider;
+import com.intellij.execution.testframework.sm.runner.ui.*;
 import com.intellij.execution.testframework.sm.runner.ui.statistics.StatisticsPanel;
 import com.intellij.execution.testframework.ui.BaseTestsOutputConsoleView;
 import com.intellij.execution.ui.ConsoleView;
@@ -100,25 +98,48 @@ public class SMTestRunnerConnectionUtil {
                                                                     final ConfigurationPerRunnerSettings configurationSettings,
                                                                     @Nullable final TestLocationProvider locator,
                                                                     final boolean idBasedTreeConstruction,
-                                                                    @Nullable final TestProxyPrinterProvider printerProvider) {
-    // Console
-    final String splitterPropertyName = testFrameworkName + ".Splitter.Proportion";
-    final SMTRunnerConsoleView console =
-      new SMTRunnerConsoleView(consoleProperties, runnerSettings, configurationSettings, splitterPropertyName) {
-        @Override
-        public void attachToProcess(final ProcessHandler processHandler) {
-          // attach listeners
-          super.attachToProcess(processHandler);
-          attachEventsProcessors(consoleProperties, getResultsViewer(),
-                                 getResultsViewer().getStatisticsPane(),
-                                 processHandler, testFrameworkName, locator, idBasedTreeConstruction,
-                                 printerProvider);
-        }
-      };
-    console.setHelpId("reference.runToolWindow.testResultsTab");
-    console.initUI();
-    return console;
+                                                                    @Nullable final TestProxyFilterProvider filterProvider) {
+    String splitterPropertyName = getSplitterPropertyName(testFrameworkName);
+    SMTRunnerConsoleView consoleView = new SMTRunnerConsoleView(consoleProperties,
+                                                                runnerSettings,
+                                                                configurationSettings,
+                                                                splitterPropertyName);
+    initConsoleView(consoleView, testFrameworkName, locator, idBasedTreeConstruction, filterProvider);
+    return consoleView;
   }
+
+  @NotNull
+  public static String getSplitterPropertyName(@NotNull String testFrameworkName) {
+    return testFrameworkName + ".Splitter.Proportion";
+  }
+
+  public static void initConsoleView(@NotNull final SMTRunnerConsoleView consoleView,
+                                     @NotNull final String testFrameworkName,
+                                     @Nullable final TestLocationProvider locator,
+                                     final boolean idBasedTreeConstruction,
+                                     @Nullable final TestProxyFilterProvider filterProvider) {
+    consoleView.addAttachToProcessListener(new AttachToProcessListener() {
+      @Override
+      public void onAttachToProcess(@NotNull ProcessHandler processHandler) {
+        TestProxyPrinterProvider printerProvider = null;
+        if (filterProvider != null) {
+          printerProvider = new TestProxyPrinterProvider(consoleView, filterProvider);
+        }
+        SMTestRunnerResultsForm resultsForm = consoleView.getResultsViewer();
+        attachEventsProcessors(consoleView.getProperties(),
+                               resultsForm,
+                               resultsForm.getStatisticsPane(),
+                               processHandler,
+                               testFrameworkName,
+                               locator,
+                               idBasedTreeConstruction,
+                               printerProvider);
+      }
+    });
+    consoleView.setHelpId("reference.runToolWindow.testResultsTab");
+    consoleView.initUI();
+  }
+
   public static BaseTestsOutputConsoleView createConsole(@NotNull final String testFrameworkName,
                                                          @NotNull final TestConsoleProperties consoleProperties,
                                                          final RunnerSettings runnerSettings,

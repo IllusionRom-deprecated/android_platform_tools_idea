@@ -13,25 +13,38 @@ import java.util.Map;
  * @author Denis Zhdanov
  * @since 8/8/11 12:11 PM
  */
-public class ModuleData extends AbstractNamedData implements Named {
+public class ModuleData extends AbstractNamedData implements Named, ExternalConfigPathAware {
 
   private static final long serialVersionUID = 1L;
 
   @NotNull private final Map<ExternalSystemSourceType, String> myCompileOutputPaths = ContainerUtilRt.newHashMap();
 
   @NotNull private final String myModuleTypeId;
+  @NotNull private final String myExternalConfigPath;
   @NotNull private String myModuleFilePath;
   private boolean myInheritProjectCompileOutputPath = true;
 
-  public ModuleData(@NotNull ProjectSystemId owner, @NotNull String typeId, @NotNull String name, @NotNull String moduleFileDirectoryPath) {
+  public ModuleData(@NotNull ProjectSystemId owner,
+                    @NotNull String typeId,
+                    @NotNull String name,
+                    @NotNull String moduleFileDirectoryPath,
+                    @NotNull String externalConfigPath)
+  {
     super(owner, name);
     myModuleTypeId = typeId;
+    myExternalConfigPath = externalConfigPath;
     setModuleFileDirectoryPath(moduleFileDirectoryPath);
   }
 
   @NotNull
   public String getModuleTypeId() {
     return myModuleTypeId;
+  }
+
+  @NotNull
+  @Override
+  public String getLinkedExternalProjectPath() {
+    return myExternalConfigPath;
   }
 
   @NotNull

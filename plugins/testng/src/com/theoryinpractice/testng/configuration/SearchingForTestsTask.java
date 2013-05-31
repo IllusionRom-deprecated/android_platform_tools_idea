@@ -30,9 +30,12 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbModeAction;
+import com.intellij.openapi.project.DumbService;
+import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.psi.*;
@@ -89,7 +92,7 @@ public class SearchingForTestsTask extends Task.Backgroundable {
     try {
       mySocket = myServerSocket.accept();
       try {
-        fillTestObjects(myClasses);
+        findAllTests();
       }
       catch (CantRunException e) {
         logCantRunException(e);
@@ -103,22 +106,28 @@ public class SearchingForTestsTask extends Task.Backgroundable {
     }
   }
 
+  private void findAllTests() throws CantRunException {
+    try {
+      fillTestObjects(myClasses);
+    }
+    catch (IndexNotReadyException e) {
+      myClasses.clear();
+      DumbService.getInstance(myProject).waitForSmartMode();
+      findAllTests();
+    }
+  }
+
   @Override
   public void onSuccess() {
     writeTempFile();
     finish();
 
-    myClient.startListening(myConfig);
+    if (!Registry.is("testng_sm_runner", false)) myClient.startListening(myConfig);
   }
 
   @Override
   public void onCancel() {
     finish();
-  }
-
-  @Override
-  public DumbModeAction getDumbModeAction() {
-    return DumbModeAction.WAIT;
   }
 
   public void finish() {

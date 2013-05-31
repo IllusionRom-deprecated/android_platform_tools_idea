@@ -25,6 +25,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressIndicatorProvider;
+import com.intellij.openapi.progress.util.FindUsagesIndicator;
 import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
@@ -122,12 +123,13 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     return AsyncUtil.get(result);
   }
 
+  @NotNull
   @Override
   public AsyncFuture<Boolean> processElementsWithWordAsync(@NotNull final TextOccurenceProcessor processor,
-                                         @NotNull SearchScope searchScope,
-                                         @NotNull final String text,
-                                         final short searchContext,
-                                         final boolean caseSensitively) {
+                                                           @NotNull SearchScope searchScope,
+                                                           @NotNull final String text,
+                                                           final short searchContext,
+                                                           final boolean caseSensitively) {
     if (text.isEmpty()) {
       return AsyncFutureFactory.wrapException(new IllegalArgumentException("Cannot search for elements with empty text"));
     }
@@ -161,9 +163,9 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     }
   }
 
-  private static boolean processElementsWithWordInScopeElement(final PsiElement scopeElement,
-                                                               final TextOccurenceProcessor processor,
-                                                               final String word,
+  private static boolean processElementsWithWordInScopeElement(@NotNull final PsiElement scopeElement,
+                                                               @NotNull final TextOccurenceProcessor processor,
+                                                               @NotNull final String word,
                                                                final boolean caseSensitive,
                                                                final boolean ignoreInjectedPsi,
                                                                final boolean handleEscapeSequences,
@@ -178,12 +180,13 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     }).booleanValue();
   }
 
+  @NotNull
   private AsyncFuture<Boolean> processElementsWithTextInGlobalScopeAsync(@NotNull final TextOccurenceProcessor processor,
-                                                       @NotNull final GlobalSearchScope scope,
-                                                       @NotNull final StringSearcher searcher,
-                                                       final short searchContext,
-                                                       final boolean caseSensitively,
-                                                       final ProgressIndicator progress) {
+                                                                         @NotNull final GlobalSearchScope scope,
+                                                                         @NotNull final StringSearcher searcher,
+                                                                         final short searchContext,
+                                                                         final boolean caseSensitively,
+                                                                         final ProgressIndicator progress) {
     LOG.assertTrue(!Thread.holdsLock(PsiLock.LOCK),
                    "You must not run search from within updating PSI activity. Please consider invokeLatering it instead.");
     if (progress != null) {
@@ -198,101 +201,112 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
       progress.setText(PsiBundle.message("psi.search.for.word.progress", text));
     }
 
-      final AsyncFuture<Boolean> result = processPsiFileRootsAsync(fileSet, new Processor<PsiElement>() {
-        @Override
-        public boolean process(PsiElement psiRoot) {
-          return LowLevelSearchUtil.processElementsContainingWordInElement(processor, psiRoot, searcher, true, progress);
-        }
-      }, progress);
-      return new FinallyFuture<Boolean>(result, new Runnable() {
-        @Override
-        public void run() {
-          if (progress != null) {
-            progress.popState();
+    final AsyncFuture<Boolean> result = processPsiFileRootsAsync(fileSet, new Processor<PsiElement>() {
+      @Override
+      public boolean process(final PsiElement psiRoot) {
+        return ApplicationManager.getApplication().runReadAction(new Computable<Boolean>() {
+          public Boolean compute() {
+            return LowLevelSearchUtil.processElementsContainingWordInElement(processor, psiRoot, searcher, true, progress);
           }
+        });
+      }
+    }, progress);
+    return new FinallyFuture<Boolean>(result, new Runnable() {
+      @Override
+      public void run() {
+        if (progress != null) {
+          progress.popState();
         }
-      });
+      }
+    });
   }
 
+  @NotNull
   private AsyncFuture<Boolean> processPsiFileRootsAsync(@NotNull List<VirtualFile> files,
-                                      @NotNull final Processor<PsiElement> psiRootProcessor,
-                                      final ProgressIndicator progress) {
+                                                        @NotNull final Processor<PsiElement> psiRootProcessor,
+                                                        final ProgressIndicator progress) {
     myManager.startBatchFilesProcessingMode();
-      final AtomicInteger counter = new AtomicInteger(0);
-      final AtomicBoolean canceled = new AtomicBoolean(false);
-      final AtomicBoolean pceThrown = new AtomicBoolean(false);
+    final AtomicInteger counter = new AtomicInteger(0);
+    final AtomicBoolean canceled = new AtomicBoolean(false);
+    final AtomicBoolean pceThrown = new AtomicBoolean(false);
 
-      final int size = files.size();
-      AsyncFuture<Boolean>
-        completed = JobLauncher.getInstance().invokeConcurrentlyUnderProgressAsync(files, progress, false, new Processor<VirtualFile>() {
-        @Override
-        public boolean process(final VirtualFile vfile) {
-          final PsiFile file = ApplicationManager.getApplication().runReadAction(new Computable<PsiFile>() {
-            @Override
-            public PsiFile compute() {
-              return vfile.isValid() ? myManager.findFile(vfile) : null;
-            }
-          });
-          if (file != null && !(file instanceof PsiBinaryFile)) {
-            file.getViewProvider().getContents(); // load contents outside readaction
-            ApplicationManager.getApplication().runReadAction(new Runnable() {
-              @Override
-              public void run() {
-                try {
-                  if (myManager.getProject().isDisposed()) throw new ProcessCanceledException();
-                  List<PsiFile> psiRoots = file.getViewProvider().getAllFiles();
-                  Set<PsiElement> processed = new THashSet<PsiElement>(psiRoots.size() * 2, (float)0.5);
-                  for (PsiElement psiRoot : psiRoots) {
-                    if (progress != null) progress.checkCanceled();
-                    assert psiRoot != null : "One of the roots of file " + file + " is null. All roots: " + psiRoots +
-                                             "; ViewProvider: " + file.getViewProvider() + "; Virtual file: " + file.getViewProvider().getVirtualFile();
-                    if (!processed.add(psiRoot)) continue;
-                    if (!psiRoot.isValid()) continue;
-                    if (!psiRootProcessor.process(psiRoot)) {
-                      canceled.set(true);
-                      return;
-                    }
-                  }
-                  myManager.dropResolveCaches();
-                }
-                catch (ProcessCanceledException e) {
-                  canceled.set(true);
-                  pceThrown.set(true);
-                }
+    final int size = files.size();
+    AsyncFuture<Boolean>
+      completed = JobLauncher.getInstance().invokeConcurrentlyUnderProgressAsync(files, progress, false, new Processor<VirtualFile>() {
+      @Override
+      public boolean process(final VirtualFile vfile) {
+        final PsiFile file = ApplicationManager.getApplication().runReadAction(new Computable<PsiFile>() {
+          @Override
+          public PsiFile compute() {
+            return vfile.isValid() ? myManager.findFile(vfile) : null;
+          }
+        });
+        if (file != null && !(file instanceof PsiBinaryFile)) {
+          file.getViewProvider().getContents(); // load contents outside readaction
+          try {
+            if (myManager.getProject().isDisposed()) throw new ProcessCanceledException();
+            List<PsiFile> psiRoots = ApplicationManager.getApplication().runReadAction(new Computable<List<PsiFile>>() {
+              public List<PsiFile> compute() {
+                return file.getViewProvider().getAllFiles();
               }
             });
+            Set<PsiElement> processed = new THashSet<PsiElement>(psiRoots.size() * 2, (float)0.5);
+            for (final PsiElement psiRoot : psiRoots) {
+              if (progress != null) progress.checkCanceled();
+              assert psiRoot != null : "One of the roots of file " + file + " is null. All roots: " + psiRoots +
+                                       "; ViewProvider: " + file.getViewProvider() + "; Virtual file: " + file.getViewProvider().getVirtualFile();
+              if (!processed.add(psiRoot)) continue;
+              if (!ApplicationManager.getApplication().runReadAction(new Computable<Boolean>() {
+                public Boolean compute() {
+                  return psiRoot.isValid();
+                }
+              })) {
+                continue;
+              }
+              if (!psiRootProcessor.process(psiRoot)) {
+                canceled.set(true);
+                break;
+              }
+            }
+            myManager.dropResolveCaches();
           }
-          if (progress != null && progress.isRunning()) {
-            double fraction = (double)counter.incrementAndGet() / size;
-            progress.setFraction(fraction);
+          catch (ProcessCanceledException e) {
+            canceled.set(true);
+            pceThrown.set(true);
           }
-          return !canceled.get();
         }
-      });
-
-      final AsyncFutureResult<Boolean> ourResult = AsyncFutureFactory.getInstance().createAsyncFutureResult();
-      completed.addConsumer(SameThreadExecutor.INSTANCE, new DefaultResultConsumer<Boolean>(ourResult) {
-        @Override
-        public void onSuccess(Boolean value) {
-          if (pceThrown.get())
-            ourResult.setException(new ProcessCanceledException());
-          else
-            ourResult.set(value);
+        if (progress != null && progress.isRunning()) {
+          double fraction = (double)counter.incrementAndGet() / size;
+          progress.setFraction(fraction);
         }
+        return !canceled.get();
+      }
+    });
 
-        @Override
-        public void onFailure(Throwable t) {
-          ourResult.setException(t);
+    final AsyncFutureResult<Boolean> ourResult = AsyncFutureFactory.getInstance().createAsyncFutureResult();
+    completed.addConsumer(SameThreadExecutor.INSTANCE, new DefaultResultConsumer<Boolean>(ourResult) {
+      @Override
+      public void onSuccess(Boolean value) {
+        if (pceThrown.get()) {
+          ourResult.setException(new ProcessCanceledException());
         }
-      });
-
-
-      return new FinallyFuture<Boolean>(ourResult, new Runnable() {
-        @Override
-        public void run() {
-          myManager.finishBatchFilesProcessingMode();
+        else {
+          ourResult.set(value);
         }
-      });
+      }
+
+      @Override
+      public void onFailure(Throwable t) {
+        ourResult.setException(t);
+      }
+    });
+
+    return new FinallyFuture<Boolean>(ourResult, new Runnable() {
+      @Override
+      public void run() {
+        myManager.finishBatchFilesProcessingMode();
+      }
+    });
   }
 
   @NotNull
@@ -392,6 +406,7 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     });
 
     final StringSearcher searcher = new StringSearcher(qName, true, true, false);
+    final int patternLength = searcher.getPattern().length();
 
     if (progress != null) {
       progress.pushState();
@@ -413,25 +428,32 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
       final PsiFile psiFile = files[i];
       if (psiFile instanceof PsiBinaryFile) continue;
 
-      ApplicationManager.getApplication().runReadAction(new Runnable() {
-        @Override
-        public void run() {
-          CharSequence text = psiFile.getViewProvider().getContents();
-          final char[] textArray = CharArrayUtil.fromSequenceWithoutCopying(text);
-          for (int index = LowLevelSearchUtil.searchWord(text, textArray, 0, text.length(), searcher, progress); index >= 0;) {
-            PsiReference referenceAt = psiFile.findReferenceAt(index);
-            if (referenceAt == null || useScope == null ||
-                !PsiSearchScopeUtil.isInScope(useScope.intersectWith(initialScope), psiFile)) {
-              if (!processor.process(psiFile, index, index + searcher.getPattern().length())) {
-                cancelled.set(Boolean.TRUE);
-                return;
-              }
-            }
-
-            index = LowLevelSearchUtil.searchWord(text, textArray, index + searcher.getPattern().length(), text.length(), searcher, progress);
-          }
+      final CharSequence text = ApplicationManager.getApplication().runReadAction(new Computable<CharSequence>() {
+        public CharSequence compute() {
+          return psiFile.getViewProvider().getContents();
         }
       });
+      final char[] textArray = ApplicationManager.getApplication().runReadAction(new Computable<char[]>() {
+        public char[] compute() {
+          return CharArrayUtil.fromSequenceWithoutCopying(text);
+        }
+      });
+      for (int index = LowLevelSearchUtil.searchWord(text, textArray, 0, text.length(), searcher, progress); index >= 0;) {
+        final int finalIndex = index;
+        boolean isReferenceOK = ApplicationManager.getApplication().runReadAction(new Computable<Boolean>() {
+          public Boolean compute() {
+            PsiReference referenceAt = psiFile.findReferenceAt(finalIndex);
+            return referenceAt == null || useScope == null ||
+                   !PsiSearchScopeUtil.isInScope(useScope.intersectWith(initialScope), psiFile);
+          }
+        });
+        if (isReferenceOK && !processor.process(psiFile, index, index + patternLength)) {
+          cancelled.set(Boolean.TRUE);
+          break;
+        }
+
+        index = LowLevelSearchUtil.searchWord(text, textArray, index + patternLength, text.length(), searcher, progress);
+      }
       if (cancelled.get()) break;
       if (progress != null) {
         progress.setFraction((double)(i + 1) / files.length);
@@ -510,6 +532,7 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     return AsyncUtil.get(processRequestsAsync(request, processor));
   }
 
+  @NotNull
   @Override
   public AsyncFuture<Boolean> processRequestsAsync(@NotNull SearchRequestCollector collector, @NotNull Processor<PsiReference> processor) {
     final Map<SearchRequestCollector, Processor<PsiReference>> collectors = ContainerUtil.newHashMap();
@@ -520,6 +543,7 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     final ProgressIndicator progress = ProgressIndicatorProvider.getGlobalProgressIndicator();
     final DoWhile doWhile = new DoWhile() {
 
+      @NotNull
       @Override
       protected AsyncFuture<Boolean> body() {
         final AsyncFutureResult<Boolean> result = AsyncFutureFactory.getInstance().createAsyncFutureResult();
@@ -536,6 +560,7 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
               }
               else {
                 final Iterate<RequestWithProcessor> iterate = new Iterate<RequestWithProcessor>(locals) {
+                  @NotNull
                   @Override
                   protected AsyncFuture<Boolean> process(RequestWithProcessor local) {
                     return processSingleRequestAsync(local.request, local.refProcessor);
@@ -574,7 +599,7 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     return doWhile.getResult();
   }
 
-  private static boolean appendCollectorsFromQueryRequests(Map<SearchRequestCollector, Processor<PsiReference>> collectors) {
+  private static boolean appendCollectorsFromQueryRequests(@NotNull Map<SearchRequestCollector, Processor<PsiReference>> collectors) {
     boolean changed = false;
     LinkedList<SearchRequestCollector> queue = new LinkedList<SearchRequestCollector>(collectors.keySet());
     while (!queue.isEmpty()) {
@@ -589,8 +614,9 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     return changed;
   }
 
-  private AsyncFuture<Boolean> processGlobalRequestsOptimizedAsync(MultiMap<Set<IdIndexEntry>, RequestWithProcessor> singles,
-                                                 final ProgressIndicator progress) {
+  @NotNull
+  private AsyncFuture<Boolean> processGlobalRequestsOptimizedAsync(@NotNull MultiMap<Set<IdIndexEntry>, RequestWithProcessor> singles,
+                                                                   final ProgressIndicator progress) {
     if (singles.isEmpty()) {
       return AsyncFutureFactory.wrap(true);
     }
@@ -628,12 +654,23 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     final AsyncFuture<Boolean> result =
       processPsiFileRootsAsync(new ArrayList<VirtualFile>(candidateFiles.keySet()), new Processor<PsiElement>() {
         @Override
-        public boolean process(PsiElement psiRoot) {
-          final VirtualFile vfile = psiRoot.getContainingFile().getVirtualFile();
+        public boolean process(final PsiElement psiRoot) {
+          if (progress instanceof FindUsagesIndicator) {
+            ((FindUsagesIndicator)progress).pauseProcessingIfTooManyUsages();
+          }
+          final VirtualFile vfile = ApplicationManager.getApplication().runReadAction(new Computable<VirtualFile>() {
+            public VirtualFile compute() {
+              return psiRoot.getContainingFile().getVirtualFile();
+            }
+          });
           for (final RequestWithProcessor singleRequest : candidateFiles.get(vfile)) {
-            StringSearcher searcher = searchers.get(singleRequest);
-            TextOccurenceProcessor adapted = adaptProcessor(singleRequest.request, singleRequest.refProcessor);
-            if (!LowLevelSearchUtil.processElementsContainingWordInElement(adapted, psiRoot, searcher, true, progress)) {
+            final StringSearcher searcher = searchers.get(singleRequest);
+            final TextOccurenceProcessor adapted = adaptProcessor(singleRequest.request, singleRequest.refProcessor);
+            if (!ApplicationManager.getApplication().runReadAction(new Computable<Boolean>() {
+              public Boolean compute() {
+                return LowLevelSearchUtil.processElementsContainingWordInElement(adapted, psiRoot, searcher, true, progress);
+              }
+            })) {
               return false;
             }
           }
@@ -652,7 +689,8 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     });
   }
 
-  private String getPresentableWordsDescription(Set<String> allWords) {
+  @NotNull
+  private static String getPresentableWordsDescription(@NotNull Set<String> allWords) {
     final StringBuilder result = new StringBuilder();
     for (String string : allWords) {
         if (string != null && !string.isEmpty()) {
@@ -683,7 +721,8 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     };
   }
 
-  private MultiMap<VirtualFile, RequestWithProcessor> collectFiles(MultiMap<Set<IdIndexEntry>, RequestWithProcessor> singles,
+  @NotNull
+  private MultiMap<VirtualFile, RequestWithProcessor> collectFiles(@NotNull MultiMap<Set<IdIndexEntry>, RequestWithProcessor> singles,
                                                                    ProgressIndicator progress) {
     final FileIndexFacade index = FileIndexFacade.getInstance(myManager.getProject());
     final MultiMap<VirtualFile, RequestWithProcessor> result = createMultiMap();
@@ -726,7 +765,7 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
                   return true;
                 }
               }, commonScope);
-              
+
             }
           });
         }
@@ -735,12 +774,14 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     return result;
   }
 
+  @NotNull
   private static MultiMap<VirtualFile, RequestWithProcessor> createMultiMap() {
     // usually there is just one request
     return MultiMap.createSmartList();
   }
 
-  private static GlobalSearchScope uniteScopes(Collection<RequestWithProcessor> requests) {
+  @NotNull
+  private static GlobalSearchScope uniteScopes(@NotNull Collection<RequestWithProcessor> requests) {
     GlobalSearchScope commonScope = null;
     for (RequestWithProcessor r : requests) {
       final GlobalSearchScope scope = (GlobalSearchScope)r.request.searchScope;
@@ -750,10 +791,11 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     return commonScope;
   }
 
-  private static MultiMap<VirtualFile, RequestWithProcessor> findFilesWithIndexEntry(final IdIndexEntry entry,
-                                                                                     final FileIndexFacade index,
-                                                                                     final Collection<RequestWithProcessor> data,
-                                                                                     final GlobalSearchScope commonScope,
+  @NotNull
+  private static MultiMap<VirtualFile, RequestWithProcessor> findFilesWithIndexEntry(@NotNull final IdIndexEntry entry,
+                                                                                     @NotNull final FileIndexFacade index,
+                                                                                     @NotNull final Collection<RequestWithProcessor> data,
+                                                                                     @NotNull final GlobalSearchScope commonScope,
                                                                                      final ProgressIndicator progress) {
     final MultiMap<VirtualFile, RequestWithProcessor> local = createMultiMap();
     ApplicationManager.getApplication().runReadAction(new Runnable() {
@@ -815,8 +857,9 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     }
   }
 
-  private static void registerRequest(Collection<RequestWithProcessor> collection,
-                                      PsiSearchRequest primitive, Processor<PsiReference> processor) {
+  private static void registerRequest(@NotNull Collection<RequestWithProcessor> collection,
+                                      @NotNull PsiSearchRequest primitive,
+                                      @NotNull Processor<PsiReference> processor) {
     final RequestWithProcessor newValue = new RequestWithProcessor(primitive, processor);
     for (RequestWithProcessor existing : collection) {
       if (existing.uniteWith(newValue)) {
@@ -826,15 +869,13 @@ public class PsiSearchHelperImpl implements PsiSearchHelper {
     collection.add(newValue);
   }
 
-  private boolean processSingleRequest(PsiSearchRequest single, Processor<PsiReference> consumer) {
-    return AsyncUtil.get(processSingleRequestAsync(single, consumer));
-  }
-
-  private AsyncFuture<Boolean> processSingleRequestAsync(PsiSearchRequest single, Processor<PsiReference> consumer) {
+  @NotNull
+  private AsyncFuture<Boolean> processSingleRequestAsync(@NotNull PsiSearchRequest single, @NotNull Processor<PsiReference> consumer) {
     return processElementsWithWordAsync(adaptProcessor(single, consumer), single.searchScope, single.word, single.searchContext,
                                         single.caseSensitive);
   }
 
+  @NotNull
   @Override
   public SearchCostResult isCheapEnoughToSearch(@NotNull String name,
                                                 @NotNull final GlobalSearchScope scope,

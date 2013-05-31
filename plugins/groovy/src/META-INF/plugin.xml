@@ -663,6 +663,10 @@
                      groupName="Control Flow"
                      enabledByDefault="true" level="WARNING"
                      implementationClass="org.jetbrains.plugins.groovy.codeInspection.control.GroovyUnnecessaryReturnInspection"/>
+    <localInspection language="Groovy" groupPath="Groovy" shortName="GrFinalVariableAccess" displayName="Final variable access"
+                     groupName="Control Flow"
+                     enabledByDefault="true" level="WARNING"
+                     implementationClass="org.jetbrains.plugins.groovy.codeInspection.control.finalVar.GrFinalVariableAccessInspection"/>
     <localInspection language="Groovy" groupPath="Groovy" shortName="GroovySwitchStatementWithNoDefault"
                      displayName="Switch statement with no default case"
                      groupName="Control Flow" enabledByDefault="false" level="WARNING"
@@ -991,6 +995,10 @@
                      displayName="Check '@Singleton' annotation conventions"
                      groupName="Annotations verifying" enabledByDefault="true" level="WARNING"
                      implementationClass="org.jetbrains.plugins.groovy.annotator.inspections.GroovySingletonAnnotationInspection"/>
+
+    <localInspection language="Groovy" groupPath="Groovy" shortName="DelegatesTo" displayName="@DelegatesTo inspection"
+                     groupName="Annotations verifying" enabledByDefault="true" level="WARNING"
+                     implementationClass="org.jetbrains.plugins.groovy.codeInspection.confusing.DelegatesToInspection"/>
 
     <implicitUsageProvider implementation="org.jetbrains.plugins.groovy.gpp.GppImplicitUsageProvider"/>
     <implicitUsageProvider implementation="org.jetbrains.plugins.groovy.findUsages.GrImplicitUsageProvider"/>

@@ -170,14 +170,15 @@ public class ExternalSystemFacadeManager {
         params.getVMParametersList().addParametersString(
           "-Dsun.rmi.transport.connectionTimeout=" + String.valueOf(TimeUnit.HOURS.toMillis(1))
         );
-        //params.getVMParametersList().addParametersString("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5009");
+//        params.getVMParametersList().addParametersString("-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5009");
 
         ProjectSystemId externalSystemId = myTargetExternalSystemId.get();
         if (externalSystemId != null) {
           ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
           if (manager != null) {
+            params.getClassPath().add(PathUtil.getJarPathForClass(manager.getProjectResolverClass().getClass()));
             params.getProgramParametersList().add(manager.getProjectResolverClass().getName());
-            params.getProgramParametersList().add(manager.getBuildManagerClass().getName());
+            params.getProgramParametersList().add(manager.getTaskManagerClass().getName());
             manager.enhanceParameters(params);
           }
         }
@@ -185,8 +186,8 @@ public class ExternalSystemFacadeManager {
         return params;
       }
 
-      @NotNull
       @Override
+      @NotNull
       public ExecutionResult execute(@NotNull Executor executor, @NotNull ProgramRunner runner) throws ExecutionException {
         ProcessHandler processHandler = startProcess();
         return new DefaultExecutionResult(null, processHandler, AnAction.EMPTY_ARRAY);

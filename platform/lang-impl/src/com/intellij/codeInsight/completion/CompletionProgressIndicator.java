@@ -16,7 +16,6 @@
 
 package com.intellij.codeInsight.completion;
 
-import com.intellij.codeInsight.AutoPopupController;
 import com.intellij.codeInsight.CodeInsightSettings;
 import com.intellij.codeInsight.completion.impl.CompletionServiceImpl;
 import com.intellij.codeInsight.completion.impl.CompletionSorterImpl;
@@ -24,7 +23,6 @@ import com.intellij.codeInsight.editorActions.CompletionAutoPopupHandler;
 import com.intellij.codeInsight.hint.EditorHintListener;
 import com.intellij.codeInsight.hint.HintManager;
 import com.intellij.codeInsight.lookup.*;
-import com.intellij.codeInsight.lookup.impl.CompletionPreview;
 import com.intellij.codeInsight.lookup.impl.LookupImpl;
 import com.intellij.diagnostic.PerformanceWatcher;
 import com.intellij.featureStatistics.FeatureUsageTracker;
@@ -118,7 +116,6 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
     }
   };
   private volatile int myCount;
-  private volatile boolean myShowPreview;
   private final ConcurrentHashMap<LookupElement, CompletionSorterImpl> myItemSorters =
     new ConcurrentHashMap<LookupElement, CompletionSorterImpl>(
       ContainerUtil.<LookupElement>identityStrategy());
@@ -175,17 +172,16 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
 
   void duringCompletion(CompletionInitializationContext initContext) {
     if (isAutopopupCompletion()) {
-      if (shouldFocusLookup(myParameters)) {
+      if (shouldPreselectFirstSuggestion(myParameters)) {
         if (!CodeInsightSettings.getInstance().SELECT_AUTOPOPUP_SUGGESTIONS_BY_CHARS) {
-          myShowPreview = true;
-          myLookup.setFocused(false);
+          myLookup.setFocusDegree(LookupImpl.FocusDegree.SEMI_FOCUSED);
           if (FeatureUsageTracker.getInstance().isToBeAdvertisedInLookup(CodeCompletionFeatures.EDITING_COMPLETION_FINISH_BY_CONTROL_DOT, getProject())) {
             myLookup.addAdvertisement("Press " +
                                       CompletionContributor.getActionShortcut(IdeActions.ACTION_CHOOSE_LOOKUP_ITEM_DOT) +
                                       " to choose the selected (or first) suggestion and insert a dot afterwards");
           }
         } else {
-          myLookup.setFocused(true);
+          myLookup.setFocusDegree(LookupImpl.FocusDegree.FOCUSED);
         }
       }
       else if (FeatureUsageTracker.getInstance()
@@ -347,9 +343,6 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
       if (!myLookup.showLookup()) {
         return false;
       }
-      if (myShowPreview) {
-        CompletionPreview.installPreview(myLookup);
-      }
       justShown = true;
     }
     myLookup.refreshUi(true, justShown);
@@ -428,9 +421,10 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
     CompletionServiceImpl
       .assertPhase(CompletionPhase.BgCalculation.class, CompletionPhase.ItemsCalculated.class, CompletionPhase.Synchronous.class,
                    CompletionPhase.CommittingDocuments.class);
-    if (CompletionServiceImpl.getCompletionPhase() instanceof CompletionPhase.CommittingDocuments) {
-      LOG.assertTrue(CompletionServiceImpl.getCompletionPhase().indicator != null, CompletionServiceImpl.getCompletionPhase());
-      ((CompletionPhase.CommittingDocuments)CompletionServiceImpl.getCompletionPhase()).replaced = true;
+    CompletionPhase oldPhase = CompletionServiceImpl.getCompletionPhase();
+    if (oldPhase instanceof CompletionPhase.CommittingDocuments) {
+      LOG.assertTrue(((CompletionPhase.CommittingDocuments)oldPhase).isRestartingCompletion(), oldPhase);
+      ((CompletionPhase.CommittingDocuments)oldPhase).replaced = true;
     }
     CompletionServiceImpl.setCompletionPhase(CompletionPhase.NoCompletion);
     if (disposeOffsetMap) {
@@ -632,15 +626,6 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
       LOG.error(current + "!=" + this);
     }
 
-    if (isAutopopupCompletion() && !myLookup.isShown()) {
-      if (CompletionServiceImpl.getCompletionService().getCurrentCompletion() == this) {
-        closeAndFinish(true);
-      }
-
-      AutoPopupController.getInstance(getProject()).scheduleAutoPopup(myEditor, null);
-      return;
-    }
-
     hideAutopopupIfMeaningless();
 
     CompletionPhase oldPhase = CompletionServiceImpl.getCompletionPhase();
@@ -715,7 +700,11 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
     return result[0];
   }
 
-  private static boolean shouldFocusLookup(CompletionParameters parameters) {
+  private static boolean shouldPreselectFirstSuggestion(CompletionParameters parameters) {
+    if (!ApplicationManager.getApplication().isUnitTestMode()) {
+      return true;
+    }
+
     switch (CodeInsightSettings.getInstance().AUTOPOPUP_FOCUS_POLICY) {
       case CodeInsightSettings.ALWAYS:
         return true;

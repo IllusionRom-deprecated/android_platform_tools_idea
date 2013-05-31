@@ -22,10 +22,7 @@ import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInsight.daemon.ImplicitUsageProvider;
 import com.intellij.codeInsight.daemon.JavaErrorMessages;
-import com.intellij.codeInsight.daemon.impl.analysis.HighlightLevelUtil;
-import com.intellij.codeInsight.daemon.impl.analysis.HighlightMessageUtil;
-import com.intellij.codeInsight.daemon.impl.analysis.HighlightMethodUtil;
-import com.intellij.codeInsight.daemon.impl.analysis.HighlightUtil;
+import com.intellij.codeInsight.daemon.impl.analysis.*;
 import com.intellij.codeInsight.daemon.impl.quickfix.*;
 import com.intellij.codeInsight.intention.EmptyIntentionAction;
 import com.intellij.codeInsight.intention.IntentionAction;
@@ -38,7 +35,7 @@ import com.intellij.codeInspection.reference.UnusedDeclarationFixProvider;
 import com.intellij.codeInspection.unusedImport.UnusedImportLocalInspection;
 import com.intellij.codeInspection.unusedParameters.UnusedParametersInspection;
 import com.intellij.codeInspection.unusedSymbol.UnusedSymbolLocalInspection;
-import com.intellij.codeInspection.util.SpecialAnnotationsUtil;
+import com.intellij.codeInspection.util.SpecialAnnotationsUtilBase;
 import com.intellij.diagnostic.LogMessageEx;
 import com.intellij.diagnostic.errordialog.Attachment;
 import com.intellij.find.FindManager;
@@ -442,7 +439,7 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
 
         QuickFixAction.registerQuickFixAction(info, new CreateGetterOrSetterFix(false, true, field), myUnusedSymbolKey);
         QuickFixAction.registerQuickFixAction(info, HighlightMethodUtil.getFixRange(field), new CreateConstructorParameterFromFieldFix(field));
-        SpecialAnnotationsUtil.createAddToSpecialAnnotationFixes(field, new Processor<String>() {
+        SpecialAnnotationsUtilBase.createAddToSpecialAnnotationFixes(field, new Processor<String>() {
           @Override
           public boolean process(final String annoName) {
             QuickFixAction.registerQuickFixAction(info, UnusedSymbolLocalInspection.createQuickFix(annoName, "fields", field.getProject()));
@@ -497,7 +494,7 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
            myUnusedSymbolInspection.REPORT_PARAMETER_FOR_PUBLIC_METHODS &&
            !isOverriddenOrOverrides(method)) &&
           !method.hasModifierProperty(PsiModifier.NATIVE) &&
-          !HighlightMethodUtil.isSerializationRelatedMethod(method, method.getContainingClass()) &&
+          !JavaHighlightUtil.isSerializationRelatedMethod(method, method.getContainingClass()) &&
           !PsiClassImplUtil.isMainOrPremainMethod(method)) {
         if (UnusedSymbolLocalInspection.isInjected(method)) return null;
         HighlightInfo highlightInfo = checkUnusedParameter(parameter, identifier, progress);
@@ -559,10 +556,11 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
     String message = JavaErrorMessages.message(key, symbolName);
     final HighlightInfo highlightInfo = createUnusedSymbolInfo(identifier, message, highlightInfoType);
     QuickFixAction.registerQuickFixAction(highlightInfo, new SafeDeleteFix(method), highlightDisplayKey);
-    SpecialAnnotationsUtil.createAddToSpecialAnnotationFixes(method, new Processor<String>() {
+    SpecialAnnotationsUtilBase.createAddToSpecialAnnotationFixes(method, new Processor<String>() {
       @Override
       public boolean process(final String annoName) {
-        QuickFixAction.registerQuickFixAction(highlightInfo, UnusedSymbolLocalInspection.createQuickFix(annoName, "methods", method.getProject()));
+        QuickFixAction
+          .registerQuickFixAction(highlightInfo, UnusedSymbolLocalInspection.createQuickFix(annoName, "methods", method.getProject()));
         return true;
       }
     });
@@ -581,7 +579,7 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
 
     boolean aPrivate = method.hasModifierProperty(PsiModifier.PRIVATE);
     PsiClass containingClass = method.getContainingClass();
-    if (HighlightMethodUtil.isSerializationRelatedMethod(method, containingClass)) return true;
+    if (JavaHighlightUtil.isSerializationRelatedMethod(method, containingClass)) return true;
     if (aPrivate) {
       if (isIntentionalPrivateConstructor(method, containingClass)) {
         return true;
@@ -727,10 +725,11 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
     String message = JavaErrorMessages.message(pattern, symbolName);
     final HighlightInfo highlightInfo = createUnusedSymbolInfo(identifier, message, highlightInfoType);
     QuickFixAction.registerQuickFixAction(highlightInfo, new SafeDeleteFix(aClass), highlightDisplayKey);
-    SpecialAnnotationsUtil.createAddToSpecialAnnotationFixes((PsiModifierListOwner)aClass, new Processor<String>() {
+    SpecialAnnotationsUtilBase.createAddToSpecialAnnotationFixes((PsiModifierListOwner)aClass, new Processor<String>() {
       @Override
       public boolean process(final String annoName) {
-        QuickFixAction.registerQuickFixAction(highlightInfo, UnusedSymbolLocalInspection.createQuickFix(annoName, element, aClass.getProject()));
+        QuickFixAction
+          .registerQuickFixAction(highlightInfo, UnusedSymbolLocalInspection.createQuickFix(annoName, element, aClass.getProject()));
         return true;
       }
     });

@@ -1,14 +1,11 @@
 package com.intellij.openapi.externalSystem.service;
 
 import com.intellij.execution.rmi.RemoteServer;
+import com.intellij.openapi.externalSystem.task.ExternalSystemTaskManager;
 import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
-import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
-import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationEvent;
-import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskType;
-import com.intellij.openapi.externalSystem.build.ExternalSystemBuildManager;
+import com.intellij.openapi.externalSystem.model.task.*;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.externalSystem.service.remote.*;
-import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
 import com.intellij.util.Alarm;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.ContainerUtilRt;
@@ -43,18 +40,18 @@ public class ExternalSystemFacadeImpl<S extends ExternalSystemExecutionSettings>
   private final Alarm              myShutdownAlarm         = new Alarm(Alarm.ThreadToUse.SHARED_THREAD);
   private final AtomicInteger      myCallsInProgressNumber = new AtomicInteger();
 
-  private final AtomicReference<ExternalSystemTaskNotificationListener> myNotificationListener
-    = new AtomicReference<ExternalSystemTaskNotificationListener>();
+  private final AtomicReference<ExternalSystemTaskNotificationListener> myNotificationListener =
+    new AtomicReference<ExternalSystemTaskNotificationListener>(new ExternalSystemTaskNotificationListenerAdapter() {});
 
   @NotNull private final RemoteExternalSystemProjectResolverImpl<S> myProjectResolver;
-  @NotNull private final RemoteExternalSystemBuildManagerImpl<S>    myBuildManager;
+  @NotNull private final RemoteExternalSystemTaskManagerImpl<S>     myTaskManager;
 
   public ExternalSystemFacadeImpl(@NotNull Class<ExternalSystemProjectResolver<S>> projectResolverClass,
-                                  @NotNull Class<ExternalSystemBuildManager<S>> buildManagerClass)
+                                  @NotNull Class<ExternalSystemTaskManager<S>> buildManagerClass)
     throws IllegalAccessException, InstantiationException
   {
     myProjectResolver = new RemoteExternalSystemProjectResolverImpl<S>(projectResolverClass.newInstance());
-    myBuildManager = new RemoteExternalSystemBuildManagerImpl<S>(buildManagerClass.newInstance());
+    myTaskManager = new RemoteExternalSystemTaskManagerImpl<S>(buildManagerClass.newInstance());
     updateAutoShutdownTime();
   }
 
@@ -62,15 +59,14 @@ public class ExternalSystemFacadeImpl<S extends ExternalSystemExecutionSettings>
   public static void main(String[] args) throws Exception {
     if (args.length < 1) {
       throw new IllegalArgumentException(
-        "Can't create external system facade. Reason: given arguments don't contain information about external system resolver to use"
-      );
+        "Can't create external system facade. Reason: given arguments don't contain information about external system resolver to use");
     }
     final Class<ExternalSystemProjectResolver<?>> resolverClass = (Class<ExternalSystemProjectResolver<?>>)Class.forName(args[0]);
     if (!ExternalSystemProjectResolver.class.isAssignableFrom(resolverClass)) {
       throw new IllegalArgumentException(String.format(
         "Can't create external system facade. Reason: given external system resolver class (%s) must be IS-A '%s'",
-        resolverClass, ExternalSystemProjectResolver.class
-      ));
+        resolverClass,
+        ExternalSystemProjectResolver.class));
     }
 
     if (args.length < 2) {
@@ -78,11 +74,11 @@ public class ExternalSystemFacadeImpl<S extends ExternalSystemExecutionSettings>
         "Can't create external system facade. Reason: given arguments don't contain information about external system build manager to use"
       );
     }
-    final Class<ExternalSystemBuildManager<?>> buildManagerClass = (Class<ExternalSystemBuildManager<?>>)Class.forName(args[1]);
+    final Class<ExternalSystemTaskManager<?>> buildManagerClass = (Class<ExternalSystemTaskManager<?>>)Class.forName(args[1]);
     if (!ExternalSystemProjectResolver.class.isAssignableFrom(resolverClass)) {
       throw new IllegalArgumentException(String.format(
         "Can't create external system facade. Reason: given external system build manager (%s) must be IS-A '%s'",
-        buildManagerClass, ExternalSystemBuildManager.class
+        buildManagerClass, ExternalSystemTaskManager.class
       ));
     }
     
@@ -111,12 +107,12 @@ public class ExternalSystemFacadeImpl<S extends ExternalSystemExecutionSettings>
   @SuppressWarnings("unchecked")
   @NotNull
   @Override
-  public RemoteExternalSystemBuildManager<S> getBuildManager() throws RemoteException {
+  public RemoteExternalSystemTaskManager<S> getTaskManager() throws RemoteException {
     try {
-      return getRemote(RemoteExternalSystemBuildManager.class, myBuildManager);
+      return getRemote(RemoteExternalSystemTaskManager.class, myTaskManager);
     }
     catch (Exception e) {
-      throw new IllegalStateException(String.format("Can't create '%s' service", ExternalSystemBuildManager.class.getName()), e);
+      throw new IllegalStateException(String.format("Can't create '%s' service", ExternalSystemTaskManager.class.getName()), e);
     }
   }
 
@@ -237,7 +233,7 @@ public class ExternalSystemFacadeImpl<S extends ExternalSystemExecutionSettings>
     ExternalSystemTaskNotificationListener listener = new SwallowingNotificationListener(progressManager);
     myNotificationListener.set(listener);
     myProjectResolver.setNotificationListener(listener);
-    myBuildManager.setNotificationListener(listener);
+    myTaskManager.setNotificationListener(listener);
   }
   
   /**
@@ -286,6 +282,16 @@ public class ExternalSystemFacadeImpl<S extends ExternalSystemExecutionSettings>
     public void onStatusChange(@NotNull ExternalSystemTaskNotificationEvent event) {
       try {
         myManager.onStatusChange(event);
+      }
+      catch (RemoteException e) {
+        // Ignore
+      }
+    }
+
+    @Override
+    public void onTaskOutput(@NotNull ExternalSystemTaskId id, @NotNull String text, boolean stdOut) {
+      try {
+        myManager.onTaskOutput(id, text, stdOut);
       }
       catch (RemoteException e) {
         // Ignore

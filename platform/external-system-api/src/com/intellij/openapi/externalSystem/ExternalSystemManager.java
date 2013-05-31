@@ -1,7 +1,7 @@
 package com.intellij.openapi.externalSystem;
 
 import com.intellij.openapi.extensions.ExtensionPointName;
-import com.intellij.openapi.externalSystem.build.ExternalSystemBuildManager;
+import com.intellij.openapi.externalSystem.task.ExternalSystemTaskManager;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
 import com.intellij.openapi.externalSystem.service.ParametersEnhancer;
@@ -30,7 +30,7 @@ public interface ExternalSystemManager<
   ProjectSettings extends ExternalProjectSettings,
   SettingsListener extends ExternalSystemSettingsListener<ProjectSettings>,
   Settings extends AbstractExternalSystemSettings<ProjectSettings, SettingsListener>,
-  LocalSettings extends AbstractExternalSystemLocalSettings<LocalSettings>,
+  LocalSettings extends AbstractExternalSystemLocalSettings,
   ExecutionSettings extends ExternalSystemExecutionSettings>
   extends ParametersEnhancer
 {
@@ -78,5 +78,5 @@ public interface ExternalSystemManager<
    * @return    class of the build manager to use for the target external system
    * @see #getProjectResolverClass()
    */
-  Class<? extends ExternalSystemBuildManager<ExecutionSettings>> getBuildManagerClass();
+  Class<? extends ExternalSystemTaskManager<ExecutionSettings>> getTaskManagerClass();
 }
