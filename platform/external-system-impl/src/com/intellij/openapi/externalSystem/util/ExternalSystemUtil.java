@@ -28,7 +28,8 @@ import com.intellij.openapi.externalSystem.model.ProjectKeys;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
-import com.intellij.openapi.externalSystem.model.task.ExternalSystemResolveProjectTask;
+import com.intellij.openapi.externalSystem.service.internal.ExternalSystemResolveProjectTask;
+import com.intellij.openapi.externalSystem.service.notification.ExternalSystemIdeNotificationManager;
 import com.intellij.openapi.externalSystem.service.project.ExternalProjectRefreshCallback;
 import com.intellij.openapi.externalSystem.service.project.PlatformFacade;
 import com.intellij.openapi.externalSystem.service.project.manage.ModuleDataService;
@@ -44,6 +45,7 @@ import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.openapi.wm.impl.ToolWindowImpl;
 import com.intellij.ui.CheckBoxList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.content.Content;
@@ -79,7 +81,6 @@ public class ExternalSystemUtil {
                                            @NotNull DataKey<T> key,
                                            @NotNull ProjectSystemId externalSystemId)
   {
-    // TODO den use external system
     if (context != null) {
       final T result = key.getData(context);
       if (result != null) {
@@ -104,17 +105,20 @@ public class ExternalSystemUtil {
   public static <T> T getToolWindowElement(@NotNull Class<T> clazz,
                                            @NotNull Project project,
                                            @NotNull DataKey<T> key,
-                                           @NotNull ProjectSystemId externalSystemId)
-  {
+                                           @NotNull ProjectSystemId externalSystemId) {
+    if (project.isDisposed() || !project.isOpen()) {
+      return null;
+    }
     final ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
     if (toolWindowManager == null) {
       return null;
     }
-    // TODO den use external system.
-    final ToolWindow toolWindow = null;
-//    final ToolWindow toolWindow = toolWindowManager.getToolWindow(GradleConstants.TOOL_WINDOW_ID);
+    final ToolWindow toolWindow = toolWindowManager.getToolWindow(externalSystemId.getReadableName());
     if (toolWindow == null) {
       return null;
+    }
+    if (toolWindow instanceof ToolWindowImpl) {
+      ((ToolWindowImpl)toolWindow).ensureContentInitialized();
     }
 
     final ContentManager contentManager = toolWindow.getContentManager();
@@ -202,9 +206,7 @@ public class ExternalSystemUtil {
 
       @Override
       public void onFailure(@NotNull String errorMessage, @Nullable String errorDetails) {
-        if (--myCounter <= 0) {
-          processOrphanModules();
-        }
+        myCounter = Integer.MAX_VALUE; // Don't process orphan modules if there was an error on refresh.
       }
 
       private void processOrphanModules() {
@@ -236,10 +238,9 @@ public class ExternalSystemUtil {
     UIUtil.invokeLaterIfNeeded(new Runnable() {
       @Override
       public void run() {
-        final String externalSystem = ExternalSystemApiUtil.toReadableName(externalSystemId);
         
         final JPanel content = new JPanel(new GridBagLayout());
-        content.add(new JLabel(ExternalSystemBundle.message("orphan.modules.text", externalSystem)),
+        content.add(new JLabel(ExternalSystemBundle.message("orphan.modules.text", externalSystemId.getReadableName())),
                     ExternalSystemUiUtil.getFillLineConstraints(0));
         
         final CheckBoxList<Module> orphanModulesList = new CheckBoxList<Module>();
@@ -258,7 +259,7 @@ public class ExternalSystemUtil {
         DialogWrapper dialog = new DialogWrapper(project) {
 
           {
-            setTitle(ExternalSystemBundle.message("import.title", externalSystem));
+            setTitle(ExternalSystemBundle.message("import.title", externalSystemId.getReadableName()));
             init();
           }
           
@@ -317,6 +318,7 @@ public class ExternalSystemUtil {
                                     final boolean resolveLibraries,
                                     final boolean modal)
   {
+    final String projectName = new File(externalProjectPath).getParentFile().getName();
     final TaskUnderProgress refreshProjectStructureTask = new TaskUnderProgress() {
       @SuppressWarnings({"ThrowableResultOfMethodCallIgnored", "IOResourceOpenedButNotSafelyClosed"})
       @Override
@@ -334,50 +336,37 @@ public class ExternalSystemUtil {
         if (StringUtil.isEmpty(message)) {
           message = String.format(
             "Can't resolve %s project at '%s'. Reason: %s",
-            ExternalSystemApiUtil.toReadableName(externalSystemId), externalProjectPath, message
+            externalSystemId.getReadableName(), externalProjectPath, message
           );
         }
+        
         callback.onFailure(message, extractDetails(error));
+
+        ExternalSystemIdeNotificationManager notificationManager = ServiceManager.getService(ExternalSystemIdeNotificationManager.class);
+        if (notificationManager != null) {
+          notificationManager.processExternalProjectRefreshError(message, project, projectName, externalSystemId);
+        }
       }
     };
-
-    // TODO den uncomment
-    //final TaskUnderProgress refreshTasksTask = new TaskUnderProgress() {
-    //  @Override
-    //  public void execute(@NotNull ProgressIndicator indicator) {
-    //    final ExternalSystemRefreshTasksListTask task = new ExternalSystemRefreshTasksListTask(project, externalProjectPath);
-    //    task.execute(indicator);
-    //  }
-    //};
 
     UIUtil.invokeAndWaitIfNeeded(new Runnable() {
       @Override
       public void run() {
-        final String projectName = new File(externalProjectPath).getParentFile().getName();
         if (modal) {
-          String title = ExternalSystemBundle.message("progress.import.text",
-                                                      projectName,
-                                                      ExternalSystemApiUtil.toReadableName(externalSystemId));
+          String title = ExternalSystemBundle.message("progress.import.text", projectName, externalSystemId.getReadableName());
           ProgressManager.getInstance().run(new Task.Modal(project, title, false) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
               refreshProjectStructureTask.execute(indicator);
-              // TODO den uncomment
-              //setTitle(ExternalSystemBundle.message("gradle.task.progress.initial.text"));
-              //refreshTasksTask.execute(indicator);
             }
           });
         }
         else {
-          String title = ExternalSystemBundle.message("progress.refresh.text",
-                                                      projectName, ExternalSystemApiUtil.toReadableName(externalSystemId));
+          String title = ExternalSystemBundle.message("progress.refresh.text", projectName, externalSystemId.getReadableName());
           ProgressManager.getInstance().run(new Task.Backgroundable(project, title) {
             @Override
             public void run(@NotNull ProgressIndicator indicator) {
               refreshProjectStructureTask.execute(indicator);
-              // TODO den uncomment
-              //setTitle(ExternalSystemBundle.message("gradle.task.progress.initial.text"));
-              //refreshTasksTask.execute(indicator);
             }
           });
         }

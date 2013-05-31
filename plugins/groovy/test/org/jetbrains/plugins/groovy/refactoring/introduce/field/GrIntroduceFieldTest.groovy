@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2011 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ print <selection>'abc'</selection>
 import groovy.transform.Field
 
 @Field f = 'abc'
-print <selection>f</selection>
+print f<caret>
 ''', false, false, false, FIELD_DECLARATION)
   }
 
@@ -112,7 +112,7 @@ import groovy.transform.Field
 @Field final f = 'abc'
 
 def foo() {
-  print <selection>f</selection>
+  print f<caret>
 }
 ''', false, false, true, FIELD_DECLARATION)
   }
@@ -129,7 +129,7 @@ import groovy.transform.Field
 @Field static f = 'abc'
 
 static def foo() {
-  print <selection>f</selection>
+  print f<caret>
 }
 ''', true, false, false, FIELD_DECLARATION)
   }
@@ -147,10 +147,122 @@ import groovy.transform.Field
 
 def foo() {
     f = 'abc'
-    print <selection>f</selection>
+    print f<caret>
 }
 ''', false, false, false, CUR_METHOD)
   }
+
+  public void testSetUp1() throws Exception {
+    addTestCase()
+    doTest('''\
+class MyTest extends GroovyTestCase {
+    void foo() {
+        print <selection>'ac'</selection>
+    }
+}
+''', '''\
+class MyTest extends GroovyTestCase {
+    def f
+
+    void foo() {
+        print f<caret>
+    }
+
+    void setUp() {
+        super.setUp()
+        f = 'ac'
+    }
+}
+''',
+false, false, false, SETUP_METHOD)
+  }
+
+  public void testSetUp2() throws Exception {
+    addTestCase()
+
+    doTest('''\
+class MyTest extends GroovyTestCase {
+    void setUp() {
+        super.setUp()
+        def x = 'abc'
+    }
+
+    void foo() {
+        print <selection>'ac'</selection>
+    }
+}
+''', '''\
+class MyTest extends GroovyTestCase {
+    def f
+
+    void setUp() {
+        super.setUp()
+        def x = 'abc'
+    f = 'ac'
+    }
+
+    void foo() {
+        print f<caret>
+    }
+}
+''',
+           false, false, false, SETUP_METHOD)
+  }
+
+  void testStringPart0() {
+    doTest('''\
+class A {
+    def foo() {
+        print 'a<selection>b</selection>c'
+    }
+}''', '''\
+class A {
+    def f = 'b'
+
+    def foo() {
+        print 'a' + f<caret> + 'c'
+    }
+}''', false, false, false, FIELD_DECLARATION, false, null)
+  }
+
+  void testStringPart1() {
+    doTest('''\
+class A {
+    def foo() {
+        print 'a<selection>b</selection>c'
+    }
+}''', '''\
+class A {
+    def f
+
+    def foo() {
+        f = 'b'
+        print 'a' + f<caret> + 'c'
+    }
+}''', false, false, false, CUR_METHOD, false, null)
+  }
+
+  void testStringPart2() {
+    doTest('''\
+class A {
+    def foo() {
+        def f = 5
+        print 'a<selection>b</selection>c'
+    }
+}''', '''\
+class A {
+    def f
+
+    def foo() {
+        def f = 5
+        this.f = 'b'
+        print 'a' + this.f<caret> + 'c'
+    }
+}''', false, false, false, CUR_METHOD, false, null)
+  }
+
+
+
 
   private void doTest(final boolean isStatic,
                       final boolean removeLocal,

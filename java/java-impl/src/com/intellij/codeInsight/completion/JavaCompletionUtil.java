@@ -677,7 +677,7 @@ public class JavaCompletionUtil {
           documentManager.doPostponedOperationsAndUnblockDocument(document);
           documentManager.commitDocument(document);
 
-          newElement = CodeInsightUtilBase.findElementInRange(file, rangeMarker.getStartOffset(), rangeMarker.getEndOffset(),
+          newElement = CodeInsightUtilCore.findElementInRange(file, rangeMarker.getStartOffset(), rangeMarker.getEndOffset(),
                                                               PsiJavaCodeReferenceElement.class,
                                                               JavaLanguage.INSTANCE);
           rangeMarker.dispose();
@@ -764,12 +764,14 @@ public class JavaCompletionUtil {
       context.setAddCompletionChar(false);
     }
 
-    final boolean needRightParenth = forceClosingParenthesis || !smart && (CodeInsightSettings.getInstance().AUTOINSERT_PAIR_BRACKET || hasTail);
     if (hasTail) {
       hasParams = false;
     }
+    final boolean needRightParenth = forceClosingParenthesis ||
+                                     !smart && (CodeInsightSettings.getInstance().AUTOINSERT_PAIR_BRACKET ||
+                                                !hasParams && completionChar != '(');
 
-    PsiDocumentManager.getInstance(context.getProject()).commitDocument(context.getDocument());
+    context.commitDocument();
 
     final CommonCodeStyleSettings styleSettings = context.getCodeStyleSettings();
     final PsiElement elementAt = file.findElementAt(context.getStartOffset());

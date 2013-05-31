@@ -113,11 +113,11 @@ class GroovyAutoPopupTest extends CompletionAutoPopupTestCase {
     assert !lookup
   }
 
-  public void testNoClassesInUnqualifiedImports() {
+  public void testClassesAndPackagesInUnqualifiedImports() {
     myFixture.addClass("package xxxxx; public class Xxxxxxxxx {}")
     myFixture.configureByText 'a.groovy', 'package foo; import <caret>'
     type 'xxx'
-    assert myFixture.lookupElementStrings == ['xxxxx']
+    assert myFixture.lookupElementStrings == ['xxxxx', 'Xxxxxxxxx']
   }
 
 
@@ -221,7 +221,9 @@ class Foo extends Abcdefg <caret>'''
     myFixture.addClass("package bar; public class Abcdefg {}")
     myFixture.configureByText 'a.groovy', '<caret>'
     type 'Abcde '
-    myFixture.checkResult 'Abcdefg <caret>'
+    myFixture.checkResult '''import bar.Abcdefg
+
+Abcdefg <caret>'''
   }
 
   public void testPrivate() {
@@ -282,7 +284,7 @@ void foo(File... files) { }
 foo(new <caret>)
 '''
     type 'File('
-    assert myFixture.file.text.contains('new File()')
+    assert myFixture.editor.document.text.contains('new File()')
   }
 
   public void testSecondClosureParameterName() {

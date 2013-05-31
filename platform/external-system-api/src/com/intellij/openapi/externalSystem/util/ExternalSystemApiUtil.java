@@ -15,6 +15,7 @@
  */
 package com.intellij.openapi.externalSystem.util;
 
+import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -23,7 +24,6 @@ import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.Key;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.fileTypes.FileTypes;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.roots.OrderRootType;
 import com.intellij.openapi.roots.libraries.Library;
@@ -33,6 +33,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.BooleanFunction;
+import com.intellij.util.Function;
 import com.intellij.util.PathUtil;
 import com.intellij.util.PathsList;
 import com.intellij.util.containers.ContainerUtilRt;
@@ -52,6 +53,7 @@ import java.util.regex.Pattern;
 public class ExternalSystemApiUtil {
 
   private static final Logger LOG = Logger.getInstance("#" + ExternalSystemApiUtil.class.getName());
+  private static final String LAST_USED_PROJECT_PATH_PREFIX = "LAST_EXTERNAL_PROJECT_PATH_";
 
   @NotNull public static final String PATH_SEPARATOR = "/";
 
@@ -184,13 +186,13 @@ public class ExternalSystemApiUtil {
   }
 
   @NotNull
-  public static Map<Key<?>, Collection<DataNode<?>>> group(@NotNull Collection<DataNode<?>> nodes) {
+  public static Map<Key<?>, List<DataNode<?>>> group(@NotNull Collection<DataNode<?>> nodes) {
     if (nodes.isEmpty()) {
       return Collections.emptyMap();
     }
-    Map<Key<?>, Collection<DataNode<?>>> result = ContainerUtilRt.newHashMap();
+    Map<Key<?>, List<DataNode<?>>> result = ContainerUtilRt.newHashMap();
     for (DataNode<?> node : nodes) {
-      Collection<DataNode<?>> n = result.get(node.getKey());
+      List<DataNode<?>> n = result.get(node.getKey());
       if (n == null) {
         result.put(node.getKey(), n = ContainerUtilRt.newArrayList());
       }
@@ -200,20 +202,32 @@ public class ExternalSystemApiUtil {
   }
 
   @NotNull
-  public static <K, V> Map<DataNode<K>, Collection<DataNode<V>>> groupBy(@NotNull Collection<DataNode<V>> nodes, @NotNull Key<K> key) {
-    Map<DataNode<K>, Collection<DataNode<V>>> result = ContainerUtilRt.newHashMap();
-    for (DataNode<V> data : nodes) {
-      DataNode<K> grouper = data.getDataNode(key);
-      if (grouper == null) {
+  public static <K, V> Map<DataNode<K>, List<DataNode<V>>> groupBy(@NotNull Collection<DataNode<V>> nodes, @NotNull final Key<K> key) {
+    return groupBy(nodes, new Function<DataNode<V>, DataNode<K>>() {
+      @Override
+      public DataNode<K> fun(DataNode<V> node) {
+        return node.getDataNode(key);
+      }
+    });
+  }
+
+  @NotNull
+  public static <K, V> Map<K, List<V>> groupBy(@NotNull Collection<V> nodes, @NotNull Function<V, K> grouper) {
+    Map<K, List<V>> result = ContainerUtilRt.newHashMap();
+    for (V data : nodes) {
+      K key = grouper.fun(data);
+      if (key == null) {
         LOG.warn(String.format(
-          "Skipping entry '%s' during grouping. Reason: it doesn't provide a value for key %s. Given entries: %s",
-          data, key, nodes
-        ));
+          "Skipping entry '%s' during grouping. Reason: it's not possible to build a grouping key with grouping strategy '%s'. "
+          + "Given entries: %s",
+          data,
+          grouper.getClass(),
+          nodes));
         continue;
       }
-      Collection<DataNode<V>> grouped = result.get(grouper);
+      List<V> grouped = result.get(key);
       if (grouped == null) {
-        result.put(grouper, grouped = ContainerUtilRt.newArrayList());
+        result.put(key, grouped = ContainerUtilRt.newArrayList());
       }
       grouped.add(data);
     }
@@ -274,43 +288,12 @@ public class ExternalSystemApiUtil {
     return result == null ? Collections.<DataNode<T>>emptyList() : result;
   }
 
-  @NotNull
-  public static String toReadableName(@NotNull ProjectSystemId id) {
-    return StringUtil.capitalize(id.toString().toLowerCase());
+  public static void executeProjectChangeAction(@NotNull final Runnable task) {
+    executeProjectChangeAction(false, task);
   }
 
-  public static void executeProjectChangeAction(@NotNull Project project,
-                                                @NotNull final ProjectSystemId externalSystemId,
-                                                @NotNull Object entityToChange,
-                                                @NotNull Runnable task)
-  {
-    executeProjectChangeAction(project, externalSystemId, entityToChange, false, task);
-  }
-
-  public static void executeProjectChangeAction(@NotNull Project project,
-                                                @NotNull final ProjectSystemId externalSystemId,
-                                                @NotNull Object entityToChange,
-                                                boolean synchronous,
-                                                @NotNull Runnable task)
-  {
-    executeProjectChangeAction(project, externalSystemId, Collections.singleton(entityToChange), synchronous, task);
-  }
-
-  public static void executeProjectChangeAction(@NotNull final Project project,
-                                                @NotNull final ProjectSystemId externalSystemId,
-                                                @NotNull final Iterable<?> entitiesToChange,
-                                                @NotNull final Runnable task)
-  {
-    executeProjectChangeAction(project, externalSystemId, entitiesToChange, false, task);
-  }
-
-  public static void executeProjectChangeAction(@NotNull final Project project,
-                                                @NotNull final ProjectSystemId externalSystemId,
-                                                @NotNull final Iterable<?> entitiesToChange,
-                                                boolean synchronous,
-                                                @NotNull final Runnable task)
-  {
-    Runnable wrappedTask = new Runnable() {
+  public static void executeProjectChangeAction(boolean synchronous, @NotNull final Runnable task) {
+    executeOnEdt(synchronous, new Runnable() {
       public void run() {
         ApplicationManager.getApplication().runWriteAction(new Runnable() {
           @Override
@@ -319,18 +302,20 @@ public class ExternalSystemApiUtil {
           }
         });
       }
-    };
-
+    });
+  }
+  
+  public static void executeOnEdt(boolean synchronous, @NotNull Runnable task) {
     if (synchronous) {
       if (ApplicationManager.getApplication().isDispatchThread()) {
-        wrappedTask.run();
+        task.run();
       }
       else {
-        UIUtil.invokeAndWaitIfNeeded(wrappedTask);
+        UIUtil.invokeAndWaitIfNeeded(task);
       }
     }
     else {
-      UIUtil.invokeLaterIfNeeded(wrappedTask);
+      UIUtil.invokeLaterIfNeeded(task);
     }
   }
 
@@ -352,9 +337,9 @@ public class ExternalSystemApiUtil {
     classPath.add(PathManager.getResourceRoot(contextClass, pathToUse));
   }
 
-  @Nullable
-  public static String normalizePath(@Nullable String s) {
-    return StringUtil.isEmpty(s) ? null : s;
+  @SuppressWarnings("ConstantConditions")
+  public static String normalizePath(String s) {
+    return StringUtil.isEmpty(s) ? null : s.replace('\\', ExternalSystemConstants.PATH_SEPARATOR);
   }
 
   /**
@@ -372,5 +357,16 @@ public class ExternalSystemApiUtil {
    */
   public static boolean isNewProjectConstruction() {
     return ProjectManager.getInstance().getOpenProjects().length == 0;
+  }
+
+  @NotNull
+  public static String getLastUsedExternalProjectPath(@NotNull ProjectSystemId externalSystemId) {
+    return PropertiesComponent.getInstance().getValue(LAST_USED_PROJECT_PATH_PREFIX + externalSystemId.getReadableName(), "");
+  }
+
+  public static void storeLastUsedExternalProjectPath(@Nullable String path, @NotNull ProjectSystemId externalSystemId) {
+    if (path != null) {
+      PropertiesComponent.getInstance().setValue(LAST_USED_PROJECT_PATH_PREFIX + externalSystemId.getReadableName(), path);
+    }
   }
 }

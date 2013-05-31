@@ -16,7 +16,7 @@
 
 package org.jetbrains.plugins.groovy.lang.completion;
 
-import com.intellij.codeInsight.CodeInsightUtilBase;
+import com.intellij.codeInsight.CodeInsightUtilCore;
 import com.intellij.codeInsight.TailType;
 import com.intellij.codeInsight.completion.AllClassesGetter;
 import com.intellij.codeInsight.completion.JavaClassNameCompletionContributor;
@@ -31,7 +31,6 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.highlighter.HighlighterIterator;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.Iconable;
@@ -458,7 +457,7 @@ public class GroovyCompletionUtil {
 
     final PsiManager manager = file.getManager();
 
-    final Document document = FileDocumentManager.getInstance().getDocument(file.getViewProvider().getVirtualFile());
+    final Document document = PsiDocumentManager.getInstance(file.getProject()).getDocument(file);
 
     int newStartOffset = startOffset;
 
@@ -483,7 +482,7 @@ public class GroovyCompletionUtil {
     if (ref instanceof GrReferenceElement && aClass.isValid()) {
       PsiElement newElement = ref.bindToElement(aClass);
       RangeMarker marker = document.createRangeMarker(newElement.getTextRange());
-      CodeInsightUtilBase.forcePsiPostprocessAndRestoreElement(newElement);
+      CodeInsightUtilCore.forcePsiPostprocessAndRestoreElement(newElement);
       newStartOffset = marker.getStartOffset();
     }
 
@@ -495,7 +494,7 @@ public class GroovyCompletionUtil {
   }
 
   //need to shorten references in type argument list
-  private static void shortenReference(final PsiFile file, final int offset) throws IncorrectOperationException {
+  public static void shortenReference(final PsiFile file, final int offset) throws IncorrectOperationException {
     final PsiDocumentManager manager = PsiDocumentManager.getInstance(file.getProject());
     final Document document = manager.getDocument(file);
     assert document != null;

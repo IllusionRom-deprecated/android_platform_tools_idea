@@ -385,50 +385,64 @@ class JavaAutoPopupTest extends CompletionAutoPopupTestCase {
     assert !lookup
   }
 
-  void testArrow(boolean up, boolean cycleScrolling, boolean lookupAbove, int index) {
-    myFixture.configureByText("a.java", """
-    class A {
-      { ArrayIndexOutOfBoundsException <caret> }
-    }
-    """)
+  void testArrows(String toType, int indexDown, int indexUp) {
+    Closure checkArrow = { String action, int expectedIndex ->
+      myFixture.configureByText("a.java", """
+      class A {
+        void foo() {}
+        void farObject() {}
+        void fzrObject() {}
+        { <caret> }
+      }
+      """)
 
-    type 'ind'
-    assert lookup
-    assert !lookup.focused
-    assert lookup.items.size() == 2
+      type toType
+      assert lookup
+      assert !lookup.focused
 
-    lookup.positionedAbove = lookupAbove
-    UISettings.instance.CYCLE_SCROLLING = cycleScrolling
-
-    def action = up ? IdeActions.ACTION_EDITOR_MOVE_CARET_UP : IdeActions.ACTION_EDITOR_MOVE_CARET_DOWN
-    try {
       edt { myFixture.performEditorAction(action) }
       if (lookup) {
         assert lookup.focused
-        assert index >= 0
-        assert lookup.items[index] == lookup.currentItem
+        assert expectedIndex >= 0
+        assert lookup.items[expectedIndex] == lookup.currentItem
         edt { lookup.hide() }
       } else {
-        assert index == -1
+        assert expectedIndex == -1
       }
       type '\b'
+    }
+
+    checkArrow(IdeActions.ACTION_EDITOR_MOVE_CARET_UP, indexUp)
+    checkArrow(IdeActions.ACTION_EDITOR_MOVE_CARET_DOWN, indexDown)
+  }
+
+  public void "test vertical arrows in non-focused lookup"() {
+    String toType = "ArrayIndexOutOfBoundsException ind"
+    testArrows toType, 0, 1
+
+    UISettings.instance.CYCLE_SCROLLING = false
+    try {
+      testArrows toType, 0, -1
     }
     finally {
       UISettings.instance.CYCLE_SCROLLING = true
     }
-
   }
 
-  void testArrows(boolean cycleScrolling, boolean lookupAbove, int indexDown, int indexUp) {
-    testArrow true, cycleScrolling, lookupAbove, indexUp
-    testArrow false, cycleScrolling, lookupAbove, indexDown
-  }
+  public void "test vertical arrows in semi-focused lookup"() {
+    CodeInsightSettings.instance.SELECT_AUTOPOPUP_SUGGESTIONS_BY_CHARS = false
+    UISettings.getInstance().SORT_LOOKUP_ELEMENTS_LEXICOGRAPHICALLY = true
 
-  public void testVerticalArrows() {
-    testArrows false, false, 0, -1
-    testArrows false, true, 0, -1
-    testArrows true, false, 0, 1
-    testArrows true, true, 0, 1
+    String toType = "fo"
+    testArrows toType, 2, 0
+
+    UISettings.instance.CYCLE_SCROLLING = false
+    try {
+      testArrows toType, 2, 0
+    }
+    finally {
+      UISettings.instance.CYCLE_SCROLLING = true
+    }
   }
 
   public void testHideOnOnePrefixVariant() {
@@ -517,7 +531,7 @@ public interface Test {
     @Override
     void fillCompletionVariants(CompletionParameters parameters, CompletionResultSet result) {
       result.runRemainingContributors(parameters, true)
-      Thread.sleep 1000
+      Thread.sleep 500
     }
   }
 
@@ -634,9 +648,9 @@ public interface Test {
   }
 
   public void testNoSingleTemplateLookup() {
-    myFixture.configureByText 'a.java', 'class Foo {{ ite<caret> }}'
-    type 'r'
-    assert !lookup
+    myFixture.configureByText 'a.java', 'class Foo { psv<caret> }'
+    type 'm'
+    assert !lookup : myFixture.lookupElementStrings
   }
 
   public void testTemplatesWithNonImportedClasses() {
@@ -666,7 +680,7 @@ class Foo {
 }
 """)
     type 'er '
-    assert myFixture.editor.document.text.contains('iter ')
+    assert !myFixture.editor.document.text.contains('for ')
   }
 
   public void testNewClassParenthesis() {
@@ -780,24 +794,21 @@ class Foo {
 
   private void joinSomething(int degree) {
     if (degree == 0) return
-    joinAlarm()
+    joinCommit()
     if (degree == 1) return
     joinCommit()
     if (degree == 2) return
-    joinCommit()
-    if (degree == 3) return
     edt {}
-    if (degree == 4) return
+    if (degree == 3) return
     joinCompletion()
   }
 
   public void testEveryPossibleWayToTypeIf() {
     def src = "class Foo { { int ifa; <caret> } }"
     def result = "class Foo { { int ifa; if <caret> } }"
-    int actions = 5
+    int actions = 4
 
     for (a1 in 0..actions) {
-      println "a1 = $a1"
       for (a2 in 0..actions) {
         myFixture.configureByText("$a1 $a2 .java", src)
         myFixture.type 'i'
@@ -1140,9 +1151,7 @@ class Foo extends Abcdefg <caret>'''
     myFixture.addClass("package bar; public class Abcdefg {}")
     myFixture.configureByText 'a.java', 'class Foo extends <caret>'
     type 'Abcde'
-    assert lookup.items.size() == 1
-    type ' '
-    myFixture.checkResult 'class Foo extends Abcdefg <caret>'
+    assert lookup.items.size() == 2
   }
 
   public void testClassNameInProperties() {
@@ -1186,8 +1195,8 @@ class Foo extends Abcdefg <caret>'''
   public void testAmbiguousClassQualifier() {
     myFixture.addClass("package foo; public class Util<T> { public static void foo() {}; public static final int CONSTANT = 2; }")
     myFixture.addClass("package bar; public class Util { public static void bar() {} }")
-    myFixture.configureByText 'a.java', 'class Foo {{ <caret> }}'
-    type 'Util.'
+    myFixture.configureByText 'a.java', 'class Foo {{ Util<caret> }}'
+    type '.'
     assert myFixture.lookupElementStrings == ['Util.bar', 'Util.CONSTANT', 'Util.foo']
 
     def p = LookupElementPresentation.renderElement(myFixture.lookupElements[1])
@@ -1231,7 +1240,7 @@ class Foo {
 }
 '''
     type 'File('
-    assert myFixture.file.text.contains('new File()')
+    assert myFixture.editor.document.text.contains('new File()')
   }
 
   public void "test inaccessible class in another package shouldn't prevent choosing by space"() {
@@ -1289,7 +1298,7 @@ class Foo {
     type 'System.out.pr'
     assert lookup.currentItem.lookupString == 'println'
     type '\n2'
-    assert myFixture.file.text.contains('.println();2')
+    assert myFixture.editor.document.text.contains('.println();2')
   }
 
   public void testQuickBackspaceEnter() {
@@ -1310,10 +1319,6 @@ class Foo {
 
   protected void joinAutopopup() {
     myTester.joinAutopopup()
-  }
-
-  protected def joinAlarm() {
-    myTester.joinAlarm()
   }
 
   public void "test new primitive array in Object variable"() {
@@ -1402,7 +1407,37 @@ class Foo {
 '''
     type 'sette'
     myFixture.assertPreferredCompletionItems 1, 'setHorizontalText', 'setText'
+    edt { myFixture.performEditorAction IdeActions.ACTION_EDITOR_MOVE_CARET_UP }
+    myFixture.assertPreferredCompletionItems 0, 'setHorizontalText', 'setText'
   }
 
+  public void "test pressing enter while autopopup is calculating variants should cancel autopopup"() {
+    registerContributor(LongContributor, LoadingOrder.FIRST)
+    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
+    myFixture.type('a')
+    joinAutopopup()
+    type('\n')
+    assert !lookup
+  }
+
+  public void "test pressing enter and a letter while autopopup is calculating variants should restart autopopup"() {
+    registerContributor(LongContributor, LoadingOrder.FIRST)
+    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
+    myFixture.type('a')
+    joinAutopopup()
+    myFixture.type('\na')
+    joinCompletion()
+    assert lookup
+  }
+
+  public void "test a random write action shouldn't cancel autopopup"() {
+    registerContributor(LongContributor, LoadingOrder.FIRST)
+    myFixture.configureByText "a.java", "class Foo {{ <caret> }}"
+    myFixture.type('a')
+    joinAutopopup()
+    edt { ApplicationManager.application.runWriteAction {} }
+    joinCompletion()
+    assert lookup
+  }
 
 }

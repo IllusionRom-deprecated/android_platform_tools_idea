@@ -16,9 +16,11 @@
 package com.intellij.codeInsight.completion;
 
 import com.intellij.codeInsight.ExpectedTypeInfo;
+import com.intellij.codeInsight.completion.impl.BetterPrefixMatcher;
 import com.intellij.codeInsight.completion.impl.CamelHumpMatcher;
 import com.intellij.codeInsight.lookup.AutoCompletionPolicy;
 import com.intellij.codeInsight.lookup.LookupElement;
+import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.filters.ElementFilter;
@@ -39,9 +41,9 @@ import static com.intellij.patterns.PsiJavaPatterns.psiElement;
 public class JavaNoVariantsDelegator extends CompletionContributor {
 
   @Override
-  public void fillCompletionVariants(final CompletionParameters parameters, final CompletionResultSet result) {
-    final boolean empty = containsOnlyPackages(result.runRemainingContributors(parameters, true)) ||
-                          suggestMetaAnnotations(parameters);
+  public void fillCompletionVariants(final CompletionParameters parameters, CompletionResultSet result) {
+    LinkedHashSet<CompletionResult> plainResults = result.runRemainingContributors(parameters, true);
+    final boolean empty = containsOnlyPackages(plainResults) || suggestMetaAnnotations(parameters);
 
     if (!empty && parameters.getInvocationCount() == 0) {
       result.restartCompletionWhenNothingMatches();
@@ -49,6 +51,15 @@ public class JavaNoVariantsDelegator extends CompletionContributor {
 
     if (empty) {
       delegate(parameters, JavaCompletionSorting.addJavaSorting(parameters, result));
+    } else if (Registry.is("ide.completion.show.all.classes") || Registry.is("ide.completion.show.better.matching.classes")) {
+      if (parameters.getInvocationCount() <= 1 &&
+          JavaCompletionContributor.mayStartClassName(result) &&
+          JavaCompletionContributor.isClassNamePossible(parameters)) {
+        if (Registry.is("ide.completion.show.better.matching.classes")) {
+          result = result.withPrefixMatcher(new BetterPrefixMatcher(result.getPrefixMatcher(), BetterPrefixMatcher.getBestMatchingDegree(plainResults))); 
+        }
+        suggestNonImportedClasses(parameters, result);
+      }
     }
   }
 
@@ -158,9 +169,8 @@ public class JavaNoVariantsDelegator extends CompletionContributor {
     return allClasses;
   }
 
-  private static void suggestNonImportedClasses(CompletionParameters parameters, CompletionResultSet result) {
-    final ClassByNameMerger merger = new ClassByNameMerger(parameters, result);
-
+  private static void suggestNonImportedClasses(CompletionParameters parameters, final CompletionResultSet _result) {
+    final CompletionResultSet result = JavaCompletionSorting.addJavaSorting(parameters, _result);
     JavaClassNameCompletionContributor.addAllClasses(parameters,
                                                      true, result.getPrefixMatcher(), new Consumer<LookupElement>() {
       @Override
@@ -170,10 +180,8 @@ public class JavaNoVariantsDelegator extends CompletionContributor {
           classElement.setAutoCompletionPolicy(AutoCompletionPolicy.NEVER_AUTOCOMPLETE);
         }
 
-        merger.consume(classElement);
+        result.addElement(element);
       }
     });
-
-    merger.finishedClassProcessing();
   }
 }

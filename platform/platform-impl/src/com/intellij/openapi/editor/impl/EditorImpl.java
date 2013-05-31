@@ -1444,7 +1444,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
     for(int i = 0; i < myLastStartOffsets.length; ++i) {
       if (startOffset == myLastStartOffsets[i] && targetColumn == myLastTargetColumns[i] && xOffset == myLastXOffsets[i]) {
         ++myLastCacheHits;
-        if ((myLastCacheHits & 0xFF) == 0) {    // todo remove
+        if ((myLastCacheHits & 0xFFF) == 0) {    // todo remove
           PsiFile file = myProject != null ? PsiDocumentManager.getInstance(myProject).getCachedPsiFile(myDocument):null;
           LOG.info("Cache hits:" + myLastCacheHits + ", total requests:" +
                              myTotalRequests + "," + (file != null ? file.getViewProvider().getVirtualFile():null));
@@ -1843,12 +1843,6 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
     putUserData(BUFFER, image);
   }
 
-  private static final Key<Pair<Point, BufferedImage>> CUSTOM_IMAGE = Key.create("CUSTOM_IMAGE");
-
-  public void setCustomImage(Pair<Point, BufferedImage> customImage) {
-    putUserData(CUSTOM_IMAGE, customImage);
-  }
-
   void paint(@NotNull Graphics2D g) {
     Rectangle clip = g.getClipBounds();
 
@@ -1898,11 +1892,6 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
     borderEffect.paintHighlighters(getHighlighter());
     borderEffect.paintHighlighters(docMarkup);
     borderEffect.paintHighlighters(myMarkupModel);
-
-    Pair<Point, BufferedImage> pair = getUserData(CUSTOM_IMAGE);
-    if (pair != null) {
-      g.drawImage(pair.second, pair.first.x, pair.first.y, null);
-    }
 
     paintCaretCursor(g);
 
@@ -2210,7 +2199,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
 
         if (hEnd >= lEnd) {
           FoldRegion collapsedFolderAt = myFoldingModel.getCollapsedRegionAtOffset(start);
-          if (collapsedFolderAt == null) {
+          if (collapsedFolderAt == null || collapsedFolderAt.getEndOffset() == lEnd) {
             position.x = drawSoftWrapAwareBackground(g, backColor, text, start, lEnd - lIterator.getSeparatorLength(), position, fontType,
                                                      defaultBackground, clip, softWrapsToSkip, caretRowPainted);
 
@@ -4040,7 +4029,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
       }
       myDragOnGutterSelectionStartLine = - 1;
     }
-    
+
     Rectangle visibleArea = getScrollingModel().getVisibleArea();
 
     int x = e.getX();
@@ -4277,6 +4266,11 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
   @Override
   public void addFocusListener(@NotNull FocusChangeListener listener) {
     myFocusListeners.add(listener);
+  }
+
+  @Override
+  public void addFocusListener(@NotNull FocusChangeListener listener, @NotNull Disposable parentDisposable) {
+    ContainerUtil.add(listener, myFocusListeners, parentDisposable);
   }
 
   @Override
@@ -5358,7 +5352,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
       if (event.getArea() == EditorMouseEventArea.LINE_MARKERS_AREA) {
         myDragOnGutterSelectionStartLine = yPositionToLogicalLine(e.getY());
       }
-      
+
       // On some systems (for example on Linux) popup trigger is MOUSE_PRESSED event.
       // But this trigger is always consumed by popup handler. In that case we have to
       // also move caret.
@@ -5510,7 +5504,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
 
       final int oldStart = mySelectionModel.getSelectionStart();
       final int oldEnd = mySelectionModel.getSelectionEnd();
-      
+
       // Don't move caret on mouse press above gutter line markers area (a place where break points, 'override', 'implements' etc icons
       // are drawn) and annotations area. E.g. we don't want to change caret position if a user sets new break point (clicks
       // at 'line markers' area).

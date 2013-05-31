@@ -120,6 +120,7 @@ public class InjectedLanguageManagerImpl extends InjectedLanguageManager impleme
   public void dispose() {
   }
 
+  @Override
   public void startRunInjectors(@NotNull final Document hostDocument, final boolean synchronously) {
     if (myProject.isDisposed()) return;
     if (!synchronously && ApplicationManager.getApplication().isWriteAccessAllowed()) return;
@@ -385,6 +386,12 @@ public class InjectedLanguageManagerImpl extends InjectedLanguageManager impleme
   @Override
   public PsiFile getTopLevelFile(@NotNull PsiElement element) {
     return InjectedLanguageUtil.getTopLevelFile(element);
+  }
+
+  @NotNull
+  @Override
+  public List<DocumentWindow> getCachedInjectedDocuments(@NotNull PsiFile hostPsiFile) {
+    return InjectedLanguageUtil.getCachedInjectedDocuments(hostPsiFile);
   }
 
   private final Map<Class,MultiHostInjector[]> myInjectorsClone = new HashMap<Class, MultiHostInjector[]>();

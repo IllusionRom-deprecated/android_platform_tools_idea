@@ -21,7 +21,6 @@
     <xi:include href="/META-INF/PlatformExtensions.xml" xpointer="xpointer(/idea-plugin/extensions/*)"/>
     <xi:include href="/META-INF/VcsExtensions.xml" xpointer="xpointer(/idea-plugin/extensions/*)"/>
     <xi:include href="/META-INF/LangExtensions.xml" xpointer="xpointer(/idea-plugin/extensions/*)"/>
-    <xi:include href="/META-INF/ExternalSystemExtensions.xml" xpointer="xpointer(/idea-plugin/extensions/*)"/>
 
     <applicationService serviceInterface="com.intellij.packageDependencies.DependenciesVisitorFactory"
                         serviceImplementation="com.intellij.packageDependencies.DependenciesVisitorFactory"/>
@@ -30,7 +29,7 @@
     <applicationService serviceInterface="com.intellij.codeInsight.TargetElementUtilBase"
                         serviceImplementation="com.intellij.codeInsight.TargetElementUtilBase"/>
     <applicationService serviceInterface="com.intellij.profile.codeInspection.InspectionProfileManager"
-                        serviceImplementation="com.intellij.profile.codeInspection.InspectionProfileManager"/>
+                        serviceImplementation="com.intellij.profile.codeInspection.InspectionProfileManagerImpl"/>
     <exportable serviceInterface="com.intellij.profile.codeInspection.InspectionProfileManager"/>
     <schemeOwner serviceInterface="com.intellij.profile.codeInspection.InspectionProfileManager"/>
 

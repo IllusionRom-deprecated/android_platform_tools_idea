@@ -277,6 +277,8 @@ public class NameUtilMatchingTest extends UsefulTestCase {
   }
 
   public void testMiddleMatching() {
+    assertMatches("*zz*", "ListConfigzzKey");
+    assertMatches("*zz", "ListConfigzzKey");
     assertTrue(caseInsensitiveMatcher("*old").matches("folder"));
     assertMatches("SWU*H*7", "SWUpgradeHdlrFSPR7Test");
     assertMatches("SWU*H*R", "SWUpgradeHdlrFSPR7Test");
@@ -379,6 +381,10 @@ public class NameUtilMatchingTest extends UsefulTestCase {
     assertDoesntMatch("Foo ", "Foox");
     assertDoesntMatch("Collections ", "CollectionSplitter");
     assertMatches("CollectionS ", "CollectionSplitter");
+
+    assertDoesntMatch("*l ", "AppDelegate");
+    assertDoesntMatch("*le ", "AppDelegate");
+    assertDoesntMatch("*leg ", "AppDelegate");
   }
 
   public void testDigits() {
@@ -581,9 +587,12 @@ public class NameUtilMatchingTest extends UsefulTestCase {
     assertDoesntMatch("URLCl", "UrlClassLoader");
   }
 
-  public void "test a capital after another capital may match a lowercase letter because shift was accidentally help too long"() {
+  public void "test a capital after another capital may match a lowercase letter because shift was accidentally held too long"() {
     assertMatches("USerDefa", "UserDefaults")
     assertMatches("NSUSerDefa", "NSUserDefaults")
+    assertMatches("NSUSER", "NSUserDefaults")
+    assertMatches("NSUSD", "NSUserDefaults")
+    assertMatches("NSUserDEF", "NSUserDefaults")
   }
 
   public void testPerformance() {

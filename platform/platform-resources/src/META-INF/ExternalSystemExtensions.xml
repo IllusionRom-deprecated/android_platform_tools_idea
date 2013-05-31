@@ -1,6 +1,8 @@
 <idea-plugin>
   <extensions defaultExtensionNs="com.intellij">
 
+    <postStartupActivity implementation="com.intellij.openapi.externalSystem.service.ExternalSystemStartupActivity"/>
+    
     <!--Generic services-->
     <applicationService serviceImplementation="com.intellij.openapi.externalSystem.service.ExternalSystemFacadeManager"/>
     <applicationService
@@ -12,6 +14,8 @@
                         serviceImplementation="com.intellij.openapi.externalSystem.service.project.ExternalLibraryPathTypeMapperImpl"/>
     <applicationService serviceImplementation="com.intellij.openapi.externalSystem.settings.ExternalSystemSettingsManager"/>
     <applicationService serviceImplementation="com.intellij.openapi.externalSystem.service.project.ProjectStructureHelper"/>
+    <applicationService serviceImplementation="com.intellij.openapi.externalSystem.service.internal.ExternalSystemProcessingManager"/>
+    <applicationService serviceImplementation="com.intellij.openapi.externalSystem.service.notification.ExternalSystemIdeNotificationManager"/>
 
     <!--Project structure management services-->
     <applicationService serviceImplementation="com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager"/>
@@ -21,7 +25,15 @@
     <externalProjectDataService implementation="com.intellij.openapi.externalSystem.service.project.manage.ContentRootDataService"/>
     <externalProjectDataService implementation="com.intellij.openapi.externalSystem.service.project.manage.LibraryDependencyDataService"/>
     <externalProjectDataService implementation="com.intellij.openapi.externalSystem.service.project.manage.ModuleDependencyDataService"/>
-
+    
+    <!--Tool window services-->
+    <externalProjectDataService implementation="com.intellij.openapi.externalSystem.service.task.ToolWindowModuleService"/>
+    <externalProjectDataService implementation="com.intellij.openapi.externalSystem.service.task.ToolWindowTaskService"/>
+    
+    <!--Execution-->
+    <programRunner implementation="com.intellij.openapi.externalSystem.service.execution.ExternalSystemTaskRunner"/>
+    
   </extensions>
+
 </idea-plugin>
   

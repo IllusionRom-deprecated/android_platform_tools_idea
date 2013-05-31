@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,19 +23,25 @@ import com.intellij.psi.stubs.BinaryFileStubBuilder;
 import com.intellij.psi.stubs.PsiFileStub;
 import com.intellij.psi.stubs.StubElement;
 import com.intellij.util.cls.ClsFormatException;
+import com.intellij.util.indexing.FileContent;
 
 /**
  * @author max
  */
 public class ClassFileStubBuilder implements BinaryFileStubBuilder {
+  public static final int STUB_VERSION = JavaFileElementType.STUB_VERSION + 6;
+
   @Override
   public boolean acceptsFile(final VirtualFile file) {
     return true;
   }
 
   @Override
-  public StubElement buildStubTree(final VirtualFile file, final byte[] content, final Project project) {
+  public StubElement buildStubTree(FileContent fileContent) {
     try {
+      VirtualFile file = fileContent.getFile();
+      Project project = fileContent.getProject();
+      byte[] content = fileContent.getContent();
       final ClsStubBuilderFactory[] factories = Extensions.getExtensions(ClsStubBuilderFactory.EP_NAME);
       for (ClsStubBuilderFactory factory : factories) {
         if (!factory.isInnerClass(file) && factory.canBeProcessed(file, content)) {
@@ -52,6 +58,6 @@ public class ClassFileStubBuilder implements BinaryFileStubBuilder {
 
   @Override
   public int getStubVersion() {
-    return JavaFileElementType.STUB_VERSION + 6;
+    return STUB_VERSION;
   }
 }
