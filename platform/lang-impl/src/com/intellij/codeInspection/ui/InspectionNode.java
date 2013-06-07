@@ -20,6 +20,7 @@ import com.intellij.codeInspection.ex.InspectionTool;
 import com.intellij.icons.AllIcons;
 import com.intellij.ui.LayeredIcon;
 import com.intellij.util.IconUtil;
+import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.util.Enumeration;
@@ -36,7 +37,7 @@ public class InspectionNode extends InspectionTreeNode {
 
   private boolean myTooBigForOnlineRefresh = false;
 
-  public InspectionNode(InspectionTool tool) {
+  public InspectionNode(@NotNull InspectionTool tool) {
     super(tool);
   }
 
@@ -44,6 +45,7 @@ public class InspectionNode extends InspectionTreeNode {
     return getTool().getDisplayName();
   }
 
+  @NotNull
   public InspectionTool getTool() {
     return (InspectionTool)getUserObject();
   }
