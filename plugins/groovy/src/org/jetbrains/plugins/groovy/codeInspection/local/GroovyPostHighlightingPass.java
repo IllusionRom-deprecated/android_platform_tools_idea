@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.jetbrains.plugins.groovy.codeInspection.local;
 
 import com.intellij.codeHighlighting.TextEditorHighlightingPass;
 import com.intellij.codeInsight.CodeInsightSettings;
+import com.intellij.codeInsight.FileModificationService;
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInsight.daemon.impl.*;
@@ -32,7 +33,6 @@ import com.intellij.lang.annotation.Annotation;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.AnnotationSession;
 import com.intellij.lang.annotation.HighlightSeverity;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -127,8 +127,8 @@ public class GroovyPostHighlightingPass extends TextEditorHighlightingPass {
         }
 
         if (deadCodeEnabled &&
-            element instanceof GrNamedElement &&
-            !PostHighlightingPass.isImplicitUsage((GrNamedElement)element, progress) &&
+            element instanceof GrNamedElement && element instanceof PsiModifierListOwner &&
+            !PostHighlightingPass.isImplicitUsage((PsiModifierListOwner)element, progress) &&
             !GroovySuppressableInspectionTool.isElementToolSuppressedIn(element, GroovyUnusedDeclarationInspection.SHORT_NAME)) {
           PsiElement nameId = ((GrNamedElement)element).getNameIdentifierGroovy();
           if (nameId.getNode().getElementType() == GroovyTokenTypes.mIDENT) {
@@ -259,23 +259,16 @@ public class GroovyPostHighlightingPass extends TextEditorHighlightingPass {
       }
 
       public void invoke(@NotNull final Project project, Editor editor, PsiFile file) {
-        optimizeImports(project, file);
+        if (!FileModificationService.getInstance().prepareFileForWrite(file)) return;
+
+        final Runnable runnable = new GroovyImportOptimizer().processFile(file);
+        CommandProcessor.getInstance().executeCommand(project, runnable, "optimize imports", this);
       }
 
       public boolean startInWriteAction() {
         return true;
       }
     };
-  }
-
-  public static void optimizeImports(final Project project, PsiFile file) {
-    GroovyImportOptimizer optimizer = new GroovyImportOptimizer();
-    final Runnable runnable = optimizer.processFile(file);
-    ApplicationManager.getApplication().runWriteAction(new Runnable() {
-      public void run() {
-        CommandProcessor.getInstance().executeCommand(project, runnable, "optimize imports", this);
-      }
-    });
   }
 
   public void doApplyInformationToEditor() {

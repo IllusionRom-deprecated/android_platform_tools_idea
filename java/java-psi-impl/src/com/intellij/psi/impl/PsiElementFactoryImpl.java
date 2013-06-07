@@ -16,9 +16,9 @@
 package com.intellij.psi.impl;
 
 import com.intellij.lang.*;
+import com.intellij.lang.java.lexer.JavaLexer;
 import com.intellij.lang.java.parser.JavaParser;
 import com.intellij.lang.java.parser.JavaParserUtil;
-import com.intellij.lexer.JavaLexer;
 import com.intellij.lexer.Lexer;
 import com.intellij.openapi.project.Project;
 import com.intellij.pom.java.LanguageLevel;
@@ -157,7 +157,7 @@ public class PsiElementFactoryImpl extends PsiJavaParserFacadeImpl implements Ps
     final PsiClassType.ClassResolveResult resolveResult = type.resolveGenerics();
     final PsiClass refClass = resolveResult.getElement();
     assert refClass != null : type;
-    return new LightClassReference(myManager, type.getPresentableText(), refClass, resolveResult.getSubstitutor());
+    return new LightClassReference(myManager, type.getInternalCanonicalText(), refClass, resolveResult.getSubstitutor());
   }
 
   @NotNull
