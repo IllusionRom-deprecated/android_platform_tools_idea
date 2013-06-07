@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ import com.intellij.util.*;
 import com.intellij.util.concurrency.Semaphore;
 import com.intellij.util.containers.ConcurrentHashSet;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.EmptyIterator;
 import com.intellij.util.io.*;
 import com.intellij.util.io.DataOutputStream;
 import com.intellij.util.io.storage.HeavyProcessLatch;
@@ -98,6 +99,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   private static final String CORRUPTION_MARKER_NAME = "corruption.marker";
   private final Map<ID<?, ?>, Pair<UpdatableIndex<?, ?, FileContent>, InputFilter>> myIndices =
     new THashMap<ID<?, ?>, Pair<UpdatableIndex<?, ?, FileContent>, InputFilter>>();
+  private final List<ID<?, ?>> myIndicesWithoutFileTypeInfo = new ArrayList<ID<?, ?>>();
+  private final Map<FileType, List<ID<?, ?>>> myFileType2IndicesWithFileTypeInfoMap = new THashMap<FileType, List<ID<?, ?>>>();
+
   private final Map<ID<?, ?>, Semaphore> myUnsavedDataIndexingSemaphores = new THashMap<ID<?, ?>, Semaphore>();
   private final TObjectIntHashMap<ID<?, ?>> myIndexIdToVersionMap = new TObjectIntHashMap<ID<?, ?>>();
   private final Set<ID<?, ?>> myNotRequiringContentIndices = new THashSet<ID<?, ?>>();
@@ -262,6 +266,18 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     myChangedFilesCollector = new ChangedFilesCollector();
   }
 
+  public static boolean isProjectOrWorkspaceFile(final VirtualFile file,
+                                                 final FileType fileType) {
+    if (fileType instanceof InternalFileType) return true;
+    VirtualFile parent = file.getParent();
+    while(parent instanceof VirtualFileSystemEntry) {
+      if (((VirtualFileSystemEntry)parent).compareNameTo(ProjectCoreUtil.DIRECTORY_BASED_PROJECT_DIR, !SystemInfoRt.isFileSystemCaseSensitive) == 0) return true;
+      parent = parent.getParent();
+    }
+    assert parent == null;
+    return false;
+  }
+
   @Override
   public void requestReindex(@NotNull final VirtualFile file) {
     myChangedFilesCollector.invalidateIndices(file, true);
@@ -284,6 +300,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       boolean versionChanged = false;
       for (FileBasedIndexExtension<?, ?> extension : extensions) {
         versionChanged |= registerIndexer(extension, currentVersionCorrupted);
+      }
+
+      for(List<ID<?, ?>> value: myFileType2IndicesWithFileTypeInfoMap.values()) {
+        value.addAll(myIndicesWithoutFileTypeInfo);
       }
       FileUtil.delete(corruptionMarker);
 
@@ -395,11 +415,11 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         }
       }
     }
-    compactIndex(extension, version, versionFile);
+    initIndexStorage(extension, version, versionFile);
     return versionChanged;
   }
 
-  private <K, V> void compactIndex(final FileBasedIndexExtension<K, V> extension, int version, File versionFile)
+  private <K, V> void initIndexStorage(final FileBasedIndexExtension<K, V> extension, int version, File versionFile)
     throws IOException {
     MapIndexStorage<K, V> storage = null;
     final ID<K, V> name = extension.getName();
@@ -409,6 +429,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
           .getInstance().runProcessWithProgressSynchronously(new ThrowableComputable<MapIndexStorage<K, V>, IOException>() {
           @Override
           public MapIndexStorage<K, V> compute() throws IOException {
+            final ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
+            if (indicator != null) {
+              indicator.setIndeterminate(true);
+            }
             return new MapIndexStorage<K, V>(
               IndexInfrastructure.getStorageFile(name),
               extension.getKeyDescriptor(),
@@ -426,6 +450,23 @@ public class FileBasedIndexImpl extends FileBasedIndex {
         assert inputFilter != null : "Index extension " + name + " must provide non-null input filter";
 
         myIndices.put(name, new Pair<UpdatableIndex<?, ?, FileContent>, InputFilter>(index, new IndexableFilesFilter(inputFilter)));
+        if (inputFilter instanceof FileTypeSpecificInputFilter) {
+          ((FileTypeSpecificInputFilter)inputFilter).registerFileTypesUsedForIndexing(new Consumer<FileType>() {
+            final Set<FileType> addedTypes = new THashSet<FileType>();
+            @Override
+            public void consume(FileType type) {
+              if (type == null || !addedTypes.add(type)) {
+                return;
+              }
+              List<ID<?, ?>> ids = myFileType2IndicesWithFileTypeInfoMap.get(type);
+              if (ids == null) myFileType2IndicesWithFileTypeInfoMap.put(type, ids = new ArrayList<ID<?, ?>>(5));
+              ids.add(name);
+            }
+          });
+        } else {
+          myIndicesWithoutFileTypeInfo.add(name);
+        }
+
         myUnsavedDataIndexingSemaphores.put(name, new Semaphore());
         myIndexIdToVersionMap.put(name, version);
         if (!extension.dependsOnFileContent()) {
@@ -519,7 +560,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
       @Override
       public PersistentHashMap<Integer, Collection<K>> create() {
         try {
-          ThrowableComputable<PersistentHashMap<Integer, Collection<K>>, IOException> process =
+          final ThrowableComputable<PersistentHashMap<Integer, Collection<K>>, IOException> process =
             new ThrowableComputable<PersistentHashMap<Integer, Collection<K>>, IOException>() {
               @Override
               public PersistentHashMap<Integer, Collection<K>> compute() throws IOException {
@@ -535,7 +576,16 @@ public class FileBasedIndexImpl extends FileBasedIndex {
           final ProgressIndicator currentProgress = progressManager.getProgressIndicator();
           if (currentProgress == null && ApplicationManager.getApplication().isDispatchThread()) {
             return progressManager.runProcessWithProgressSynchronously(
-              process, LangBundle.message("compacting.indices.title"), false, null);
+              new ThrowableComputable<PersistentHashMap<Integer, Collection<K>>, IOException>() {
+                @Override
+                public PersistentHashMap<Integer, Collection<K>> compute() throws IOException {
+                  final ProgressIndicator indicator = progressManager.getProgressIndicator();
+                  if (indicator != null) {
+                    indicator.setIndeterminate(true);
+                  }
+                  return process.compute();
+                }
+              }, LangBundle.message("compacting.indices.title"), false, null);
           }
           if (currentProgress != null)  {
             // reuse existing progress indicator if available
@@ -1678,7 +1728,11 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     try {
       PsiFile psiFile = null;
       FileContentImpl fc = null;
-      for (final ID<?, ?> indexId : myIndices.keySet()) {
+
+      final List<ID<?, ?>> affectedIndexCandidates = getAffectedIndexCandidates(file);
+      //noinspection ForLoopReplaceableByForEach
+      for (int i = 0, size = affectedIndexCandidates.size(); i < size; ++i) {
+        final ID<?, ?> indexId = affectedIndexCandidates.get(i);
         if (shouldIndexFile(file, indexId)) {
           if (fc == null) {
             byte[] currentBytes;
@@ -1719,6 +1773,15 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     finally {
       FileTypeManagerImpl.cacheFileType(file, null);
     }
+  }
+
+  private List<ID<?, ?>> getAffectedIndexCandidates(VirtualFile file) {
+    FileType fileType = file.getFileType();
+    if(isProjectOrWorkspaceFile(file, fileType)) return Collections.emptyList();
+
+    List<ID<?, ?>> ids = myFileType2IndicesWithFileTypeInfoMap.get(fileType);
+    if (ids == null) ids = myIndicesWithoutFileTypeInfo;
+    return ids;
   }
 
   private static void cleanFileContent(FileContentImpl fc, PsiFile psiFile) {
@@ -1907,7 +1970,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
           }
           // For 'normal indices' schedule the file for update and stop iteration if at least one index accepts it
           if (!isTooLarge(file)) {
-            for (ID<?, ?> indexId : myIndices.keySet()) {
+            final List<ID<?, ?>> candidates = getAffectedIndexCandidates(file);
+            //noinspection ForLoopReplaceableByForEach
+            for (int i = 0, size = candidates.size(); i < size; ++i) {
+              final ID<?, ?> indexId = candidates.get(i);
               if (needsFileContentLoading(indexId) && getInputFilter(indexId).acceptInput(file)) {
                 scheduleForUpdate(file);
                 break; // no need to iterate further, as the file is already marked
@@ -1958,9 +2024,13 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     private void invalidateIndicesForFile(final VirtualFile file, boolean markForReindex) {
       cleanProcessedFlag(file);
       IndexingStamp.flushCache(file);
-      final List<ID<?, ?>> affectedIndices = new ArrayList<ID<?, ?>>(myIndices.size());
 
-      for (final ID<?, ?> indexId : myIndices.keySet()) {
+      final List<ID<?, ?>> affectedIndexCandidates = getAffectedIndexCandidates(file);
+      final List<ID<?, ?>> affectedIndices = new ArrayList<ID<?, ?>>(affectedIndexCandidates.size());
+
+      //noinspection ForLoopReplaceableByForEach
+      for (int i = 0, size = affectedIndexCandidates.size(); i < size; ++i) {
+        final ID<?, ?> indexId = affectedIndexCandidates.get(i);
         try {
           if (!needsFileContentLoading(indexId)) {
             if (shouldUpdateIndex(file, indexId)) {
@@ -2203,7 +2273,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
 
             boolean oldStuff = true;
             if (!isTooLarge(file)) {
-              for (ID<?, ?> indexId : myIndices.keySet()) {
+              final List<ID<?, ?>> affectedIndexCandidates = getAffectedIndexCandidates(file);
+              //noinspection ForLoopReplaceableByForEach
+              for (int i = 0, size = affectedIndexCandidates.size(); i < size; ++i) {
+                final ID<?, ?> indexId = affectedIndexCandidates.get(i);
                 try {
                   if (needsFileContentLoading(indexId) && shouldIndexFile(file, indexId)) {
                     myFiles.add(file);
