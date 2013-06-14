@@ -15,14 +15,15 @@
  */
 package com.intellij.openapi.externalSystem.service.task.ui;
 
-import com.intellij.openapi.externalSystem.model.serialization.ExternalTaskPojo;
+import com.intellij.openapi.externalSystem.model.ProjectSystemId;
+import com.intellij.openapi.externalSystem.model.execution.ExternalTaskExecutionInfo;
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
+import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
+import com.intellij.openapi.project.Project;
 import com.intellij.util.containers.ContainerUtilRt;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -31,40 +32,52 @@ import java.util.List;
  */
 public class ExternalSystemRecentTaskListModel extends DefaultListModel {
 
-  public void setTasks(@NotNull List<ExternalTaskPojo> tasks) {
+  @NotNull private final ProjectSystemId myExternalSystemId;
+  @NotNull private final Project         myProject;
+
+  public ExternalSystemRecentTaskListModel(@NotNull ProjectSystemId externalSystemId, @NotNull Project project) {
+    myExternalSystemId = externalSystemId;
+    myProject = project;
+    ensureSize(ExternalSystemConstants.RECENT_TASKS_NUMBER);
+  }
+
+  @SuppressWarnings("unchecked")
+  public void setTasks(@NotNull List<ExternalTaskExecutionInfo> tasks) {
     clear();
-    List<ExternalTaskPojo> tasksToUse = ContainerUtilRt.newArrayList(tasks);
-    for (ExternalTaskPojo descriptor : tasksToUse) {
-      addElement(descriptor);
+    List<ExternalTaskExecutionInfo> tasksToUse = ContainerUtilRt.newArrayList(tasks);
+    for (ExternalTaskExecutionInfo task : tasksToUse) {
+      addElement(task);
     }
   }
 
-  public void setFirst(@NotNull ExternalTaskPojo task) {
+  @SuppressWarnings("unchecked")
+  public void setFirst(@NotNull ExternalTaskExecutionInfo task) {
     insertElementAt(task, 0);
-    for (int i = 1; i < size(); i++) {
-      if (task.equals(getElementAt(i))) {
-        remove(i);
-        return;
-      }
-    }
-
     if (size() > 1) {
       remove(size() - 1);
     }
+    for (int i = 1; i < size(); i++) {
+      if (task.equals(getElementAt(i))) {
+        remove(i);
+        break;
+      }
+    }
+    ensureSize(ExternalSystemConstants.RECENT_TASKS_NUMBER);
   }
 
   @NotNull
-  public List<ExternalTaskPojo> getTasks() {
-    List<ExternalTaskPojo> result = ContainerUtilRt.newArrayList();
+  public List<ExternalTaskExecutionInfo> getTasks() {
+    List<ExternalTaskExecutionInfo> result = ContainerUtilRt.newArrayList();
     for (int i = 0; i < size(); i++) {
       Object e = getElementAt(i);
-      if (e instanceof ExternalTaskPojo) {
-        result.add((ExternalTaskPojo)e);
+      if (e instanceof ExternalTaskExecutionInfo) {
+        result.add((ExternalTaskExecutionInfo)e);
       }
     }
     return result;
   }
 
+  @SuppressWarnings("unchecked")
   public void ensureSize(int elementsNumber) {
     int toAdd = elementsNumber - size();
     if (toAdd <= 0) {
@@ -73,6 +86,26 @@ public class ExternalSystemRecentTaskListModel extends DefaultListModel {
     while (--toAdd >= 0) {
       addElement(new MyEmptyDescriptor());
     }
+  }
+
+  /**
+   * Asks current model to remove all 'recent task info' entries which point to tasks from external project with the given path.
+   * 
+   * @param externalProjectPath  target external project's path
+   */
+  public void forgetTasksFrom(@NotNull String externalProjectPath) {
+    for (int i = size() - 1; i >= 0; i--) {
+      Object e = getElementAt(i);
+      if (e instanceof ExternalTaskExecutionInfo) {
+        String path = ((ExternalTaskExecutionInfo)e).getSettings().getExternalProjectPath();
+        if (externalProjectPath.equals(path)
+            || externalProjectPath.equals(ExternalSystemApiUtil.getRootProjectPath(path, myExternalSystemId, myProject)))
+        {
+          removeElementAt(i);
+        }
+      }
+    }
+    ensureSize(ExternalSystemConstants.RECENT_TASKS_NUMBER);
   }
 
   static class MyEmptyDescriptor {
