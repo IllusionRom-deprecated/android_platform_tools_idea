@@ -189,10 +189,16 @@ public final class UpdateChecker {
     }
 
     final Map<String, IdeaPluginDescriptor> toUpdate = new HashMap<String, IdeaPluginDescriptor>();
-    final IdeaPluginDescriptor[] installedPlugins = PluginManager.getPlugins();
+    final IdeaPluginDescriptor[] installedPlugins = PluginManagerCore.getPlugins();
     for (IdeaPluginDescriptor installedPlugin : installedPlugins) {
       if (!installedPlugin.isBundled()) {
         toUpdate.put(installedPlugin.getPluginId().getIdString(), installedPlugin);
+      }
+    }
+
+    for (Iterator<PluginDownloader> iterator = downloaded.iterator(); iterator.hasNext(); ) {
+      if (!toUpdate.containsKey(iterator.next().getPluginId())) {
+        iterator.remove();
       }
     }
 
@@ -215,7 +221,6 @@ public final class UpdateChecker {
     if (!toUpdate.isEmpty()) {
       try {
         final List<IdeaPluginDescriptor> process = RepositoryHelper.loadPluginsFromRepository(indicator);
-        final List<String> disabledPlugins = PluginManager.getDisabledPlugins();
         for (IdeaPluginDescriptor loadedPlugin : process) {
           final String idString = loadedPlugin.getPluginId().getIdString();
           if (!toUpdate.containsKey(idString)) continue;
@@ -224,9 +229,7 @@ public final class UpdateChecker {
             prepareToInstall(downloaded, loadedPlugin);
           } else if (StringUtil.compareVersionNumbers(loadedPlugin.getVersion(), installedPlugin.getVersion()) > 0) {
             updateSettings.myOutdatedPlugins.add(idString);
-            if (!disabledPlugins.contains(idString)) {
-              prepareToInstall(downloaded, loadedPlugin);
-            }
+            prepareToInstall(downloaded, loadedPlugin);
           }
         }
       }
@@ -826,7 +829,7 @@ public final class UpdateChecker {
   public static void saveDisabledToUpdatePlugins() {
     final File plugins = new File(PathManager.getConfigPath(), DISABLED_UPDATE);
     try {
-      PluginManager.savePluginsList(getDisabledToUpdatePlugins(), false, plugins);
+      PluginManagerCore.savePluginsList(getDisabledToUpdatePlugins(), false, plugins);
     }
     catch (IOException e) {
       LOG.error(e);

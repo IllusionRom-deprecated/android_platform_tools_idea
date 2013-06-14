@@ -24,6 +24,7 @@ import com.intellij.execution.configurations.RunProfileState;
 import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindowId;
 import org.jetbrains.annotations.NotNull;
@@ -36,6 +37,12 @@ import org.jetbrains.annotations.Nullable;
 public class ExternalSystemTaskDebugRunner extends GenericDebuggerRunner {
 
   private static final Logger LOG = Logger.getInstance("#" + ExternalSystemTaskDebugRunner.class.getName());
+
+  @NotNull
+  @Override
+  public String getRunnerId() {
+    return ExternalSystemConstants.DEBUG_RUNNER_ID;
+  }
 
   @Override
   public boolean canRun(@NotNull String executorId, @NotNull RunProfile profile) {

@@ -11,10 +11,9 @@
     </group>
 
     <!--Context menu action-->
-    <action id="ExternalSystem.RunTask"
-            class="com.intellij.openapi.externalSystem.action.RunExternalTaskAction"
-            icon="AllIcons.Toolwindows.ToolWindowRun"/>
     <group id="ExternalSystem.Tree.Context" popup="true">
+      <action id="ExternalSystem.DetachProject"
+              class="com.intellij.openapi.externalSystem.action.DetachExternalProjectAction"/>
       <reference ref="RunContextGroup"/>
     </group>
     
