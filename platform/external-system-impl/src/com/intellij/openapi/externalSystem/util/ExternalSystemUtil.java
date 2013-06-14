@@ -15,25 +15,32 @@
  */
 package com.intellij.openapi.externalSystem.util;
 
+import com.intellij.execution.*;
+import com.intellij.execution.configurations.ConfigurationType;
 import com.intellij.execution.rmi.RemoteUtil;
-import com.intellij.openapi.actionSystem.DataContext;
+import com.intellij.execution.runners.ExecutionEnvironment;
+import com.intellij.execution.runners.ProgramRunner;
 import com.intellij.openapi.actionSystem.DataKey;
 import com.intellij.openapi.actionSystem.DataProvider;
-import com.intellij.openapi.actionSystem.PlatformDataKeys;
 import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
-import com.intellij.openapi.externalSystem.model.DataNode;
-import com.intellij.openapi.externalSystem.model.ExternalSystemException;
-import com.intellij.openapi.externalSystem.model.ProjectKeys;
-import com.intellij.openapi.externalSystem.model.ProjectSystemId;
+import com.intellij.openapi.externalSystem.model.*;
+import com.intellij.openapi.externalSystem.model.execution.ExternalSystemTaskExecutionSettings;
+import com.intellij.openapi.externalSystem.model.execution.ExternalTaskExecutionInfo;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
+import com.intellij.openapi.externalSystem.service.execution.AbstractExternalSystemTaskConfigurationType;
+import com.intellij.openapi.externalSystem.service.execution.ExternalSystemRunConfiguration;
 import com.intellij.openapi.externalSystem.service.internal.ExternalSystemResolveProjectTask;
 import com.intellij.openapi.externalSystem.service.notification.ExternalSystemIdeNotificationManager;
 import com.intellij.openapi.externalSystem.service.project.ExternalProjectRefreshCallback;
 import com.intellij.openapi.externalSystem.service.project.PlatformFacade;
 import com.intellij.openapi.externalSystem.service.project.manage.ModuleDataService;
 import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager;
+import com.intellij.openapi.externalSystem.service.task.ui.ExternalSystemRecentTasksList;
+import com.intellij.openapi.externalSystem.settings.AbstractExternalSystemLocalSettings;
 import com.intellij.openapi.externalSystem.settings.AbstractExternalSystemSettings;
 import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
 import com.intellij.openapi.module.Module;
@@ -44,6 +51,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowId;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.impl.ToolWindowImpl;
 import com.intellij.ui.CheckBoxList;
@@ -61,10 +69,8 @@ import java.awt.*;
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
 
 /**
  * @author Denis Zhdanov
@@ -72,32 +78,15 @@ import java.util.Set;
  */
 public class ExternalSystemUtil {
 
-  private ExternalSystemUtil() {
+  private static final Logger LOG = Logger.getInstance("#" + ExternalSystemUtil.class.getName());
+  
+  @NotNull private static final Map<String, String> RUNNER_IDS = ContainerUtilRt.newHashMap();
+  static {
+    RUNNER_IDS.put(ToolWindowId.RUN, ExternalSystemConstants.RUNNER_ID);
+    RUNNER_IDS.put(ToolWindowId.DEBUG, ExternalSystemConstants.DEBUG_RUNNER_ID);
   }
 
-  @Nullable
-  public static <T> T getToolWindowElement(@NotNull Class<T> clazz,
-                                           @Nullable DataContext context,
-                                           @NotNull DataKey<T> key,
-                                           @NotNull ProjectSystemId externalSystemId)
-  {
-    if (context != null) {
-      final T result = key.getData(context);
-      if (result != null) {
-        return result;
-      }
-    }
-
-    if (context == null) {
-      return null;
-    }
-
-    final Project project = PlatformDataKeys.PROJECT.getData(context);
-    if (project == null) {
-      return null;
-    }
-
-    return getToolWindowElement(clazz, project, key, externalSystemId);
+  private ExternalSystemUtil() {
   }
 
   @SuppressWarnings("unchecked")
@@ -105,7 +94,8 @@ public class ExternalSystemUtil {
   public static <T> T getToolWindowElement(@NotNull Class<T> clazz,
                                            @NotNull Project project,
                                            @NotNull DataKey<T> key,
-                                           @NotNull ProjectSystemId externalSystemId) {
+                                           @NotNull ProjectSystemId externalSystemId)
+  {
     if (project.isDisposed() || !project.isOpen()) {
       return null;
     }
@@ -142,7 +132,7 @@ public class ExternalSystemUtil {
    * {@link RemoteUtil#unwrap(Throwable) unwraps} given exception if possible and builds error message for it.
    *
    * @param e  exception to process
-   * @return   error message for the given exception
+   * @return error message for the given exception
    */
   @SuppressWarnings({"ThrowableResultOfMethodCallIgnored", "IOResourceOpenedButNotSafelyClosed"})
   @NotNull
@@ -166,12 +156,12 @@ public class ExternalSystemUtil {
    * Asks to refresh all external projects of the target external system linked to the given ide project.
    * <p/>
    * 'Refresh' here means 'obtain the most up-to-date version and apply it to the ide'. 
-   * 
+   *
    * @param project           target ide project
    * @param externalSystemId  target external system which projects should be refreshed
    */
   public static void refreshProjects(@NotNull final Project project, @NotNull final ProjectSystemId externalSystemId) {
-    ExternalSystemManager<?,?,?,?,?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
+    ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
     if (manager == null) {
       return;
     }
@@ -182,13 +172,13 @@ public class ExternalSystemUtil {
     }
 
     final ProjectDataManager projectDataManager = ServiceManager.getService(ProjectDataManager.class);
-    
+
     ExternalProjectRefreshCallback callback = new ExternalProjectRefreshCallback() {
 
       @NotNull
       private final Set<String> myExternalModuleNames = ContainerUtilRt.newHashSet();
       private int myCounter = projectsSettings.size();
-      
+
       @Override
       public void onSuccess(@Nullable DataNode<ProjectData> externalProject) {
         if (externalProject == null) {
@@ -374,6 +364,89 @@ public class ExternalSystemUtil {
     });
   }
 
+  public static void runTask(@NotNull ExternalSystemTaskExecutionSettings taskSettings,
+                             @NotNull String executorId,
+                             @NotNull Project project,
+                             @NotNull ProjectSystemId externalSystemId)
+  {
+    Executor executor = ExecutorRegistry.getInstance().getExecutorById(executorId);
+    if (executor == null) {
+      return;
+    }
+    String runnerId = getRunnerId(executorId);
+    if (runnerId == null) {
+      return;
+    }
+    ProgramRunner runner = RunnerRegistry.getInstance().findRunnerById(runnerId);
+    if (runner == null) {
+      return;
+    }
+    AbstractExternalSystemTaskConfigurationType configurationType = findConfigurationType(externalSystemId);
+    if (configurationType == null) {
+      return;
+    }
+
+    String name = AbstractExternalSystemTaskConfigurationType.generateName(project, taskSettings);
+    RunnerAndConfigurationSettings settings = RunManagerEx.getInstanceEx(project).createConfiguration(name, configurationType.getFactory());
+    ExternalSystemRunConfiguration runConfiguration = (ExternalSystemRunConfiguration)settings.getConfiguration();
+    runConfiguration.getSettings().setExternalProjectPath(taskSettings.getExternalProjectPath());
+    runConfiguration.getSettings().setTaskNames(taskSettings.getTaskNames());
+    
+    
+    ExecutionEnvironment env = new ExecutionEnvironment(runner, settings, project);
+    
+    try {
+      runner.execute(executor, env, null);
+    }
+    catch (ExecutionException e) {
+      LOG.warn("Can't execute task " + taskSettings, e);
+    }
+  }
+
+  @Nullable
+  public static AbstractExternalSystemTaskConfigurationType findConfigurationType(@NotNull ProjectSystemId externalSystemId) {
+    for (ConfigurationType type : Extensions.getExtensions(ConfigurationType.CONFIGURATION_TYPE_EP)) {
+      if (type instanceof AbstractExternalSystemTaskConfigurationType) {
+        AbstractExternalSystemTaskConfigurationType candidate = (AbstractExternalSystemTaskConfigurationType)type;
+        if (externalSystemId.equals(candidate.getExternalSystemId())) {
+          return candidate;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Is expected to be called when given task info is about to be executed.
+   * <p/>
+   * Basically, this method updates recent tasks list at the corresponding external system tool window and
+   * persists new recent tasks state.
+   * 
+   * @param taskInfo  task which is about to be executed
+   * @param project   target project
+   */
+  public static void updateRecentTasks(@NotNull ExternalTaskExecutionInfo taskInfo, @NotNull Project project) {
+    ProjectSystemId externalSystemId = taskInfo.getSettings().getExternalSystemId();
+    ExternalSystemRecentTasksList recentTasksList = getToolWindowElement(ExternalSystemRecentTasksList.class,
+                                                                         project,
+                                                                         ExternalSystemDataKeys.RECENT_TASKS_LIST,
+                                                                         externalSystemId);
+    if (recentTasksList == null) {
+      return;
+    }
+    recentTasksList.setFirst(taskInfo);
+    
+    ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
+    assert manager != null;
+    AbstractExternalSystemLocalSettings settings = manager.getLocalSettingsProvider().fun(project);
+    settings.setRecentTasks(recentTasksList.getModel().getTasks());
+  }
+
+  @Nullable
+  public static String getRunnerId(@NotNull String executorId) {
+    return RUNNER_IDS.get(executorId);
+  }
+  
   private interface TaskUnderProgress {
     void execute(@NotNull ProgressIndicator indicator);
   }

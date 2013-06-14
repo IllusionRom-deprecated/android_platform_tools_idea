@@ -25,7 +25,8 @@ import com.intellij.openapi.actionSystem.DataProvider;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.model.ExternalSystemDataKeys;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
-import com.intellij.openapi.externalSystem.model.serialization.ExternalTaskPojo;
+import com.intellij.openapi.externalSystem.model.execution.ExternalTaskExecutionInfo;
+import com.intellij.openapi.externalSystem.model.project.ExternalProjectPojo;
 import com.intellij.openapi.externalSystem.service.execution.ExternalSystemTaskLocation;
 import com.intellij.openapi.externalSystem.settings.AbstractExternalSystemLocalSettings;
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
@@ -34,6 +35,7 @@ import com.intellij.openapi.externalSystem.util.ExternalSystemUiUtil;
 import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
+import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.ui.IdeBorderFactory;
@@ -56,15 +58,14 @@ import static com.intellij.openapi.externalSystem.util.ExternalSystemConstants.*
  */
 public class ExternalSystemTasksPanel extends SimpleToolWindowPanel implements DataProvider {
 
-  @NotNull private final ExternalSystemRecentTaskListModel myRecentTasksModel;
-  @NotNull private final ExternalSystemRecentTasksList     myRecentTasksList;
-  @NotNull private final ExternalSystemTasksTreeModel      myAllTasksModel;
-  @NotNull private final ExternalSystemTasksTree           myAllTasksTree;
-  @NotNull private final ProjectSystemId                   myExternalSystemId;
-  @NotNull private final NotificationGroup                 myNotificationGroup;
-  @NotNull private final Project                           myProject;
+  @NotNull private final ExternalSystemRecentTasksList myRecentTasksList;
+  @NotNull private final ExternalSystemTasksTreeModel  myAllTasksModel;
+  @NotNull private final ExternalSystemTasksTree       myAllTasksTree;
+  @NotNull private final ProjectSystemId               myExternalSystemId;
+  @NotNull private final NotificationGroup             myNotificationGroup;
+  @NotNull private final Project                       myProject;
 
-  @Nullable private Producer<ExternalTaskPojo> mySelectedTaskProvider;
+  @Nullable private Producer<ExternalTaskExecutionInfo> mySelectedTaskProvider;
 
   public ExternalSystemTasksPanel(@NotNull Project project,
                                   @NotNull ProjectSystemId externalSystemId,
@@ -79,16 +80,15 @@ public class ExternalSystemTasksPanel extends SimpleToolWindowPanel implements D
     assert manager != null;
     AbstractExternalSystemLocalSettings settings = manager.getLocalSettingsProvider().fun(project);
 
-    myRecentTasksModel = new ExternalSystemRecentTaskListModel();
-    myRecentTasksList = new ExternalSystemRecentTasksList(myRecentTasksModel, externalSystemId) {
+    ExternalSystemRecentTaskListModel recentTasksModel = new ExternalSystemRecentTaskListModel(externalSystemId, project);
+    recentTasksModel.setTasks(settings.getRecentTasks());
+    myRecentTasksList = new ExternalSystemRecentTasksList(recentTasksModel, externalSystemId, project) {
       @Override
       protected void processMouseEvent(MouseEvent e) {
         mySelectedTaskProvider = myRecentTasksList;
         super.processMouseEvent(e);
       }
     };
-    myRecentTasksList.setEmptyText(ExternalSystemBundle.message("tasks.recent.empty.text"));
-    myRecentTasksModel.setTasks(settings.getRecentTasks());
 
     myAllTasksModel = new ExternalSystemTasksTreeModel(externalSystemId);
     myAllTasksTree = new ExternalSystemTasksTree(myAllTasksModel, settings.getExpandStates()) {
@@ -106,18 +106,17 @@ public class ExternalSystemTasksPanel extends SimpleToolWindowPanel implements D
     ActionToolbar toolbar = actionManager.createActionToolbar(TOOL_WINDOW_PLACE, group, true);
     toolbar.setTargetComponent(this);
     setToolbar(toolbar.getComponent());
-    
+
     JPanel content = new JPanel(new GridBagLayout());
+    content.setOpaque(true);
+    content.setBackground(UIUtil.getListBackground());
     JComponent recentTasksWithTitle = wrap(myRecentTasksList, ExternalSystemBundle.message("tasks.recent.title"));
     content.add(recentTasksWithTitle, ExternalSystemUiUtil.getFillLineConstraints(0));
     JBScrollPane scrollPane = new JBScrollPane(myAllTasksTree);
     scrollPane.setBorder(null);
     JComponent allTasksWithTitle = wrap(scrollPane, ExternalSystemBundle.message("tasks.all.title"));
-    content.add(allTasksWithTitle, ExternalSystemUiUtil.getFillLineConstraints(0).weighty(1));
+    content.add(allTasksWithTitle, ExternalSystemUiUtil.getFillLineConstraints(0).weighty(1).fillCell());
     setContent(content);
-    
-    setOpaque(true);
-    setBackground(UIUtil.getListBackground());
   }
 
   private static JComponent wrap(@NotNull JComponent content, @NotNull String title) {
@@ -131,8 +130,8 @@ public class ExternalSystemTasksPanel extends SimpleToolWindowPanel implements D
   @Nullable
   @Override
   public Object getData(@NonNls String dataId) {
-    if (ExternalSystemDataKeys.RECENT_TASKS_MODEL.is(dataId)) {
-      return myRecentTasksModel;
+    if (ExternalSystemDataKeys.RECENT_TASKS_LIST.is(dataId)) {
+      return myRecentTasksList;
     }
     else if (ExternalSystemDataKeys.ALL_TASKS_MODEL.is(dataId)) {
       return myAllTasksModel;
@@ -146,6 +145,18 @@ public class ExternalSystemTasksPanel extends SimpleToolWindowPanel implements D
     else if (ExternalSystemDataKeys.SELECTED_TASK.is(dataId)) {
       return mySelectedTaskProvider == null ? null : mySelectedTaskProvider.produce();
     }
+    else if (ExternalSystemDataKeys.SELECTED_PROJECT.is(dataId)) {
+      if (mySelectedTaskProvider != myAllTasksTree) {
+        return null;
+      }
+      else {
+        Object component = myAllTasksTree.getLastSelectedPathComponent();
+        if (component instanceof ExternalSystemNode) {
+          Object element = ((ExternalSystemNode)component).getDescriptor().getElement();
+          return element instanceof ExternalProjectPojo ? element : null;
+        }
+      }
+    }
     else if (Location.DATA_KEY.is(dataId)) {
       Location location = buildLocation();
       return location == null ? super.getData(dataId) : location;
@@ -158,13 +169,13 @@ public class ExternalSystemTasksPanel extends SimpleToolWindowPanel implements D
     if (mySelectedTaskProvider == null) {
       return null;
     }
-    ExternalTaskPojo task = mySelectedTaskProvider.produce();
+    ExternalTaskExecutionInfo task = mySelectedTaskProvider.produce();
     if (task == null) {
       return null;
     }
 
-    String projectPath = task.getLinkedExternalProjectPath();
-    String name = myExternalSystemId.getReadableName() + projectPath + task.getName();
+    String projectPath = task.getSettings().getExternalProjectPath();
+    String name = myExternalSystemId.getReadableName() + projectPath + StringUtil.join(task.getSettings().getTaskNames(), " ");
     // We create a dummy text file instead of re-using external system file in order to avoid clashing with other configuration producers.
     // For example gradle files are enhanced groovy scripts but we don't want to run them via regular IJ groovy script runners.
     // Gradle tooling api should be used for running gradle tasks instead. IJ execution sub-system operates on Location objects
