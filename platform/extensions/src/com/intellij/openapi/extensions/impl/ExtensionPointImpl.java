@@ -143,6 +143,13 @@ public class ExtensionPointImpl<T> implements ExtensionPoint<T> {
 
   private void internalRegisterExtension(@NotNull T extension, @NotNull ExtensionComponentAdapter adapter, int index, boolean runNotifications) {
     if (myExtensions.contains(extension)) {
+
+      // DO NOT MERGE:
+      // Temporarily hidden in Studio; not sure why this is triggered but we don't want everyone
+      // using 0.1.6 to get this error and report it since (a) we know about it (b.android.com/56793)
+      // and (b) the IDE can recover
+      if (true) { return; }
+
       myLogger.error("Extension was already added: " + extension);
       return;
     }
