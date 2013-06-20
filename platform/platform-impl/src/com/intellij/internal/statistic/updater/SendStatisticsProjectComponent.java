@@ -16,9 +16,6 @@
 package com.intellij.internal.statistic.updater;
 
 import com.intellij.internal.statistic.StatisticsUploadAssistant;
-import com.intellij.internal.statistic.connect.RemotelyConfigurableStatisticsService;
-import com.intellij.internal.statistic.connect.StatisticsConnectionService;
-import com.intellij.internal.statistic.connect.StatisticsHttpClientSender;
 import com.intellij.internal.statistic.connect.StatisticsService;
 import com.intellij.notification.NotificationDisplayType;
 import com.intellij.notification.NotificationsConfiguration;

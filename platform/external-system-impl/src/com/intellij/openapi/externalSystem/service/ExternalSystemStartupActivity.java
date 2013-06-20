@@ -37,12 +37,9 @@ public class ExternalSystemStartupActivity implements StartupActivity {
       @SuppressWarnings("unchecked")
       @Override
       public void run() {
-        if (SystemProperties.getBooleanProperty(ExternalSystemConstants.NEWLY_IMPORTED_PROJECT, false)) {
-          System.setProperty(ExternalSystemConstants.NEWLY_IMPORTED_PROJECT, Boolean.toString(false));
-        }
-        else {
+        if (!SystemProperties.getBooleanProperty(ExternalSystemConstants.NEWLY_IMPORTED_PROJECT, false)) {
           for (ExternalSystemManager manager : ExternalSystemManager.EP_NAME.getExtensions()) {
-            ExternalSystemUtil.refreshProjects(project, manager.getSystemId());
+            ExternalSystemUtil.refreshProjects(project, manager.getSystemId(), false);
           }
         }
         ExternalSystemAutoImporter.letTheMagicBegin(project);
