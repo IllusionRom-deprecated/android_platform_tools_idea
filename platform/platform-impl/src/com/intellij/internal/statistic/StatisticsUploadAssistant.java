@@ -35,6 +35,7 @@ import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.KeyedExtensionCollector;
 import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.vfs.VirtualFileSystem;
 import com.intellij.util.Function;
 import com.intellij.util.Time;
 import com.intellij.util.containers.ContainerUtil;

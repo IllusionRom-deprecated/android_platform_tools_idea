@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2012 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import com.intellij.openapi.progress.PerformInBackgroundOption;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
-import com.intellij.openapi.project.DumbAware;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vcs.AbstractVcs;
 import com.intellij.openapi.vcs.FilePath;
@@ -64,7 +63,7 @@ import java.util.List;
 /**
 * @author Konstantin Bulenkov
 */
-class AnnotateStackTraceAction extends AnAction implements DumbAware {
+class AnnotateStackTraceAction extends AnAction {
   private final EditorHyperlinkSupport myHyperlinks;
   private Map<Integer, VcsFileRevision> cache;
   private int newestLine = -1;

@@ -23,7 +23,6 @@ import com.intellij.icons.AllIcons;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.IdeEventQueue;
 import com.intellij.ide.actions.CopyReferenceAction;
-import com.intellij.ide.ui.UISettings;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.MnemonicHelper;
 import com.intellij.openapi.actionSystem.*;
@@ -460,9 +459,7 @@ public abstract class ChooseByNameBase {
 
     myTextFieldPanel.add(myTextField);
     EditorColorsScheme scheme = EditorColorsManager.getInstance().getGlobalScheme();
-    boolean presentationMode = UISettings.getInstance().PRESENTATION_MODE;
-    int size = presentationMode ? UISettings.getInstance().PRESENTATION_MODE_FONT_SIZE - 4 : scheme.getEditorFontSize();
-    Font editorFont = new Font(scheme.getEditorFontName(), Font.PLAIN, size);
+    Font editorFont = new Font(scheme.getEditorFontName(), Font.PLAIN, scheme.getEditorFontSize());
     myTextField.setFont(editorFont);
 
     if (checkBoxName != null) {
@@ -768,7 +765,6 @@ public abstract class ChooseByNameBase {
   }
 
   protected void cancelListUpdater() {
-    cancelCalcElementsThread();
     myListUpdater.cancelAll();
   }
 
@@ -1576,6 +1572,7 @@ public abstract class ChooseByNameBase {
 
     @Override
     public void actionPerformed(final AnActionEvent e) {
+      cancelCalcElementsThread();
       cancelListUpdater();
 
       final UsageViewPresentation presentation = new UsageViewPresentation();

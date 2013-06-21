@@ -31,7 +31,6 @@ import com.intellij.openapi.roots.libraries.LibraryTable;
 import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.util.Ref;
-import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.packaging.artifacts.ModifiableArtifactModel;
 import com.intellij.projectImport.ProjectImportBuilder;
@@ -58,7 +57,7 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
 {
 
   private static final Logger LOG = Logger.getInstance("#" + AbstractExternalProjectImportBuilder.class.getName());
-  
+
   @NotNull private final ExternalSystemSettingsManager mySettingsManager;
   @NotNull private final ProjectDataManager            myProjectDataManager;
   @NotNull private final C                             myControl;
@@ -127,10 +126,8 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
       public void run() {
         AbstractExternalSystemSettings systemSettings = mySettingsManager.getSettings(project, myExternalSystemId);
         ExternalProjectSettings projectSettings = myControl.getProjectSettings().clone();
-        File externalProjectConfigFile = getExternalProjectConfigToUse(new File(projectSettings.getExternalProjectPath()));
-        final String linkedProjectPath = FileUtil.toCanonicalPath(externalProjectConfigFile.getPath());
+        final String linkedProjectPath = projectSettings.getExternalProjectPath();
         assert linkedProjectPath != null;
-        projectSettings.setExternalProjectPath(linkedProjectPath);
         Set<ExternalProjectSettings> projects = ContainerUtilRt.newHashSet(systemSettings.getLinkedProjectsSettings());
         projects.add(projectSettings);
         systemSettings.setLinkedProjectsSettings(projects);
@@ -248,7 +245,6 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
    * @param wizardContext             current wizard context
    * @throws ConfigurationException   if gradle project is not defined and can't be constructed
    */
-  @SuppressWarnings("unchecked")
   public void ensureProjectIsDefined(@NotNull WizardContext wizardContext) throws ConfigurationException {
     String externalSystemName = myExternalSystemId.getReadableName();
     File projectFile = getProjectFile();
@@ -272,9 +268,8 @@ public abstract class AbstractExternalProjectImportBuilder<C extends AbstractImp
                                              ExternalSystemBundle.message("error.resolve.generic")));
       }
     };
-
-    final Project project = getProject(wizardContext);
     try {
+      final Project project = getProject(wizardContext);
       ExternalSystemUtil.refreshProject(
         project,
         myExternalSystemId,

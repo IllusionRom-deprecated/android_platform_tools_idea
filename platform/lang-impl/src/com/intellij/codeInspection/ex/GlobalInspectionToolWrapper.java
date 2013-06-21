@@ -20,15 +20,16 @@ import org.jetbrains.annotations.Nullable;
  * Date: 28-Dec-2005
  */
 public class GlobalInspectionToolWrapper extends InspectionToolWrapper<GlobalInspectionTool, InspectionEP> {
+
   public GlobalInspectionToolWrapper(@NotNull GlobalInspectionTool globalInspectionTool) {
     super(globalInspectionTool);
   }
 
-  public GlobalInspectionToolWrapper(@NotNull InspectionEP ep) {
+  public GlobalInspectionToolWrapper(InspectionEP ep) {
     super(ep);
   }
 
-  private GlobalInspectionToolWrapper(@NotNull GlobalInspectionToolWrapper other) {
+  private GlobalInspectionToolWrapper(GlobalInspectionToolWrapper other) {
     super(other);
   }
 
@@ -49,14 +50,12 @@ public class GlobalInspectionToolWrapper extends InspectionToolWrapper<GlobalIns
 
   @Override
   public void runInspection(@NotNull final AnalysisScope scope, @NotNull final InspectionManager manager) {
-    throw new RuntimeException();
-    //getTool().runInspection(scope, manager, getContext(), this);
+    getTool().runInspection(scope, manager, getContext(), this);
   }
 
   @Override
   public boolean queryExternalUsagesRequests(@NotNull final InspectionManager manager) {
-    throw new RuntimeException();
-    //return getTool().queryExternalUsagesRequests(manager, getContext(), this);
+    return getTool().queryExternalUsagesRequests(manager, getContext(), this);
   }
 
   @Override
@@ -64,17 +63,16 @@ public class GlobalInspectionToolWrapper extends InspectionToolWrapper<GlobalIns
   public JobDescriptor[] getJobDescriptors(@NotNull GlobalInspectionContext context) {
     final JobDescriptor[] additionalJobs = getTool().getAdditionalJobs();
     if (additionalJobs == null) {
-      return getTool().isGraphNeeded() ? context.getStdJobDescriptors().BUILD_GRAPH_ONLY : JobDescriptor.EMPTY_ARRAY;
+      return isGraphNeeded() ? context.getStdJobDescriptors().BUILD_GRAPH_ONLY : JobDescriptor.EMPTY_ARRAY;
     }
     else {
-      return getTool().isGraphNeeded() ? ArrayUtil.append(additionalJobs, context.getStdJobDescriptors().BUILD_GRAPH) : additionalJobs;
+      return isGraphNeeded() ? ArrayUtil.append(additionalJobs, context.getStdJobDescriptors().BUILD_GRAPH) : additionalJobs;
     }
   }
 
   @Override
   public boolean isGraphNeeded() {
-    throw new RuntimeException();
-    //return getTool().isGraphNeeded();
+    return getTool().isGraphNeeded();
   }
 
   public void processFile(@NotNull final AnalysisScope analysisScope,
@@ -83,7 +81,8 @@ public class GlobalInspectionToolWrapper extends InspectionToolWrapper<GlobalIns
                           final boolean filterSuppressed) {
     context.getRefManager().iterate(new RefVisitor() {
       @Override public void visitElement(@NotNull RefEntity refEntity) {
-        CommonProblemDescriptor[] descriptors = getTool().checkElement(refEntity, analysisScope, manager, context, GlobalInspectionToolWrapper.this);
+        CommonProblemDescriptor[] descriptors = getTool()
+          .checkElement(refEntity, analysisScope, manager, context, GlobalInspectionToolWrapper.this);
         if (descriptors != null) {
           addProblemElement(refEntity, filterSuppressed, descriptors);
         }
@@ -106,45 +105,47 @@ public class GlobalInspectionToolWrapper extends InspectionToolWrapper<GlobalIns
   @Nullable
   public IntentionAction findQuickFixes(final CommonProblemDescriptor problemDescriptor, final String hint) {
     final QuickFix fix = getTool().getQuickFix(hint);
-    if (fix == null) {
-      return null;
+    if (fix != null) {
+      if (problemDescriptor instanceof ProblemDescriptor) {
+        final ProblemDescriptor descriptor = new ProblemDescriptorImpl(((ProblemDescriptor)problemDescriptor).getStartElement(),
+                                                                       ((ProblemDescriptor)problemDescriptor).getEndElement(),
+                                                                       problemDescriptor.getDescriptionTemplate(),
+                                                                       new LocalQuickFix[]{(LocalQuickFix)fix},
+                                                                       ProblemHighlightType.GENERIC_ERROR_OR_WARNING, false, null, false);
+        return QuickFixWrapper.wrap(descriptor, 0);
+      }
+      else {
+        return new IntentionAction() {
+          @Override
+          @NotNull
+          public String getText() {
+            return fix.getName();
+          }
+
+          @Override
+          @NotNull
+          public String getFamilyName() {
+            return fix.getFamilyName();
+          }
+
+          @Override
+          public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
+            return true;
+          }
+
+          @Override
+          public void invoke(@NotNull Project project, Editor editor, PsiFile file) throws IncorrectOperationException {
+            fix.applyFix(project, problemDescriptor); //todo check type consistency
+          }
+
+          @Override
+          public boolean startInWriteAction() {
+            return true;
+          }
+        };
+      }
     }
-    if (problemDescriptor instanceof ProblemDescriptor) {
-      final ProblemDescriptor descriptor = new ProblemDescriptorImpl(((ProblemDescriptor)problemDescriptor).getStartElement(),
-                                                                     ((ProblemDescriptor)problemDescriptor).getEndElement(),
-                                                                     problemDescriptor.getDescriptionTemplate(),
-                                                                     new LocalQuickFix[]{(LocalQuickFix)fix},
-                                                                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING, false, null, false);
-      return QuickFixWrapper.wrap(descriptor, 0);
-    }
-    return new IntentionAction() {
-      @Override
-      @NotNull
-      public String getText() {
-        return fix.getName();
-      }
-
-      @Override
-      @NotNull
-      public String getFamilyName() {
-        return fix.getFamilyName();
-      }
-
-      @Override
-      public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
-        return true;
-      }
-
-      @Override
-      public void invoke(@NotNull Project project, Editor editor, PsiFile file) throws IncorrectOperationException {
-        fix.applyFix(project, problemDescriptor); //todo check type consistency
-      }
-
-      @Override
-      public boolean startInWriteAction() {
-        return true;
-      }
-    };
+    return null;
   }
 
   public boolean worksInBatchModeOnly() {

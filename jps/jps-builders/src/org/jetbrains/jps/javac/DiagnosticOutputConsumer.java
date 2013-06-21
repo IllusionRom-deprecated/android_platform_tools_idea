@@ -16,7 +16,6 @@
 package org.jetbrains.jps.javac;
 
 import javax.tools.*;
-import java.io.File;
 import java.util.Collection;
 
 /**
@@ -26,5 +25,4 @@ import java.util.Collection;
 public interface DiagnosticOutputConsumer extends DiagnosticListener<JavaFileObject> {
   void outputLineAvailable(String line);
   void registerImports(String className, Collection<String> imports, Collection<String> staticImports);
-  void javaFileLoaded(File file);
 }

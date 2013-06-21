@@ -24,7 +24,6 @@ import com.intellij.openapi.fileTypes.SyntaxHighlighter;
 import com.intellij.openapi.fileTypes.SyntaxHighlighterFactory;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.ComboBox;
-import com.intellij.ui.AncestorListenerAdapter;
 import com.intellij.ui.ColoredListCellRendererWrapper;
 import com.intellij.ui.EditorTextField;
 import com.intellij.ui.SimpleTextAttributes;
@@ -34,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import javax.swing.event.AncestorEvent;
+import javax.swing.event.AncestorListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.util.Arrays;
@@ -75,7 +75,6 @@ public class LanguagePanel extends AbstractInjectionPanel<BaseInjection> {
       }
     });
     myLanguage.addItemListener(new ItemListener() {
-      @Override
       public void itemStateChanged(ItemEvent e) {
         if (e.getStateChange() == ItemEvent.SELECTED) {
           updateHighlighters();
@@ -83,10 +82,15 @@ public class LanguagePanel extends AbstractInjectionPanel<BaseInjection> {
       }
     });
 
-    myRoot.addAncestorListener(new AncestorListenerAdapter() {
-      @Override
+    myRoot.addAncestorListener(new AncestorListener() {
       public void ancestorAdded(AncestorEvent event) {
         updateHighlighters();
+      }
+
+      public void ancestorRemoved(AncestorEvent event) {
+      }
+
+      public void ancestorMoved(AncestorEvent event) {
       }
     });
   }
@@ -145,21 +149,18 @@ public class LanguagePanel extends AbstractInjectionPanel<BaseInjection> {
     }
   }
 
-  @Override
   protected void resetImpl() {
     setLanguage(myOrigInjection.getInjectedLanguageId());
     setPrefix(myOrigInjection.getPrefix());
     setSuffix(myOrigInjection.getSuffix());
   }
 
-  @Override
   protected void apply(BaseInjection i) {
     i.setInjectedLanguageId(getLanguage());
     i.setPrefix(getPrefix());
     i.setSuffix(getSuffix());
   }
 
-  @Override
   public JPanel getComponent() {
     return myRoot;
   }

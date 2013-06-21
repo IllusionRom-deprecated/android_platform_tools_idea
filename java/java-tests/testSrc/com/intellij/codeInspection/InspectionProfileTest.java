@@ -267,7 +267,7 @@ public class InspectionProfileTest extends LightIdeaTestCase {
 
     GlobalInspectionContextImpl context = ((InspectionManagerEx)InspectionManager.getInstance(getProject())).createNewGlobalContext(false);
     context.setExternalProfile(profile);
-    context.initializeTools(new ArrayList<Tools>(), new ArrayList<Tools>(), new ArrayList<Tools>(), new ArrayList<Tools>());
+    context.initializeTools(new ArrayList<Tools>(), new ArrayList<Tools>(), new ArrayList<Tools>());
   }
 
   public void testInspectionsInitialization() throws Exception {
@@ -299,11 +299,11 @@ public class InspectionProfileTest extends LightIdeaTestCase {
     InspectionProfileImpl profile = new InspectionProfileImpl("profile");
     profile.setBaseProfile(InspectionProfileImpl.getDefaultProfile());
     assertEquals(0, countInitializedTools(profile));
-    InspectionToolWrapper[] toolWrappers = profile.getInspectionTools(null);
-    assertTrue(toolWrappers.length > 0);
-    InspectionToolWrapper toolWrapper = profile.getInspectionTool(new DataFlowInspection().getShortName());
-    assertNotNull(toolWrapper);
-    String id = toolWrapper.getShortName();
+    InspectionProfileEntry[] tools = profile.getInspectionTools(null);
+    assertTrue(tools.length > 0);
+    InspectionProfileEntry tool = profile.getInspectionTool(new DataFlowInspection().getShortName());
+    assertNotNull(tool);
+    String id = tool.getShortName();
     System.out.println(id);
     if (profile.isToolEnabled(HighlightDisplayKey.findById(id))) {
       profile.disableTool(id);
@@ -313,9 +313,9 @@ public class InspectionProfileTest extends LightIdeaTestCase {
     }
     assertEquals(0, countInitializedTools(profile));
     profile.writeExternal(new Element("profile"));
-    List<InspectionToolWrapper> initializedTools = getInitializedTools(profile);
+    List<InspectionProfileEntry> initializedTools = getInitializedTools(profile);
     if (initializedTools.size() != 1) {
-      for (InspectionToolWrapper initializedTool : initializedTools) {
+      for (InspectionProfileEntry initializedTool : initializedTools) {
         System.out.println(initializedTool.getShortName());
       }
       fail();
@@ -340,14 +340,14 @@ public class InspectionProfileTest extends LightIdeaTestCase {
     return getInitializedTools(foo).size();
   }
 
-  @NotNull
-  public static List<InspectionToolWrapper> getInitializedTools(@NotNull Profile foo) {
-    List<InspectionToolWrapper> initialized = new ArrayList<InspectionToolWrapper>();
+  public static List<InspectionProfileEntry> getInitializedTools(Profile foo) {
+    List<InspectionProfileEntry> initialized = new ArrayList<InspectionProfileEntry>();
     List<ScopeToolState> tools = ((InspectionProfileImpl)foo).getAllTools();
     for (ScopeToolState tool : tools) {
-      InspectionToolWrapper toolWrapper = (InspectionToolWrapper)tool.getTool();
-      if (toolWrapper.isInitialized()) {
-        initialized.add(toolWrapper);
+      InspectionProfileEntry entry = tool.getTool();
+      assertTrue(entry instanceof InspectionToolWrapper);
+      if (entry.isInitialized()) {
+        initialized.add(entry);
       }
     }
     return initialized;

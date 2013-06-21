@@ -61,16 +61,10 @@ public class DirectoryStorageData {
       try {
         final Document document = JDOMUtil.loadDocument(file.contentsToByteArray());
         final Element element = document.getRootElement();
-        if (!element.getName().equals(StorageData.COMPONENT)) {
-          LOG.error("Incorrect root tag name (" + element.getName() + ") in " + file.getPresentableUrl());
-          continue;
-        }
+        assert element.getName().equals(StorageData.COMPONENT);
 
         String componentName = element.getAttributeValue(StorageData.NAME);
-        if (componentName == null) {
-          LOG.error("Component name isn't specified in " + file.getPresentableUrl());
-          continue;
-        }
+        assert componentName != null;
 
         if (pathMacroSubstitutor != null) {
           pathMacroSubstitutor.expandPaths(element);

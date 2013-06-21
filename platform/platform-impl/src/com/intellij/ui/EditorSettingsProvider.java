@@ -21,12 +21,5 @@ import com.intellij.openapi.editor.ex.EditorEx;
  * @author Konstantin Bulenkov
  */
 public interface EditorSettingsProvider {
-  EditorSettingsProvider NO_WHITESPACE = new EditorSettingsProvider() {
-    @Override
-    public void customizeSettings(EditorEx editor) {
-      editor.getSettings().setWhitespacesShown(false);
-    }
-  };
-
   void customizeSettings(EditorEx editor);
 }

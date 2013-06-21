@@ -40,10 +40,13 @@ public class StatisticsConfigurationComponent {
   private JPanel myRadioButtonPanel;
 
   public StatisticsConfigurationComponent() {
-    String product = ApplicationNamesInfo.getInstance().getFullProductName();
+
     String company = ApplicationInfo.getInstance().getCompanyName();
-    myTitle.setText(StatisticsBundle.message("stats.title", product, company));
-    myLabel.setText(StatisticsBundle.message("stats.config.details", company));
+
+    myTitle.setText("Help improve " + ApplicationNamesInfo.getInstance().getFullProductName() +
+                    " by sending anonymous usage statistics to " + company);
+    myLabel.setText("<html>We're asking your permission to send information about your plugins configuration (what is enabled <br>and what is not) and feature usage statistics (e.g. how frequently you're using code completion).<br>    " +
+                    "This data is anonymous, does not contain any personal information, collected for use only by " + company  + "<br> and will never be transmitted to any third party.</html>");
     myLabel.setFont(UIUtil.getLabelFont(UIUtil.FontSize.SMALL));
 
     myAllowToSendUsagesCheckBox.setText(StatisticsBundle.message("stats.config.allow.send.stats.text", company));
@@ -59,15 +62,15 @@ public class StatisticsConfigurationComponent {
     if (service != null) {
       Map<String, String> overrides = service.getStatisticsConfigurationLabels();
       if (overrides != null) {
-        String s = overrides.get(StatisticsService.TITLE);
+        String s = overrides.get("title");
         if (s != null) {
           myTitle.setText(s);
         }
-        s = overrides.get(StatisticsService.DETAILS);
+        s = overrides.get("details");
         if (s != null) {
           myLabel.setText(s);
         }
-        s = overrides.get(StatisticsService.ALLOW_CHECKBOX);
+        s = overrides.get("allow-checkbox");
         if (s != null) {
           myAllowToSendUsagesCheckBox.setText(s);
         }

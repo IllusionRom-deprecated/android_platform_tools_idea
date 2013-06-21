@@ -36,7 +36,6 @@ import com.intellij.openapi.wm.ex.WindowManagerEx;
 import com.intellij.openapi.wm.impl.IdeFrameImpl;
 import com.intellij.openapi.wm.impl.IdeGlassPaneImpl;
 import com.intellij.openapi.wm.impl.IdeMenuBar;
-import com.intellij.ui.AppUIUtil;
 import com.intellij.ui.BalloonLayout;
 import com.intellij.ui.FocusTrackback;
 import com.intellij.util.ImageLoader;
@@ -72,7 +71,6 @@ public class FrameWrapper implements Disposable, DataProvider {
   protected StatusBar myStatusBar;
   private boolean myShown;
   private boolean myIsDialog;
-  private boolean myImageWasChanged;
 
   public FrameWrapper(Project project) {
     this(project, null);
@@ -161,12 +159,7 @@ public class FrameWrapper implements Disposable, DataProvider {
     } else {
       ((JDialog)frame).setTitle(myTitle);
     }
-    if (myImageWasChanged) {
-      frame.setIconImage(myImage);
-    } 
-    else {
-      AppUIUtil.updateWindowIcon(myFrame);
-    }
+    frame.setIconImage(myImage);
 
     if (restoreBounds) {
       loadFrameState();
@@ -284,7 +277,6 @@ public class FrameWrapper implements Disposable, DataProvider {
   }
 
   public void setImage(Image image) {
-    myImageWasChanged = true;
     myImage = image;
   }
 

@@ -86,10 +86,6 @@ public class JUnit3IdeaTestRunner extends TestRunner implements IdeaTestRunner {
     return myRegistry;
   }
 
-  public String getTestClassName(Object child) {
-    return child instanceof TestSuite ? ((TestSuite)child).getName() : child.getClass().getName();
-  }
-
   public String getStartDescription(Object child) {
     final Test test = (Test)child;
     if (test instanceof TestCase) {

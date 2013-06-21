@@ -42,7 +42,6 @@ import com.intellij.openapi.vfs.pointers.VirtualFilePointerListener;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.util.PathUtil;
-import com.intellij.util.containers.ConcurrentWeakHashMap;
 import com.intellij.util.messages.MessageBusConnection;
 import com.intellij.util.ui.update.Update;
 import gnu.trove.THashSet;
@@ -54,13 +53,9 @@ import org.jetbrains.idea.maven.utils.MavenMergingUpdateQueue;
 import org.jetbrains.idea.maven.utils.MavenUtil;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
 
 public class MavenProjectsManagerWatcher {
-
-  private static final Key<ConcurrentWeakHashMap<Project, Integer>> CRC_WITHOUT_SPACES = Key.create("MavenProjectsManagerWatcher.CRC_WITHOUT_SPACES");
-
   public static final Key<Boolean> FORCE_IMPORT_AND_RESOLVE_ON_REFRESH =
     Key.create(MavenProjectsManagerWatcher.class + "FORCE_IMPORT_AND_RESOLVE_ON_REFRESH");
 
@@ -330,8 +325,10 @@ public class MavenProjectsManagerWatcher {
   }
 
   private boolean isProfilesFile(String path) {
-    if (!path.endsWith("/" + MavenConstants.PROFILES_XML)) return false;
-    return myProjectsTree.isPotentialProject(path.substring(0, path.length() - MavenConstants.PROFILES_XML.length()) + MavenConstants.POM_XML);
+    String suffix = "/" + MavenConstants.PROFILES_XML;
+    if (!path.endsWith(suffix)) return false;
+    int pos = path.lastIndexOf(suffix);
+    return myProjectsTree.isPotentialProject(path.substring(0, pos) + "/" + MavenConstants.POM_XML);
   }
 
   private boolean isSettingsFile(String path) {
@@ -361,16 +358,16 @@ public class MavenProjectsManagerWatcher {
     }
 
     @Override
-    protected void updateFile(VirtualFile file, VFileEvent event) {
-      doUpdateFile(file, event, false);
+    protected void updateFile(VirtualFile file) {
+      doUpdateFile(file, false);
     }
 
     @Override
-    protected void deleteFile(VirtualFile file, VFileEvent event) {
-      doUpdateFile(file, event, true);
+    protected void deleteFile(VirtualFile file) {
+      doUpdateFile(file, true);
     }
 
-    private void doUpdateFile(VirtualFile file, VFileEvent event, boolean remove) {
+    private void doUpdateFile(VirtualFile file, boolean remove) {
       initLists();
 
       if (isSettingsFile(file)) {
@@ -384,9 +381,7 @@ public class MavenProjectsManagerWatcher {
 
       VirtualFile pom = getPomFileProfilesFile(file);
       if (pom != null) {
-        if (remove || xmlFileWasChanged(pom, event)) {
-          filesToUpdate.add(pom);
-        }
+        filesToUpdate.add(pom);
         return;
       }
 
@@ -394,36 +389,7 @@ public class MavenProjectsManagerWatcher {
         filesToRemove.add(file);
       }
       else {
-        if (xmlFileWasChanged(file, event)) {
-          filesToUpdate.add(file);
-        }
-      }
-    }
-
-    private boolean xmlFileWasChanged(VirtualFile xmlFile, VFileEvent event) {
-      if (!xmlFile.isValid() || !(event instanceof VFileContentChangeEvent)) return true;
-
-      ConcurrentWeakHashMap<Project, Integer> map = xmlFile.getUserData(CRC_WITHOUT_SPACES);
-      if (map == null) {
-        map = xmlFile.putUserDataIfAbsent(CRC_WITHOUT_SPACES, new ConcurrentWeakHashMap<Project, Integer>());
-      }
-
-      Integer crc = map.get(myProject);
-      Integer newCrc;
-
-      try {
-        newCrc = MavenUtil.crcWithoutSpaces(xmlFile);
-      }
-      catch (IOException ignored) {
-        return true;
-      }
-
-      if (newCrc.equals(crc)) {
-        return false;
-      }
-      else {
-        map.put(myProject, newCrc);
-        return true;
+        filesToUpdate.add(file);
       }
     }
 
@@ -478,9 +444,9 @@ public class MavenProjectsManagerWatcher {
   private static abstract class MyFileChangeListenerBase implements BulkFileListener {
     protected abstract boolean isRelevant(String path);
 
-    protected abstract void updateFile(VirtualFile file, VFileEvent event);
+    protected abstract void updateFile(VirtualFile file);
 
-    protected abstract void deleteFile(VirtualFile file, VFileEvent event);
+    protected abstract void deleteFile(VirtualFile file);
 
     protected abstract void apply();
 
@@ -488,31 +454,31 @@ public class MavenProjectsManagerWatcher {
     public void before(@NotNull List<? extends VFileEvent> events) {
       for (VFileEvent each : events) {
         if (each instanceof VFileDeleteEvent) {
-          deleteRecursively(each.getFile(), each);
+          deleteRecursively(each.getFile());
         }
         else {
           if (!isRelevant(each.getPath())) continue;
           if (each instanceof VFilePropertyChangeEvent) {
             if (isRenamed(each)) {
-              deleteRecursively(each.getFile(), each);
+              deleteRecursively(each.getFile());
             }
           }
           else if (each instanceof VFileMoveEvent) {
             VFileMoveEvent moveEvent = (VFileMoveEvent)each;
             String newPath = moveEvent.getNewParent().getPath() + "/" + moveEvent.getFile().getName();
             if (!isRelevant(newPath)) {
-              deleteRecursively(moveEvent.getFile(), each);
+              deleteRecursively(moveEvent.getFile());
             }
           }
         }
       }
     }
 
-    private void deleteRecursively(VirtualFile f, final VFileEvent event) {
+    private void deleteRecursively(VirtualFile f) {
       VfsUtilCore.visitChildrenRecursively(f, new VirtualFileVisitor() {
         @Override
         public boolean visitFile(@NotNull VirtualFile f) {
-          if (isRelevant(f.getPath())) deleteFile(f, event);
+          if (isRelevant(f.getPath())) deleteFile(f);
           return true;
         }
 
@@ -533,26 +499,26 @@ public class MavenProjectsManagerWatcher {
           VFileCreateEvent createEvent = (VFileCreateEvent)each;
           VirtualFile newChild = createEvent.getParent().findChild(createEvent.getChildName());
           if (newChild != null) {
-            updateFile(newChild, each);
+            updateFile(newChild);
           }
         }
         else if (each instanceof VFileCopyEvent) {
           VFileCopyEvent copyEvent = (VFileCopyEvent)each;
           VirtualFile newChild = copyEvent.getNewParent().findChild(copyEvent.getNewChildName());
           if (newChild != null) {
-            updateFile(newChild, each);
+            updateFile(newChild);
           }
         }
         else if (each instanceof VFileContentChangeEvent) {
-          updateFile(each.getFile(), each);
+          updateFile(each.getFile());
         }
         else if (each instanceof VFilePropertyChangeEvent) {
           if (isRenamed(each)) {
-            updateFile(each.getFile(), each);
+            updateFile(each.getFile());
           }
         }
         else if (each instanceof VFileMoveEvent) {
-          updateFile(each.getFile(), each);
+          updateFile(each.getFile());
         }
       }
       apply();

@@ -44,14 +44,15 @@ public class XmlArrangementVisitor extends XmlElementVisitor {
   @Override
   public void visitXmlTag(XmlTag tag) {
     final XmlElementArrangementEntry entry = createNewEntry(
-      tag.getTextRange(), XML_TAG, null, null, true);
+      tag.getTextRange(), XML_TAG, null, true);
     processEntry(entry, tag);
   }
 
   @Override
   public void visitXmlAttribute(XmlAttribute attribute) {
+    final String name = attribute.isNamespaceDeclaration() ? "" : attribute.getName();
     final XmlElementArrangementEntry entry = createNewEntry(
-      attribute.getTextRange(), XML_ATTRIBUTE, attribute.getName(), attribute.getNamespace(), true);
+      attribute.getTextRange(), XML_ATTRIBUTE, name, true);
     processEntry(entry, null);
   }
 
@@ -72,14 +73,13 @@ public class XmlArrangementVisitor extends XmlElementVisitor {
   private XmlElementArrangementEntry createNewEntry(@NotNull TextRange range,
                                                     @NotNull ArrangementSettingsToken type,
                                                     @Nullable String name,
-                                                    @Nullable String namespace,
                                                     boolean canBeMatched) {
     if (!isWithinBounds(range)) {
       return null;
     }
     final DefaultArrangementEntry current = getCurrent();
     final XmlElementArrangementEntry entry = new XmlElementArrangementEntry(
-      current, range, type, name, namespace, canBeMatched);
+      current, range, type, name, canBeMatched);
 
     if (current == null) {
       myInfo.addEntry(entry);

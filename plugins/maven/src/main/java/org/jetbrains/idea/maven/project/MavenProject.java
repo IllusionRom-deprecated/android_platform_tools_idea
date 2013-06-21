@@ -789,6 +789,10 @@ public class MavenProject {
     return myState.myDependencyTree;
   }
 
+  public boolean isSupportedDependency(@NotNull MavenArtifact artifact, @NotNull SupportedRequestType type) {
+    return getSupportedDependencyTypes(type).contains(artifact.getType());
+  }
+
   @NotNull
   public Set<String> getSupportedPackagings() {
     Set<String> result = ContainerUtil.newHashSet(MavenConstants.TYPE_POM,
@@ -800,14 +804,20 @@ public class MavenProject {
     return result;
   }
 
-  public Set<String> getDependencyTypesFromImporters(@NotNull SupportedRequestType type) {
-    THashSet<String> res = new THashSet<String>();
-
-    for (MavenImporter each : getSuitableImporters()) {
-      each.getSupportedDependencyTypes(res, type);
+  @NotNull
+  public Set<String> getSupportedDependencyTypes(@NotNull SupportedRequestType type) {
+    Set<String> result = ContainerUtil.newTroveSet(MavenConstants.TYPE_JAR,
+                                                   MavenConstants.TYPE_TEST_JAR,
+                                                   "maven-plugin",
+                                                   "ejb", "ejb-client", "jboss-har", "jboss-sar", "war", "ear", "bundle");
+    if (type == SupportedRequestType.FOR_COMPLETION) {
+      result.add(MavenConstants.TYPE_POM);
     }
 
-    return res;
+    for (MavenImporter each : getSuitableImporters()) {
+      each.getSupportedDependencyTypes(result, type);
+    }
+    return result;
   }
 
   @NotNull

@@ -21,6 +21,7 @@ import org.jetbrains.annotations.Nullable;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.InvalidDnDOperationException;
 import java.io.IOException;
 
 /**
@@ -79,9 +80,16 @@ public class SimpleTransferable implements Transferable {
     try {
       for (DataFlavor dataFlavor : transferable.getTransferDataFlavors()) {
         if (transferable.isDataFlavorSupported(dataFlavor)) {
-          Object transferData = transferable.getTransferData(dataFlavor);
-          if (dataClass.isInstance(transferData)) {
-            return (T)transferData;
+          try {
+            Object transferData = transferable.getTransferData(dataFlavor);
+            if (transferData != null && dataClass.isInstance(transferData)) {
+              return (T)transferData;
+            }
+          } catch (InvalidDnDOperationException e) {
+            // Ignore; even though transferable reported that it supports this flavor,
+            // some transferables will throw a "no protocol: unsupported type" exception
+            // here, for example if you try to drag an OSX text file into the layout
+            // editor
           }
         }
       }

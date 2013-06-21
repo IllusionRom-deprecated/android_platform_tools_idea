@@ -21,7 +21,6 @@ import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.InspectionProfile;
 import com.intellij.codeInspection.InspectionProfileEntry;
 import com.intellij.codeInspection.ProblemDescriptor;
-import com.intellij.codeInspection.ex.InspectionToolWrapper;
 import com.intellij.codeInspection.ex.LocalInspectionToolWrapper;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.Disposable;
@@ -63,25 +62,21 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
   private final EventDispatcher<DomHighlightingListener> myDispatcher = EventDispatcher.create(DomHighlightingListener.class);
 
   private static final DomElementsProblemsHolder EMPTY_PROBLEMS_HOLDER = new DomElementsProblemsHolder() {
-    @Override
     @NotNull
     public List<DomElementProblemDescriptor> getProblems(DomElement domElement) {
       return Collections.emptyList();
     }
 
-    @Override
     public List<DomElementProblemDescriptor> getProblems(final DomElement domElement, boolean includeXmlProblems) {
       return Collections.emptyList();
     }
 
-    @Override
     public List<DomElementProblemDescriptor> getProblems(final DomElement domElement,
                                                          final boolean includeXmlProblems,
                                                          final boolean withChildren) {
       return Collections.emptyList();
     }
 
-    @Override
     public List<DomElementProblemDescriptor> getProblems(DomElement domElement,
                                                          final boolean includeXmlProblems,
                                                          final boolean withChildren,
@@ -89,22 +84,18 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
       return Collections.emptyList();
     }
 
-    @Override
     public List<DomElementProblemDescriptor> getProblems(DomElement domElement, final boolean withChildren, HighlightSeverity minSeverity) {
       return Collections.emptyList();
     }
 
-    @Override
     public List<DomElementProblemDescriptor> getAllProblems() {
       return Collections.emptyList();
     }
 
-    @Override
     public List<DomElementProblemDescriptor> getAllProblems(@NotNull DomElementsInspection inspection) {
       return Collections.emptyList();
     }
 
-    @Override
     public boolean isInspectionCompleted(@NotNull final DomElementsInspection inspectionClass) {
       return false;
     }
@@ -117,18 +108,15 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
   public DomElementAnnotationsManagerImpl(Project project) {
     myProject = project;
     myModificationTracker = new ModificationTracker() {
-      @Override
       public long getModificationCount() {
         return myModificationCount;
       }
     };
     final ProfileChangeAdapter profileChangeAdapter = new ProfileChangeAdapter() {
-      @Override
       public void profileActivated(@NotNull Profile oldProfile, Profile profile) {
         dropAnnotationsCache();
       }
 
-      @Override
       public void profileChanged(Profile profile) {
         dropAnnotationsCache();
       }
@@ -137,14 +125,12 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     final InspectionProfileManager inspectionProfileManager = InspectionProfileManager.getInstance();
     inspectionProfileManager.addProfileChangeListener(profileChangeAdapter, project);
     Disposer.register(project, new Disposable() {
-      @Override
       public void dispose() {
         inspectionProfileManager.removeProfileChangeListener(profileChangeAdapter);
       }
     });
   }
 
-  @Override
   public void dropAnnotationsCache() {
     myModificationCount++;
   }
@@ -170,7 +156,6 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
       holder = new DomElementsProblemsHolderImpl(element);
       rootTag.putUserData(DOM_PROBLEM_HOLDER_KEY, holder);
       final CachedValue<Boolean> cachedValue = CachedValuesManager.getManager(myProject).createCachedValue(new CachedValueProvider<Boolean>() {
-        @Override
         public Result<Boolean> compute() {
           return new Result<Boolean>(Boolean.FALSE, element, PsiModificationTracker.OUT_OF_CODE_BLOCK_MODIFICATION_COUNT, myModificationTracker, ProjectRootManager.getInstance(myProject));
         }
@@ -198,7 +183,6 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     return cachedValue == null || !cachedValue.hasUpToDateValue();
   }
 
-  @Override
   @NotNull
   public DomElementsProblemsHolder getProblemHolder(DomElement element) {
     if (element == null || !element.isValid()) return EMPTY_PROBLEMS_HOLDER;
@@ -216,7 +200,6 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     }
   }
 
-  @Override
   @NotNull
   public DomElementsProblemsHolder getCachedProblemHolder(DomElement element) {
     return getProblemHolder(element);
@@ -229,12 +212,10 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     }
   }
 
-  @Override
   public List<ProblemDescriptor> createProblemDescriptors(final InspectionManager manager, DomElementProblemDescriptor problemDescriptor) {
     return ContainerUtil.createMaybeSingletonList(DomElementsHighlightingUtil.createProblemDescriptors(manager, problemDescriptor));
   }
 
-  @Override
   public boolean isHighlightingFinished(final DomElement[] domElements) {
     for (final DomElement domElement : domElements) {
       if (getHighlightStatus(domElement) != DomHighlightStatus.INSPECTIONS_FINISHED) {
@@ -244,17 +225,14 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     return true;
   }
 
-  @Override
   public void addHighlightingListener(DomHighlightingListener listener, Disposable parentDisposable) {
     myDispatcher.addListener(listener, parentDisposable);
   }
 
-  @Override
   public DomHighlightingHelper getHighlightingHelper() {
     return DomHighlightingHelperImpl.INSTANCE;
   }
 
-  @Override
   @NotNull
   public <T extends DomElement> List<DomElementProblemDescriptor> checkFileElement(@NotNull final DomFileElement<T> domFileElement,
                                                                                    @NotNull final DomElementsInspection<T> inspection,
@@ -273,9 +251,9 @@ public class DomElementAnnotationsManagerImpl extends DomElementAnnotationsManag
     Class rootType = fileElement.getRootElementClass();
     final InspectionProfile profile = getInspectionProfile(fileElement);
     final List<DomElementsInspection> inspections = new SmartList<DomElementsInspection>();
-    for (final InspectionToolWrapper toolWrapper : (InspectionToolWrapper[])profile.getInspectionTools(fileElement.getFile())) {
-      if (!enabledOnly || profile.isToolEnabled(HighlightDisplayKey.find(toolWrapper.getShortName()), fileElement.getFile())) {
-        ContainerUtil.addIfNotNull(getSuitableInspection(toolWrapper, rootType), inspections);
+    for (final InspectionProfileEntry profileEntry : profile.getInspectionTools(fileElement.getFile())) {
+      if (!enabledOnly || profile.isToolEnabled(HighlightDisplayKey.find(profileEntry.getShortName()), fileElement.getFile())) {
+        ContainerUtil.addIfNotNull(getSuitableInspection(profileEntry, rootType), inspections);
       }
     }
     return inspections;

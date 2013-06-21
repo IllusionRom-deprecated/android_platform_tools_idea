@@ -119,17 +119,16 @@ public abstract class DaemonAnalyzerTestCase extends CodeInsightTestCase {
 
       @Override
       @NotNull
-      public InspectionToolWrapper[] getInspectionTools(PsiElement element) {
+      public InspectionTool[] getInspectionTools(PsiElement element) {
         Collection<InspectionToolWrapper> values = myAvailableTools.values();
-        return values.toArray(new InspectionToolWrapper[values.size()]);
+        return values.toArray(new InspectionTool[values.size()]);
       }
 
-      @NotNull
       @Override
-      public List<Tools> getAllEnabledInspectionTools(Project project) {
-        List<Tools> result = new ArrayList<Tools>();
-        for (InspectionToolWrapper toolWrapper : getInspectionTools(null)) {
-          result.add(new ToolsImpl(toolWrapper, toolWrapper.getDefaultLevel(), true));
+      public List<ToolsImpl> getAllEnabledInspectionTools(Project project) {
+        List<ToolsImpl> result = new ArrayList<ToolsImpl>();
+        for (InspectionProfileEntry entry : getInspectionTools(null)) {
+          result.add(new ToolsImpl(entry, entry.getDefaultLevel(), true));
         }
         return result;
       }
@@ -141,12 +140,12 @@ public abstract class DaemonAnalyzerTestCase extends CodeInsightTestCase {
 
       @Override
       public HighlightDisplayLevel getErrorLevel(@NotNull HighlightDisplayKey key, PsiElement element) {
-        final InspectionToolWrapper localInspectionTool = myAvailableTools.get(key.toString());
+        final InspectionProfileEntry localInspectionTool = myAvailableTools.get(key.toString());
         return localInspectionTool != null ? localInspectionTool.getDefaultLevel() : HighlightDisplayLevel.WARNING;
       }
 
       @Override
-      public InspectionToolWrapper getInspectionTool(@NotNull String shortName, @NotNull PsiElement element) {
+      public InspectionTool getInspectionTool(@NotNull String shortName, @NotNull PsiElement element) {
         return myAvailableTools.get(shortName);
       }
     };
@@ -193,8 +192,7 @@ public abstract class DaemonAnalyzerTestCase extends CodeInsightTestCase {
     //((VirtualFilePointerManagerImpl)VirtualFilePointerManager.getInstance()).assertPointersDisposed();
   }
 
-  protected void enableInspectionTool(@NotNull InspectionProfileEntry tool){
-    assert !(tool instanceof InspectionToolWrapper) : tool;
+  protected void enableInspectionTool(InspectionProfileEntry tool){
     InspectionToolWrapper wrapper = InspectionToolRegistrar.wrapTool(tool);
     final String shortName = wrapper.getShortName();
     final HighlightDisplayKey key = HighlightDisplayKey.find(shortName);

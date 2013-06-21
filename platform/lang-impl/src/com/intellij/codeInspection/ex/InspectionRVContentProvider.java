@@ -64,14 +64,14 @@ public abstract class InspectionRVContentProvider {
     boolean supportStructure();
   }
 
-  public abstract boolean checkReportedProblems(@NotNull InspectionToolWrapper toolWrapper);
+  public abstract boolean checkReportedProblems(@NotNull InspectionTool tool);
 
   @Nullable
   public abstract QuickFixAction[] getQuickFixes(@NotNull InspectionTool tool, @NotNull InspectionTree tree);
 
 
   public void appendToolNodeContent(@NotNull InspectionNode toolNode,
-                                    @NotNull InspectionTreeNode parentNode,
+                                    final InspectionTreeNode parentNode,
                                     final boolean showStructure) {
     final InspectionTool tool = toolNode.getTool();
     final Map<String, Set<RefEntity>> content = tool.getContent();
@@ -86,9 +86,9 @@ public abstract class InspectionRVContentProvider {
                                              final Map<RefEntity, CommonProblemDescriptor[]> problems,
                                              @Nullable final DefaultTreeModel model);
 
-  protected abstract void appendDescriptor(@NotNull InspectionTool tool,
-                                           @NotNull UserObjectContainer container,
-                                           @NotNull InspectionPackageNode pNode,
+  protected abstract void appendDescriptor(final InspectionTool tool,
+                                           final UserObjectContainer container,
+                                           final InspectionPackageNode pNode,
                                            final boolean canPackageRepeat);
 
   public boolean isContentLoaded() {
@@ -211,7 +211,6 @@ public abstract class InspectionRVContentProvider {
     return content;
   }
 
-  @NotNull
   protected static RefElementNode addNodeToParent(@NotNull UserObjectContainer container,
                                                   @NotNull InspectionTool tool,
                                                   final InspectionTreeNode parentNode) {

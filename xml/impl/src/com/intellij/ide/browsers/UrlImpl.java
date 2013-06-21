@@ -13,7 +13,6 @@ import java.net.URISyntaxException;
 
 public final class UrlImpl implements Url {
   private String raw;
-
   private final String scheme;
   private final String authority;
 
@@ -21,8 +20,6 @@ public final class UrlImpl implements Url {
   private String decodedPath;
 
   private final String parameters;
-
-  private String externalFormWithoutParameters;
 
   public UrlImpl(@Nullable String raw, @NotNull String scheme, @Nullable String authority, @Nullable String path, @Nullable String parameters) {
     this.raw = raw;
@@ -88,41 +85,28 @@ public final class UrlImpl implements Url {
   @Override
   @NotNull
   public String toExternalForm(boolean skipQueryAndFragment) {
-    if (parameters == null || !skipQueryAndFragment) {
-      if (raw != null) {
-        return raw;
-      }
-    }
-    else if (externalFormWithoutParameters != null) {
-      return externalFormWithoutParameters;
+    if (raw != null && (parameters == null || !skipQueryAndFragment)) {
+      return raw;
     }
 
-    String result;
     try {
       String externalPath = path;
       boolean inLocalFileSystem = isInLocalFileSystem();
       if (inLocalFileSystem && SystemInfo.isWindows && externalPath.charAt(0) != '/') {
         externalPath = '/' + externalPath;
       }
-      result = new URI(scheme, inLocalFileSystem ? "" : authority, externalPath, null, null).toASCIIString();
+      String result = new URI(scheme, inLocalFileSystem ? "" : authority, externalPath, null, null).toASCIIString();
+      if (!skipQueryAndFragment) {
+        if (parameters != null) {
+          result += parameters;
+        }
+        raw = result;
+      }
+      return result;
     }
     catch (URISyntaxException e) {
       throw new RuntimeException(e);
     }
-
-    if (skipQueryAndFragment) {
-      externalFormWithoutParameters = result;
-      if (parameters == null) {
-        raw = externalFormWithoutParameters;
-      }
-    }
-    else {
-      if (parameters != null) {
-        result += parameters;
-      }
-      raw = result;
-    }
-    return result;
   }
 
   @NotNull

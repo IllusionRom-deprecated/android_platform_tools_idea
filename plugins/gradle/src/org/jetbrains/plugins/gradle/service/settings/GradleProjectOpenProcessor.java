@@ -33,7 +33,7 @@ import org.jetbrains.plugins.gradle.util.GradleConstants;
  */
 public class GradleProjectOpenProcessor extends ProjectOpenProcessorBase<GradleProjectImportBuilder> {
 
-  @NotNull public static final String[] BUILD_FILE_EXTENSIONS = {GradleConstants.EXTENSION};
+  @NotNull public static final String[] BUILD_FILE_NAMES = {GradleConstants.DEFAULT_SCRIPT_NAME};
 
   public GradleProjectOpenProcessor(@NotNull GradleProjectImportBuilder builder) {
     super(builder);
@@ -42,22 +42,9 @@ public class GradleProjectOpenProcessor extends ProjectOpenProcessorBase<GradleP
   @Nullable
   @Override
   public String[] getSupportedExtensions() {
-    return BUILD_FILE_EXTENSIONS;
+    return BUILD_FILE_NAMES;
   }
-
-  @Override
-  public boolean canOpenProject(VirtualFile file) {
-    if (!file.isDirectory()) {
-      String fileName = file.getName();
-      for (String extension : BUILD_FILE_EXTENSIONS) {
-        if (fileName.endsWith(extension)) {
-          return true;
-        }
-      }
-    }
-    return super.canOpenProject(file);
-  }
-
+  
   @Override
   protected boolean doQuickImport(VirtualFile file, WizardContext wizardContext) {
     AddModuleWizard dialog = new AddModuleWizard(null, file.getPath(), new GradleProjectImportProvider(getBuilder()));
@@ -70,6 +57,7 @@ public class GradleProjectOpenProcessor extends ProjectOpenProcessorBase<GradleP
         return step instanceof SelectExternalProjectStep;
       }
     });
+    dialog.doNextAction();
     if (StringUtil.isEmpty(wizardContext.getProjectName())) {
       final String projectName = dialog.getWizardContext().getProjectName();
       if (!StringUtil.isEmpty(projectName)) {

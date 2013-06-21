@@ -17,7 +17,6 @@ package com.intellij.refactoring.move.moveInner;
 
 import com.intellij.featureStatistics.FeatureUsageTracker;
 import com.intellij.openapi.actionSystem.DataContext;
-import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiClass;
@@ -36,7 +35,9 @@ public class MoveInnerToUpperHandler extends MoveHandlerDelegate {
   public boolean canMove(final PsiElement[] elements, @Nullable final PsiElement targetContainer) {
     if (elements.length != 1) return false;
     PsiElement element = elements [0];
-    return isNonStaticInnerClass(element);
+    return isNonStaticInnerClass(element) &&
+           (targetContainer == null || targetContainer.equals(MoveInnerImpl.getTargetContainer((PsiClass)elements[0], false)));
+                                                                        
   }
 
   private static boolean isNonStaticInnerClass(final PsiElement element) {
@@ -45,7 +46,7 @@ public class MoveInnerToUpperHandler extends MoveHandlerDelegate {
   }
 
   public void doMove(final Project project, final PsiElement[] elements, final PsiElement targetContainer, final MoveCallback callback) {
-    MoveInnerImpl.doMove(project, elements, callback, targetContainer);
+    MoveInnerImpl.doMove(project, elements, callback);
   }
 
   public boolean tryToMove(final PsiElement element, final Project project, final DataContext dataContext, final PsiReference reference,
@@ -59,7 +60,7 @@ public class MoveInnerToUpperHandler extends MoveHandlerDelegate {
                                             RefactoringBundle.message("move.title"), null);
         return true;
       }
-      MoveInnerImpl.doMove(project, new PsiElement[]{aClass}, null, LangDataKeys.TARGET_PSI_ELEMENT.getData(dataContext));
+      MoveInnerImpl.doMove(project, new PsiElement[]{aClass}, null);
       return true;
     }
     return false;

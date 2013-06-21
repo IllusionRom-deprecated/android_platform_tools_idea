@@ -16,6 +16,9 @@
 package com.intellij.internal.statistic.updater;
 
 import com.intellij.internal.statistic.StatisticsUploadAssistant;
+import com.intellij.internal.statistic.connect.RemotelyConfigurableStatisticsService;
+import com.intellij.internal.statistic.connect.StatisticsConnectionService;
+import com.intellij.internal.statistic.connect.StatisticsHttpClientSender;
 import com.intellij.internal.statistic.connect.StatisticsService;
 import com.intellij.notification.NotificationDisplayType;
 import com.intellij.notification.NotificationsConfiguration;
@@ -27,9 +30,11 @@ import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupManager;
 import com.intellij.util.Alarm;
+import com.intellij.util.containers.ContainerUtilRt;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
+import java.util.Collection;
 
 public class SendStatisticsProjectComponent implements ProjectComponent {
 
@@ -70,18 +75,7 @@ public class SendStatisticsProjectComponent implements ProjectComponent {
       StatisticsNotificationManager.showNotification(statisticsService, myProject);
     }
     else if (StatisticsUploadAssistant.isSendAllowed() && StatisticsUploadAssistant.isTimeToSend()) {
-      StatisticsService serviceToUse = null;
-      StatisticsService[] extensions = StatisticsService.EP_NAME.getExtensions();
-      if (extensions.length > 1) {
-        LOG.warn(String.format("More than one stats service detected (%s). Falling back to the built-in one", Arrays.toString(extensions)));
-      }
-      else if (extensions.length == 1) {
-        serviceToUse = extensions[0];
-      }
-      if (serviceToUse == null) {
-        serviceToUse = statisticsService;
-      }
-      runWithDelay(serviceToUse);
+        runWithDelay(statisticsService);
     }
   }
 
@@ -93,7 +87,12 @@ public class SendStatisticsProjectComponent implements ProjectComponent {
           runWithDelay(statisticsService);
         }
         else {
-          statisticsService.send();
+          try {
+            statisticsService.send();
+          }
+          catch (Exception e) {
+            LOG.warn("Unexpected error during sending stats data via service " + statisticsService, e);
+          }
         }
       }
     }, DELAY_IN_MIN * 60 * 1000);

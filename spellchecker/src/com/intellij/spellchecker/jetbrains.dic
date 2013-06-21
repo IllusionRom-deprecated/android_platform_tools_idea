@@ -207,7 +207,6 @@ keychains
 kotlin
 labeler
 labelers
-lcov
 ldap
 libxml
 lifecycle
@@ -480,7 +479,6 @@ uncommented
 underwave
 undoable
 undofile
-unescaped
 unhandled
 uninstall
 unpivot

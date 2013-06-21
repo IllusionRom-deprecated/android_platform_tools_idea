@@ -26,6 +26,7 @@ public class PlatformUtils extends PlatformUtilsCore {
   public static final String IDEA_PREFIX = "idea";
   public static final String COMMUNITY_PREFIX = "Idea";
   public static final String APPCODE_PREFIX = "AppCode";
+  public static final String ANDROID_PREFIX = "AndroidStudio";
   public static final String PYCHARM_PREFIX = "Python";
   public static final String RUBY_PREFIX = "Ruby";
   public static final String PHP_PREFIX = "PhpStorm";

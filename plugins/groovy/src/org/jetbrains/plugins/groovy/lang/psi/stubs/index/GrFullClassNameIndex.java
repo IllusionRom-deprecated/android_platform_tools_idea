@@ -19,7 +19,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.stubs.IntStubIndexExtension;
-import com.intellij.psi.stubs.StubIndex;
 import com.intellij.psi.stubs.StubIndexKey;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.groovy.lang.psi.impl.search.GrSourceFilterScope;
@@ -43,6 +42,6 @@ public class GrFullClassNameIndex extends IntStubIndexExtension<PsiClass> {
   }
 
   public Collection<PsiClass> get(final Integer integer, final Project project, final GlobalSearchScope scope) {
-    return StubIndex.getInstance().safeGet(getKey(), integer, project, new GrSourceFilterScope(scope), PsiClass.class);
+    return super.get(integer, project, new GrSourceFilterScope(scope));
   }
 }

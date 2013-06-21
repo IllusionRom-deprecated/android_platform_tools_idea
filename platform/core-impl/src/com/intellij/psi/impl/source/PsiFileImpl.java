@@ -59,7 +59,6 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.PatchedWeakReference;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.text.CharArrayUtil;
-import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -214,6 +213,10 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
       myStub = null;
       myTreeElementPointer = createTreeElementPointer(treeElement);
 
+      if (document != null && isPhysical()) {
+        TextBlock.get(this).clear();
+      }
+
       if (LOG.isDebugEnabled() && viewProvider.isPhysical()) {
         LOG.debug("Loaded text for file " + viewProvider.getVirtualFile().getPresentableUrl());
       }
@@ -303,23 +306,13 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
     return result;
   }
 
-  protected void reportStubAstMismatch(String message, StubTree stubTree, Document cachedDocument) {
+  private void reportStubAstMismatch(String message, StubTree stubTree, Document cachedDocument) {
     rebuildStub();
-    clearStub();
-    scheduleDropCachesWithInvalidStubPsi();
-
     String msg = message;
     msg += "\n file=" + this;
-    msg += ", modStamp=" + getModificationStamp();
+    msg += "\n name=" + getName();
     msg += "\n stub debugInfo=" + stubTree.getDebugInfo();
     msg += "\n document before=" + cachedDocument;
-    
-    ObjectStubTree latestIndexedStub = StubTreeLoader.getInstance().readFromVFile(getProject(), getVirtualFile());
-    msg += "\nlatestIndexedStub=" + latestIndexedStub;
-    if (latestIndexedStub != null) {
-      msg += "\n   same size=" + (stubTree.getPlainList().size() == latestIndexedStub.getPlainList().size());
-      msg += "\n   debugInfo=" + latestIndexedStub.getDebugInfo();
-    }
 
     FileViewProvider viewProvider = getViewProvider();
     msg += "\n viewProvider=" + viewProvider;
@@ -333,25 +326,10 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
     if (document != null) {
       msg += "\n doc saved: " + !FileDocumentManager.getInstance().isDocumentUnsaved(document);
       msg += "; doc stamp: " + document.getModificationStamp();
-      msg += "; doc size: " + document.getTextLength();
       msg += "; committed: " + PsiDocumentManager.getInstance(getProject()).isCommitted(document);
     }
 
-    throw new AssertionError(msg + "\n------------\n");
-  }
-
-  private void scheduleDropCachesWithInvalidStubPsi() {
-    UIUtil.invokeLaterIfNeeded(new Runnable() {
-      @Override
-      public void run() {
-        ApplicationManager.getApplication().runWriteAction(new Runnable() {
-          @Override
-          public void run() {
-            ((PsiModificationTrackerImpl)getManager().getModificationTracker()).incCounter();
-          }
-        });
-      }
-    });
+    throw new AssertionError(msg);
   }
 
   protected FileElement createFileElement(final CharSequence docText) {
@@ -376,7 +354,6 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   }
 
   public void unloadContent() {
-    ApplicationManager.getApplication().assertWriteAccessAllowed();
     LOG.assertTrue(getTreeElement() != null);
     clearCaches();
     myViewProvider.beforeContentsSynchronized();
@@ -389,6 +366,7 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
   private void clearStub() {
     StubTree stubHolder = myStub == null ? null : myStub.get();
     if (stubHolder != null) {
+      ApplicationManager.getApplication().assertWriteAccessAllowed();
       ((StubBase<?>)stubHolder.getRoot()).setPsi(null);
     }
     myStub = null;
@@ -698,7 +676,6 @@ public abstract class PsiFileImpl extends ElementBase implements PsiFileEx, PsiF
     ObjectStubTree tree = StubTreeLoader.getInstance().readOrBuild(getProject(), vFile, this);
     if (!(tree instanceof StubTree)) return null;
     StubTree stubHolder = (StubTree)tree;
-    tree.setDebugInfo(tree.getDebugInfo() + "\n  loaded at " + vFile.getTimeStamp() + "; mod stamp" + getModificationStamp() + "; viewProvider=" + getViewProvider());
 
     synchronized (PsiLock.LOCK) {
       if (getTreeElement() != null) return null;

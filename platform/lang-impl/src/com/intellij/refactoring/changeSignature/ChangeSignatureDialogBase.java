@@ -23,6 +23,7 @@ import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.event.DocumentAdapter;
 import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.editor.event.DocumentListener;
+import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.progress.ProcessCanceledException;
 import com.intellij.openapi.project.Project;
@@ -50,6 +51,7 @@ import com.intellij.util.IJSwingUtilities;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.ui.table.JBListTable;
+import com.intellij.util.ui.table.JBTableRow;
 import com.intellij.util.ui.table.JBTableRowEditor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -455,7 +457,16 @@ public abstract class ChangeSignatureDialogBase<
         @Override
         protected JComponent getRowRenderer(JTable table, int row, boolean selected, boolean focused) {
           final List<ParameterTableModelItem> items = myParametersTable.getItems();
-          return getRowPresentation(items.get(row), selected, focused);
+          final JComponent component = getRowPresentation(items.get(row), selected, focused);
+          for (EditorTextField editorTextField : UIUtil.findComponentsOfType(component, EditorTextField.class)) {
+            editorTextField.addSettingsProvider(new EditorSettingsProvider() {
+              @Override
+              public void customizeSettings(EditorEx editor) {
+                editor.getSettings().setWhitespacesShown(false);
+              }
+            });
+          }
+          return component;
         }
 
         @Override
@@ -480,6 +491,16 @@ public abstract class ChangeSignatureDialogBase<
             }
           });
           return editor;
+        }
+
+        @Override
+        protected JBTableRow getRowAt(final int row) {
+          return new JBTableRow() {
+            @Override
+            public Object getValueAt(int column) {
+              return myInternalTable.getValueAt(row, column);
+            }
+          };
         }
       };
       final JPanel buttonsPanel = ToolbarDecorator.createDecorator(myParametersList.getTable())

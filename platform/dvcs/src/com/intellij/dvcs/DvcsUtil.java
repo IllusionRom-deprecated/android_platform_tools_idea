@@ -88,13 +88,4 @@ public class DvcsUtil {
       }
     }, ", ");
   }
-
-  public static boolean anyRepositoryIsFresh(Collection<? extends Repository> repositories) {
-    for (Repository repository : repositories) {
-      if (repository.isFresh()) {
-        return true;
-      }
-    }
-    return false;
-  }
 }

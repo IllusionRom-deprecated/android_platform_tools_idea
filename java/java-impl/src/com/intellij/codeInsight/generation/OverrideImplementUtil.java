@@ -612,7 +612,7 @@ public class OverrideImplementUtil extends OverrideImplementExploreUtil {
     finally {
 
       PsiFile psiFile = psiClass.getContainingFile();
-      Editor editor = fileEditorManager.openTextEditor(new OpenFileDescriptor(psiFile.getProject(), psiFile.getVirtualFile()), true);
+      Editor editor = fileEditorManager.openTextEditor(new OpenFileDescriptor(psiFile.getProject(), psiFile.getVirtualFile()), false);
       if (editor != null && !results.isEmpty()) {
         results.get(0).positionCaret(editor, true);
         editor.getScrollingModel().scrollToCaret(ScrollType.CENTER);

@@ -17,7 +17,6 @@ package com.intellij.openapi.fileChooser;
 
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
@@ -98,10 +97,7 @@ public class FileElement {
   }
 
   public static boolean isFileHidden(@Nullable VirtualFile file) {
-    return file != null &&
-           file.isValid() &&
-           file.isInLocalFileSystem() &&
-           (file.is(VirtualFile.PROP_HIDDEN) || SystemInfo.isUnix && file.getName().startsWith("."));
+    return file != null && file.isValid() && file.isInLocalFileSystem() && file.is(VirtualFile.PROP_HIDDEN);
   }
 
   public static boolean isArchive(@Nullable VirtualFile file) {
