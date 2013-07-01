@@ -39,7 +39,7 @@ public class ExternalSystemIdeNotificationManager {
   public void processExternalProjectRefreshError(@NotNull String message,
                                                  @NotNull final Project project,
                                                  @NotNull String externalProjectName,
-                                                 @NotNull ProjectSystemId externalSystemId)
+                                                 @NotNull final ProjectSystemId externalSystemId)
   {
     ExternalSystemManager<?,?,?,?,?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
     if (!(manager instanceof ExternalSystemConfigurableAware)) {
@@ -47,17 +47,28 @@ public class ExternalSystemIdeNotificationManager {
     }
     final Configurable configurable = ((ExternalSystemConfigurableAware)manager).getConfigurable(project);
 
-    EditorNotifications.getInstance(project).updateAllNotifications();
-    String title = ExternalSystemBundle.message("notification.project.refresh.fail.description",
-                                                externalSystemId.getReadableName(), externalProjectName, message);
-    String messageToShow = ExternalSystemBundle.message("notification.action.show.settings", externalSystemId.getReadableName());
-    showNotification(title, messageToShow, NotificationType.WARNING, project, externalSystemId, new NotificationListener() {
+    if (project != null) {
+      EditorNotifications editorNotifications = EditorNotifications.getInstance(project);
+      if (editorNotifications != null) {
+        editorNotifications.updateAllNotifications();
+      }
+    }
+
+    final String title = ExternalSystemBundle.message("notification.project.refresh.fail.description", externalSystemId.getReadableName(),
+                                                externalProjectName, message);
+    final String messageToShow = ExternalSystemBundle.message("notification.action.show.settings", externalSystemId.getReadableName());
+    ExternalSystemApiUtil.executeOnEdt(false, new Runnable() {
       @Override
-      public void hyperlinkUpdate(@NotNull Notification notification, @NotNull HyperlinkEvent event) {
-        if (event.getEventType() != HyperlinkEvent.EventType.ACTIVATED) {
-          return;
-        }
-        ShowSettingsUtil.getInstance().editConfigurable(project, configurable);
+      public void run() {
+        showNotification(title, messageToShow, NotificationType.WARNING, project, externalSystemId, new NotificationListener() {
+          @Override
+          public void hyperlinkUpdate(@NotNull Notification notification, @NotNull HyperlinkEvent event) {
+            if (event.getEventType() != HyperlinkEvent.EventType.ACTIVATED) {
+              return;
+            }
+            ShowSettingsUtil.getInstance().editConfigurable(project, configurable);
+          }
+        });
       }
     });
   }
