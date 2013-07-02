@@ -326,7 +326,18 @@ public class ExternalSystemUtil {
                                     final boolean resolveLibraries,
                                     final boolean modal)
   {
-    final String projectName = new File(externalProjectPath).getParentFile().getName();
+    File projectFolder = new File(externalProjectPath).getParentFile();
+    if (projectFolder == null) {
+      String error = String.format("Cannot obtain parent of external project path: '%s'", externalProjectPath);
+      callback.onFailure("Unable to determine project folder", error);
+      ExternalSystemIdeNotificationManager notificationManager = ServiceManager.getService(ExternalSystemIdeNotificationManager.class);
+      if (notificationManager != null) {
+        notificationManager.processExternalProjectRefreshError(error, project, "unknown", externalSystemId);
+      }
+      return;
+    }
+    final String projectName = projectFolder.getName();
+
     final TaskUnderProgress refreshProjectStructureTask = new TaskUnderProgress() {
       @SuppressWarnings({"ThrowableResultOfMethodCallIgnored", "IOResourceOpenedButNotSafelyClosed"})
       @Override
