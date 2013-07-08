@@ -50,7 +50,7 @@
     <inspection_tool class="ConstantConditionalExpressionJS" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="ConstantConditions" enabled="true" level="WARNING" enabled_by_default="true">
       <scope name="runtime.classes" level="WARNING" enabled="false">
-        <option name="SUGGEST_NULLABLE_ANNOTATIONS" value="true" />
+        <option name="SUGGEST_NULLABLE_ANNOTATIONS" value="false" />
         <option name="DONT_REPORT_TRUE_ASSERT_STATEMENTS" value="false" />
       </scope>
       <option name="SUGGEST_NULLABLE_ANNOTATIONS" value="true" />
@@ -317,10 +317,6 @@
     <inspection_tool class="MethodNamesDifferOnlyByCase" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MethodOverloadsParentMethod" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MethodOverridesStaticMethod" enabled="true" level="WARNING" enabled_by_default="true" />
-    <inspection_tool class="MissingOverrideAnnotation" enabled="true" level="ERROR" enabled_by_default="true">
-      <option name="ignoreObjectMethods" value="true" />
-      <option name="ignoreAnonymousClassMethods" value="false" />
-    </inspection_tool>
     <inspection_tool class="MisspelledCompareTo" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MisspelledEquals" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MisspelledHashcode" enabled="true" level="WARNING" enabled_by_default="true" />
@@ -371,8 +367,11 @@
     <inspection_tool class="PyChainedComparisonsInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyComparisonWithNoneInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyCompatibilityInspection" enabled="false" level="ERROR" enabled_by_default="false">
-      <option name="fromVersion" value="2.4" />
-      <option name="toVersion" value="3.1" />
+      <option name="ourVersions">
+        <value>
+          <list size="0" />
+        </value>
+      </option>
     </inspection_tool>
     <inspection_tool class="PyDecoratorInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="PyDefaultArgumentInspection" enabled="false" level="WARNING" enabled_by_default="false" />
