@@ -16,7 +16,6 @@
 package com.intellij.xml.impl.schema;
 
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiReference;
 import com.intellij.psi.xml.XmlAttribute;
 import com.intellij.psi.xml.XmlAttributeValue;
 import com.intellij.psi.xml.XmlTag;
@@ -125,9 +124,7 @@ public abstract class XmlSchemaTagsProcessor {
     if (ref != null) {
       XmlAttributeValue value = ref.getValueElement();
       if (value != null) {
-        PsiReference[] references = value.getReferences();
-        if (references.length > 0)
-          return references[0].resolve();
+        return value.getReferences()[0].resolve();
       }
     }
     return null;

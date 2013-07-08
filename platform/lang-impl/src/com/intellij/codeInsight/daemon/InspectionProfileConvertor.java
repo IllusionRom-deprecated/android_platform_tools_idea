@@ -18,9 +18,9 @@ package com.intellij.codeInsight.daemon;
 
 import com.intellij.codeHighlighting.HighlightDisplayLevel;
 import com.intellij.codeInspection.InspectionProfile;
+import com.intellij.codeInspection.InspectionProfileEntry;
 import com.intellij.codeInspection.ModifiableModel;
 import com.intellij.codeInspection.ex.InspectionProfileImpl;
-import com.intellij.codeInspection.ex.InspectionToolWrapper;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.JDOMUtil;
@@ -116,9 +116,9 @@ public class InspectionProfileConvertor {
   public static Element convertToNewFormat(Element profileFile, InspectionProfile profile) throws IOException, JDOMException {
     Element rootElement = new Element(INSPECTIONS_TAG);
     rootElement.setAttribute(NAME_ATT, profile.getName());
-    final InspectionToolWrapper[] tools = (InspectionToolWrapper[])profile.getInspectionTools(null);
+    final InspectionProfileEntry[] tools = profile.getInspectionTools(null);
     for (final Object o : profileFile.getChildren(INSP_TOOL_TAG)) {
-      Element toolElement = ((Element)o).clone();
+      Element toolElement = (Element)((Element)o).clone();
       String toolClassName = toolElement.getAttributeValue(CLASS_ATT);
       final String shortName = convertToShortName(toolClassName, tools);
       if (shortName == null) {
@@ -162,8 +162,8 @@ public class InspectionProfileConvertor {
   }
 
   protected void fillErrorLevels(final ModifiableModel profile) {
-    InspectionToolWrapper[] toolWrappers = (InspectionToolWrapper[])profile.getInspectionTools(null);
-    LOG.assertTrue(toolWrappers != null, "Profile was not correctly init");
+    InspectionProfileEntry[] tools = profile.getInspectionTools(null);
+    LOG.assertTrue(tools != null, "Profile was not correctly init");
     //fill error levels
     for (final String shortName : myDisplayLevelMap.keySet()) {
       //key <-> short name
@@ -187,9 +187,9 @@ public class InspectionProfileConvertor {
 
 
   @Nullable
-  private static String convertToShortName(String displayName, InspectionToolWrapper[] tools) {
+  private static String convertToShortName(String displayName, InspectionProfileEntry[] tools) {
     if (displayName == null) return null;
-    for (InspectionToolWrapper tool : tools) {
+    for (InspectionProfileEntry tool : tools) {
       if (displayName.equals(tool.getDisplayName())) {
         return tool.getShortName();
       }

@@ -583,10 +583,6 @@ public class ExtractMethodTest extends LightCodeInsightTestCase {
     doDuplicatesTest();
   }
 
-  public void testOverloadedMethods() throws Exception {
-    doDuplicatesTest();
-  }
-
   public void testTargetAnonymous() throws Exception {
     doTest();
   }

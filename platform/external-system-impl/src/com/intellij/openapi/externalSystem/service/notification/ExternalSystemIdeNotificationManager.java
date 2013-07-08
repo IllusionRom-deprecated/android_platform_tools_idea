@@ -41,10 +41,7 @@ public class ExternalSystemIdeNotificationManager {
                                                  @NotNull String externalProjectName,
                                                  @NotNull final ProjectSystemId externalSystemId)
   {
-    if (project.isDisposed() || !project.isOpen()) {
-      return;
-    }
-    ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
+    ExternalSystemManager<?,?,?,?,?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
     if (!(manager instanceof ExternalSystemConfigurableAware)) {
       return;
     }

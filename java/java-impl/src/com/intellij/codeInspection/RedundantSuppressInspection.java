@@ -141,7 +141,7 @@ public class RedundantSuppressInspection extends GlobalInspectionTool{
 
       private void checkElement(final PsiElement owner) {
         String idsString = SuppressManager.getInstance().getSuppressedInspectionIdsIn(owner);
-        if (idsString != null && !idsString.isEmpty()) {
+        if (idsString != null && idsString.length() != 0) {
           List<String> ids = StringUtil.split(idsString, ",");
           if (IGNORE_ALL && (ids.contains(SuppressionUtil.ALL) || ids.contains(SuppressionUtil.ALL.toLowerCase()))) return;
           Collection<String> suppressed = suppressedScopes.get(owner);
@@ -162,29 +162,27 @@ public class RedundantSuppressInspection extends GlobalInspectionTool{
 
     if (suppressedScopes.values().isEmpty()) return null;
     // have to visit all file from scratch since inspections can be written in any perversive way including checkFile() overriding
-    Collection<InspectionToolWrapper> suppressedTools = new THashSet<InspectionToolWrapper>();
-    InspectionToolWrapper[] toolWrappers = getInspectionTools(psiElement, manager);
+    Collection<InspectionTool> suppressedTools = new THashSet<InspectionTool>();
+    InspectionTool[] tools = getInspectionTools(psiElement, manager);
     for (Collection<String> ids : suppressedScopes.values()) {
       for (Iterator<String> iterator = ids.iterator(); iterator.hasNext(); ) {
         final String shortName = iterator.next().trim();
-        for (InspectionToolWrapper toolWrapper : toolWrappers) {
-          if (toolWrapper instanceof LocalInspectionToolWrapper && ((LocalInspectionToolWrapper)toolWrapper).getTool().getID().equals(shortName)) {
-            if (((LocalInspectionToolWrapper)toolWrapper).isUnfair()) {
+        for (InspectionTool tool : tools) {
+          if (tool instanceof LocalInspectionToolWrapper && ((LocalInspectionToolWrapper)tool).getTool().getID().equals(shortName)) {
+            if (!((LocalInspectionToolWrapper)tool).isUnfair()) {
+              suppressedTools.add(tool);
+            } else {
               iterator.remove();
               break;
-            }
-            else {
-              suppressedTools.add(toolWrapper);
             }
           }
-          else if (toolWrapper.getShortName().equals(shortName)) {
+          else if (tool.getShortName().equals(shortName)) {
             //ignore global unused as it won't be checked anyway
-            if (toolWrapper instanceof LocalInspectionToolWrapper || toolWrapper instanceof GlobalInspectionToolWrapper) {
-              suppressedTools.add(toolWrapper);
-            }
-            else {
+            if (!(tool instanceof LocalInspectionToolWrapper) && !(tool instanceof GlobalInspectionToolWrapper)) {
               iterator.remove();
               break;
+            } else {
+              suppressedTools.add(tool);
             }
           }
         }
@@ -192,26 +190,26 @@ public class RedundantSuppressInspection extends GlobalInspectionTool{
     }
 
     final AnalysisScope scope = new AnalysisScope(psiElement.getContainingFile());
-    final InspectionManagerEx inspectionManagerEx = (InspectionManagerEx)InspectionManager.getInstance(project);
+    final InspectionManagerEx inspectionManagerEx = ((InspectionManagerEx)InspectionManager.getInstance(project));
     GlobalInspectionContextImpl globalContext = inspectionManagerEx.createNewGlobalContext(false);
     globalContext.setCurrentScope(scope);
-    final RefManagerImpl refManager = (RefManagerImpl)globalContext.getRefManager();
+    final RefManagerImpl refManager = ((RefManagerImpl)globalContext.getRefManager());
     refManager.inspectionReadActionStarted();
     final List<ProblemDescriptor> result;
     try {
       result = new ArrayList<ProblemDescriptor>();
-      for (InspectionToolWrapper toolWrapper : suppressedTools) {
-        String toolId = toolWrapper instanceof LocalInspectionToolWrapper ? ((LocalInspectionToolWrapper)toolWrapper).getTool().getID() : toolWrapper.getShortName();
-        toolWrapper.initialize(globalContext);
+      for (InspectionTool tool : suppressedTools) {
+        String toolId = tool instanceof LocalInspectionToolWrapper ? ((LocalInspectionToolWrapper)tool).getTool().getID() : tool.getShortName();
+        tool.initialize(globalContext);
         Collection<CommonProblemDescriptor> descriptors;
-        if (toolWrapper instanceof LocalInspectionToolWrapper) {
-          LocalInspectionToolWrapper local = (LocalInspectionToolWrapper)toolWrapper;
+        if (tool instanceof LocalInspectionToolWrapper) {
+          LocalInspectionToolWrapper local = (LocalInspectionToolWrapper)tool;
           if (local.isUnfair()) continue; //cant't work with passes other than LocalInspectionPass
           local.processFile(psiElement.getContainingFile(), false, manager);
           descriptors = local.getProblemDescriptors();
         }
-        else if (toolWrapper instanceof GlobalInspectionToolWrapper) {
-          GlobalInspectionToolWrapper global = (GlobalInspectionToolWrapper)toolWrapper;
+        else if (tool instanceof GlobalInspectionToolWrapper) {
+          GlobalInspectionToolWrapper global = (GlobalInspectionToolWrapper)tool;
           if (global.getTool().isGraphNeeded()) {
             refManager.findAllDeclarations();
           }
@@ -285,12 +283,13 @@ public class RedundantSuppressInspection extends GlobalInspectionTool{
     return result.toArray(new ProblemDescriptor[result.size()]);
   }
 
-  protected InspectionToolWrapper[] getInspectionTools(PsiElement psiElement, InspectionManager manager) {
-    ModifiableModel model = InspectionProjectProfileManager.getInstance(manager.getProject()).getInspectionProfile().getModifiableModel();
+  protected InspectionTool[] getInspectionTools(PsiElement psiElement, InspectionManager manager) {
+    final ModifiableModel
+      model = InspectionProjectProfileManager.getInstance(manager.getProject()).getInspectionProfile().getModifiableModel();
     InspectionProfileWrapper profile = new InspectionProfileWrapper((InspectionProfile)model);
     profile.init(manager.getProject());
 
-    return (InspectionToolWrapper[])profile.getInspectionTools(psiElement);
+    return profile.getInspectionTools(psiElement);
   }
 
 

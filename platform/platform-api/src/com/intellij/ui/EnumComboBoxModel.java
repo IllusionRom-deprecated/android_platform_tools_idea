@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2013 JetBrains s.r.o.
+ * Copyright 2000-2009 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.intellij.ui;
 
-import org.jetbrains.annotations.NotNull;
+package com.intellij.ui;
 
 import javax.swing.*;
 import java.util.ArrayList;
@@ -26,36 +25,27 @@ import java.util.List;
  * @author Dmitry Avdeev
  */
 public class EnumComboBoxModel<E extends Enum<E>> extends AbstractListModel implements ComboBoxModel {
-  private final List<E> myList;
   private E mySelected = null;
+  private final List<E> myList;
 
-  public EnumComboBoxModel(@NotNull Class<E> en) {
+  public EnumComboBoxModel(Class<E> en) {
     myList = new ArrayList<E>(EnumSet.allOf(en));
     mySelected = myList.get(0);
   }
 
-  @Override
   public int getSize() {
     return myList.size();
   }
 
-  @Override
   public E getElementAt(int index) {
     return myList.get(index);
   }
 
-  @Override
   public void setSelectedItem(Object item) {
-    @SuppressWarnings("unchecked") E e = (E)item;
-    setSelectedItem(e);
-  }
-
-  public void setSelectedItem(E item) {
-    mySelected = item;
+    mySelected = (E)item;
     fireContentsChanged(this, 0, getSize());
   }
 
-  @Override
   public E getSelectedItem() {
     return mySelected;
   }

@@ -38,10 +38,6 @@ public class TransformableJavaFileObject implements JavaFileObject {
     myTransformers = transformers;
   }
 
-  public JavaFileObject getOriginal() {
-    return myOriginal;
-  }
-
   @Override
   public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
     // todo: cache transformed content?
@@ -111,11 +107,5 @@ public class TransformableJavaFileObject implements JavaFileObject {
   @Override
   public boolean delete() {
     return myOriginal.delete();
-  }
-
-  @Override
-  public final String toString() {
-    // must implement like this because toString() is called inside com.sun.tools.javac.jvm.ClassWriter instead of getName()
-    return getName();  
   }
 }

@@ -16,6 +16,7 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.util.BooleanFunction;
 import com.intellij.util.Function;
+import com.intellij.util.PathUtil;
 import com.intellij.util.containers.ContainerUtilRt;
 import gnu.trove.TObjectIntHashMap;
 import gnu.trove.TObjectIntProcedure;
@@ -32,10 +33,7 @@ import org.jetbrains.plugins.gradle.util.GradleConstants;
 import org.jetbrains.plugins.gradle.util.GradleUtil;
 
 import java.io.File;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author Denis Zhdanov
@@ -115,7 +113,7 @@ public class GradleProjectResolver implements ExternalSystemProjectResolver<Grad
 
   @NotNull
   private static DataNode<ProjectData> populateProject(@NotNull IdeaProject project, @NotNull String projectPath) {
-    String projectDirPath = ExternalSystemApiUtil.toCanonicalPath(projectPath);
+    String projectDirPath = ExternalSystemApiUtil.toCanonicalPath(PathUtil.getParentPath(projectPath));
 
     ProjectData projectData = new ProjectData(GradleConstants.SYSTEM_ID, projectDirPath, projectPath);
     projectData.setName(project.getName());

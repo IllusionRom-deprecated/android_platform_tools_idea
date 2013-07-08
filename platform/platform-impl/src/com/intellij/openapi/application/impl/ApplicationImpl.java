@@ -421,7 +421,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     return myCommandLineMode;
   }
 
-  @NotNull
   @Override
   public Future<?> executeOnPooledThread(@NotNull final Runnable action) {
     return ourThreadExecutorsService.submit(new Runnable() {
@@ -444,7 +443,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     });
   }
 
-  @NotNull
   @Override
   public <T> Future<T> executeOnPooledThread(@NotNull final Callable<T> action) {
     return ourThreadExecutorsService.submit(new Callable<T>() {
@@ -570,16 +568,18 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
   }
 
   private void fireBeforeApplicationLoaded() {
-    ExtensionPoint<ApplicationLoadListener> point = Extensions.getRootArea().getExtensionPoint(ApplicationLoadListener.EP_NAME);
-    for (ApplicationLoadListener listener : point.getExtensions()) {
+    ExtensionPoint<ApplicationLoadListener> point = Extensions.getRootArea().getExtensionPoint("com.intellij.ApplicationLoadListener");
+    final ApplicationLoadListener[] objects = point.getExtensions();
+    for (ApplicationLoadListener object : objects) {
       try {
-        listener.beforeApplicationLoaded(this);
+        object.beforeApplicationLoaded(this);
       }
-      catch (Exception e) {
+      catch(Exception e) {
         LOG.error(e);
       }
     }
   }
+
 
   @Override
   public void dispose() {
@@ -801,7 +801,7 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     Runnable runnable = new Runnable() {
       @Override
       public void run() {
-        if (!confirmExitIfNeeded(force)) {
+        if (!force && !showConfirmation()) {
           saveAll();
           return;
         }
@@ -847,11 +847,8 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     return true;
   }
 
-  private static boolean confirmExitIfNeeded(boolean force) {
+  private static boolean showConfirmation() {
     final boolean hasUnsafeBgTasks = ProgressManager.getInstance().hasUnsafeProgressIndicator();
-    if (force && !hasUnsafeBgTasks) {
-      return true;
-    }
 
     DialogWrapper.DoNotAskOption option = new DialogWrapper.DoNotAskOption() {
       @Override
@@ -1212,7 +1209,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     return myActive;
   }
 
-  @NotNull
   @Override
   public AccessToken acquireReadActionLock() {
     // if we are inside read action, do not try to acquire read lock again since it will deadlock if there is a pending writeAction
@@ -1221,7 +1217,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     return new ReadAccessToken();
   }
 
-  @NotNull
   @Override
   public AccessToken acquireWriteActionLock(Class clazz) {
     return new WriteAccessToken(clazz);
@@ -1473,9 +1468,8 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     return myDoNotSave;
   }
 
-  @NotNull
   @Override
-  public <T> T[] getExtensions(@NotNull final ExtensionPointName<T> extensionPointName) {
+  public <T> T[] getExtensions(final ExtensionPointName<T> extensionPointName) {
     return Extensions.getRootArea().getExtensionPoint(extensionPointName).getExtensions();
   }
 

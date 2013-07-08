@@ -42,7 +42,6 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.progress.*;
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator;
-import com.intellij.openapi.progress.util.ProgressWindow;
 import com.intellij.openapi.project.*;
 import com.intellij.openapi.roots.*;
 import com.intellij.openapi.util.*;
@@ -97,7 +96,6 @@ public class FileBasedIndexImpl extends FileBasedIndex {
   private static final Logger LOG = Logger.getInstance("#com.intellij.util.indexing.FileBasedIndexImpl");
   @NonNls
   private static final String CORRUPTION_MARKER_NAME = "corruption.marker";
-  private static final int PROGRESS_DELAY_IN_MILLIS = 1000;
   private final Map<ID<?, ?>, Pair<UpdatableIndex<?, ?, FileContent>, InputFilter>> myIndices =
     new THashMap<ID<?, ?>, Pair<UpdatableIndex<?, ?, FileContent>, InputFilter>>();
   private final List<ID<?, ?>> myIndicesWithoutFileTypeInfo = new ArrayList<ID<?, ?>>();
@@ -431,7 +429,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
           .getInstance().runProcessWithProgressSynchronously(new ThrowableComputable<MapIndexStorage<K, V>, IOException>() {
           @Override
           public MapIndexStorage<K, V> compute() throws IOException {
-            configureIndexDataLoadingProgress(ProgressManager.getInstance().getProgressIndicator());
+            final ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
+            if (indicator != null) {
+              indicator.setIndeterminate(true);
+            }
             return new MapIndexStorage<K, V>(
               IndexInfrastructure.getStorageFile(name),
               extension.getKeyDescriptor(),
@@ -578,7 +579,10 @@ public class FileBasedIndexImpl extends FileBasedIndex {
               new ThrowableComputable<PersistentHashMap<Integer, Collection<K>>, IOException>() {
                 @Override
                 public PersistentHashMap<Integer, Collection<K>> compute() throws IOException {
-                  configureIndexDataLoadingProgress(progressManager.getProgressIndicator());
+                  final ProgressIndicator indicator = progressManager.getProgressIndicator();
+                  if (indicator != null) {
+                    indicator.setIndeterminate(true);
+                  }
                   return process.compute();
                 }
               }, LangBundle.message("compacting.indices.title"), false, null);
@@ -604,13 +608,6 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     });
 
     return index;
-  }
-
-  public static void configureIndexDataLoadingProgress(ProgressIndicator indicator) {
-    if (indicator != null) {
-      indicator.setIndeterminate(true);
-      if (indicator instanceof ProgressWindow) ((ProgressWindow)indicator).setDelayInMillis(PROGRESS_DELAY_IN_MILLIS);
-    }
   }
 
   @NotNull
@@ -1718,13 +1715,9 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     });
   }
 
-  public boolean isFileUpToDate(VirtualFile file) {
-    return !myChangedFilesCollector.myFilesToUpdate.contains(file);
-  }
-
   void processRefreshedFile(@NotNull Project project, @NotNull final com.intellij.ide.caches.FileContent fileContent) {
     myChangedFilesCollector.ensureAllInvalidateTasksCompleted();
-    myChangedFilesCollector.processFileImpl(project, fileContent, false); // ProcessCanceledException will cause re-adding the file to processing list
+    myChangedFilesCollector.processFileImpl(project, fileContent, false); // ProcessCanceledException will cause readding the file to processing list
   }
 
   public void indexFileContent(@Nullable Project project, @NotNull com.intellij.ide.caches.FileContent content) {
@@ -1894,11 +1887,7 @@ public class FileBasedIndexImpl extends FileBasedIndex {
     private final Queue<InvalidationTask> myFutureInvalidations = new ConcurrentLinkedQueue<InvalidationTask>();
 
     private final ManagingFS myManagingFS = ManagingFS.getInstance();
-
-    @Override
-    public void fileMoved(VirtualFileMoveEvent event) {
-      markDirty(event, false);
-    }
+    // No need to react on movement events since files stay valid, their ids don't change and all associated attributes remain intact.
 
     @Override
     public void fileCreated(@NotNull final VirtualFileEvent event) {

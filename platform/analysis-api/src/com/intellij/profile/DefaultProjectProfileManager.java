@@ -127,8 +127,8 @@ public abstract class DefaultProjectProfileManager extends ProjectProfileManager
   public synchronized void writeExternal(Element element) throws WriteExternalException {
 
     final List<String> sortedProfiles = new ArrayList<String>(myProfiles.keySet());
-    Collections.sort(sortedProfiles);
     Element profiles = null;
+    Collections.sort(sortedProfiles);
     for (String profile : sortedProfiles) {
       final Profile projectProfile = myProfiles.get(profile);
       if (projectProfile != null) {
@@ -227,7 +227,7 @@ public abstract class DefaultProjectProfileManager extends ProjectProfileManager
     return profile;
   }
 
-  public void addProfilesListener(@NotNull final ProfileChangeAdapter profilesListener, @NotNull Disposable parent) {
+  public void addProfilesListener(final ProfileChangeAdapter profilesListener, Disposable parent) {
     myProfilesListener.add(profilesListener);
     Disposer.register(parent, new Disposable() {
       @Override
@@ -237,7 +237,7 @@ public abstract class DefaultProjectProfileManager extends ProjectProfileManager
     });
   }
 
-  public void removeProfilesListener(@NotNull ProfileChangeAdapter profilesListener) {
+  public void removeProfilesListener(ProfileChangeAdapter profilesListener) {
     myProfilesListener.remove(profilesListener);
   }
 
@@ -299,14 +299,4 @@ public abstract class DefaultProjectProfileManager extends ProjectProfileManager
     }
   }
 
-  protected void fireProfilesInitialized() {
-    for (ProfileChangeAdapter profileChangeAdapter : myProfilesListener) {
-      profileChangeAdapter.profilesInitialized();
-    }
-  }
-  protected void fireProfilesShutdown() {
-    for (ProfileChangeAdapter profileChangeAdapter : myProfilesListener) {
-      profileChangeAdapter.profilesShutdown();
-    }
-  }
 }

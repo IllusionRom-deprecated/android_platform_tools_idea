@@ -17,7 +17,6 @@
 package com.intellij.refactoring.rename.naming;
 
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiNamedElement;
 import com.intellij.refactoring.rename.RenameProcessor;
 import com.intellij.refactoring.rename.RenameUtil;
@@ -56,18 +55,10 @@ public abstract class AutomaticRenamer {
                          final boolean searchInStringsAndComments,
                          final boolean searchInNonJavaFiles,
                          List<UnresolvableCollisionUsageInfo> unresolvedUsages) {
-    findUsages(result, searchInStringsAndComments, searchInNonJavaFiles, unresolvedUsages, null);
-  }
-
-  public void findUsages(List<UsageInfo> result,
-                         final boolean searchInStringsAndComments,
-                         final boolean searchInNonJavaFiles,
-                         List<UnresolvableCollisionUsageInfo> unresolvedUsages,
-                         Map<PsiElement, String> allRenames) {
     for (Iterator<PsiNamedElement> iterator = myElements.iterator(); iterator.hasNext();) {
       final PsiNamedElement variable = iterator.next();
       RenameProcessor.assertNonCompileElement(variable);
-      final boolean success = findUsagesForElement(variable, result, searchInStringsAndComments, searchInNonJavaFiles, unresolvedUsages, allRenames);
+      final boolean success = findUsagesForElement(variable, result, searchInStringsAndComments, searchInNonJavaFiles, unresolvedUsages);
       if (!success) {
         iterator.remove();
       }
@@ -77,22 +68,10 @@ public abstract class AutomaticRenamer {
   private boolean findUsagesForElement(PsiNamedElement element,
                                        List<UsageInfo> result,
                                        final boolean searchInStringsAndComments,
-                                       final boolean searchInNonJavaFiles,
-                                       List<UnresolvableCollisionUsageInfo> unresolvedUsages,
-                                       Map<PsiElement, String> allRenames) {
+                                       final boolean searchInNonJavaFiles, List<UnresolvableCollisionUsageInfo> unresolvedUsages) {
     final String newName = getNewName(element);
     if (newName != null) {
-
-      final LinkedHashMap<PsiNamedElement, String> renames = new LinkedHashMap<PsiNamedElement, String>();
-      renames.putAll(myRenames);
-      if (allRenames != null) {
-        for (PsiElement psiElement : allRenames.keySet()) {
-          if (psiElement instanceof PsiNamedElement) {
-            renames.put((PsiNamedElement)psiElement, allRenames.get(psiElement));
-          }
-        }
-      }
-      final UsageInfo[] usages = RenameUtil.findUsages(element, newName, searchInStringsAndComments, searchInNonJavaFiles, renames);
+      final UsageInfo[] usages = RenameUtil.findUsages(element, newName, searchInStringsAndComments, searchInNonJavaFiles, myRenames);
       for (final UsageInfo usage : usages) {
         if (usage instanceof UnresolvableCollisionUsageInfo) {
           if (unresolvedUsages != null) {

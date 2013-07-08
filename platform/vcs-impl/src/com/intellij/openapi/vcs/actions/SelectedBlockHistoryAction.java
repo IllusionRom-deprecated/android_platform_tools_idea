@@ -90,7 +90,6 @@ public class SelectedBlockHistoryAction extends AbstractVcsAction {
             final VcsHistoryDialog vcsHistoryDialog =
               new VcsHistoryDialog(project,
                                         context.getSelectedFiles()[0],
-                                        context.getEditor(),
                                         provider,
                                         session,
                                         activeVcs,

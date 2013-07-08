@@ -60,12 +60,10 @@ public class PsiModificationTrackerImpl implements PsiModificationTracker, PsiTr
   public void incCounter() {
     myModificationCount.getAndIncrement();
     myJavaStructureModificationCount.getAndIncrement();
-    myOutOfCodeBlockModificationCount.getAndIncrement();
-    myPublisher.modificationCountChanged();
+    incOutOfCodeBlockModificationCounter();
   }
 
   public void incOutOfCodeBlockModificationCounter() {
-    myModificationCount.getAndIncrement();
     myOutOfCodeBlockModificationCount.getAndIncrement();
     myPublisher.modificationCountChanged();
   }
@@ -74,7 +72,7 @@ public class PsiModificationTrackerImpl implements PsiModificationTracker, PsiTr
   public void treeChanged(@NotNull PsiTreeChangeEventImpl event) {
     myModificationCount.getAndIncrement();
     if (event.getParent() instanceof PsiDirectory) {
-      myOutOfCodeBlockModificationCount.getAndIncrement();
+      incOutOfCodeBlockModificationCounter();
     }
 
     myPublisher.modificationCountChanged();

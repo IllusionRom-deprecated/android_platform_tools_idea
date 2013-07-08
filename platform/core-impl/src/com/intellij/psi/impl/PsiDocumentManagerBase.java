@@ -17,6 +17,7 @@
 package com.intellij.psi.impl;
 
 import com.intellij.injected.editor.DocumentWindow;
+import com.intellij.lang.ASTNode;
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
@@ -557,6 +558,12 @@ public abstract class PsiDocumentManagerBase extends PsiDocumentManager implemen
     return !myIsCommitInProgress && !myUncommittedDocuments.isEmpty();
   }
 
+  private final Key<ASTNode> TEMP_TREE_IN_DOCUMENT_KEY = Key.create("TEMP_TREE_IN_DOCUMENT_KEY");
+
+  void clearTreeHardRef(@NotNull Document document) {
+    document.putUserData(TEMP_TREE_IN_DOCUMENT_KEY, null);
+  }
+
   @Override
   public void beforeDocumentChange(DocumentEvent event) {
     final Document document = event.getDocument();
@@ -569,23 +576,39 @@ public abstract class PsiDocumentManagerBase extends PsiDocumentManager implemen
     if (virtualFile.getFileType().isBinary()) return;
 
     final List<PsiFile> files = viewProvider.getAllFiles();
-    PsiFile psiCause = null;
+    boolean hasLockedBlocks = false;
     for (PsiFile file : files) {
-      mySmartPointerManager.fastenBelts(file, event.getOffset(), null);
+      if (file == null) continue;
 
-      if (TextBlock.get(file).isLocked()) {
-        psiCause = file;
+      if (file.isPhysical() && mySmartPointerManager != null) { // mock tests
+        mySmartPointerManager.fastenBelts(file, event.getOffset(), null);
+      }
+
+      final TextBlock textBlock = TextBlock.get(file);
+      if (textBlock.isLocked()) {
+        hasLockedBlocks = true;
+        continue;
+      }
+
+      if (file instanceof PsiFileImpl) {
+        myIsCommitInProgress = true;
+        try {
+          PsiFileImpl psiFile = (PsiFileImpl)file;
+          // tree should be initialized and be kept until commit
+          document.putUserData(TEMP_TREE_IN_DOCUMENT_KEY, psiFile.calcTreeElement());
+        }
+        finally {
+          myIsCommitInProgress = false;
+        }
       }
     }
 
-    if (psiCause == null) {
+    if (!hasLockedBlocks)
       beforeDocumentChangeOnUnlockedDocument(viewProvider);
-    }
-
-    ((SingleRootFileViewProvider)viewProvider).beforeDocumentChanged(psiCause);
   }
 
   protected void beforeDocumentChangeOnUnlockedDocument(@NotNull final FileViewProvider viewProvider) {
+    ((SingleRootFileViewProvider)viewProvider).beforeDocumentChanged();
   }
 
   @Override
@@ -597,15 +620,14 @@ public abstract class PsiDocumentManagerBase extends PsiDocumentManager implemen
 
     ApplicationManager.getApplication().assertWriteAccessAllowed();
     final List<PsiFile> files = viewProvider.getAllFiles();
-    boolean commitNecessary = true;
+    boolean commitNecessary = false;
     for (PsiFile file : files) {
-      mySmartPointerManager.unfastenBelts(file, event.getOffset());
-      
-      final TextBlock textBlock = TextBlock.get(file);
-      if (textBlock.isLocked()) {
-        commitNecessary = false;
-        continue;
+      if (file == null || file instanceof PsiFileImpl && ((PsiFileImpl)file).getTreeElement() == null) continue;
+      if (mySmartPointerManager != null) { // mock tests
+        mySmartPointerManager.unfastenBelts(file, event.getOffset());
       }
+      final TextBlock textBlock = TextBlock.get(file);
+      if (textBlock.isLocked()) continue;
 
       textBlock.documentChanged(event);
       assert file instanceof PsiFileImpl || "mock.file".equals(file.getName()) && ApplicationManager.getApplication().isUnitTestMode() :
@@ -616,6 +638,8 @@ public abstract class PsiDocumentManagerBase extends PsiDocumentManager implemen
         files +
         "; viewProvider=" +
         viewProvider;
+
+      commitNecessary = true;
     }
 
     boolean forceCommit = ApplicationManager.getApplication().hasWriteAction(ExternalChangeAction.class) &&

@@ -61,14 +61,6 @@ class JavacFileManager extends ForwardingJavaFileManager<StandardJavaFileManager
     myOutputsMap = outputDirToSrcRoots;
   }
 
-  @Override
-  public String inferBinaryName(Location location, JavaFileObject file) {
-    return super.inferBinaryName(
-      location,
-      file instanceof TransformableJavaFileObject? ((TransformableJavaFileObject)file).getOriginal() : file
-    );
-  }
-
   public void setLocation(Location location, Iterable<? extends File> path) throws IOException{
     getStdManager().setLocation(location, path);
   }

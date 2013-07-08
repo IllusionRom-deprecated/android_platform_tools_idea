@@ -27,7 +27,10 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.extensions.LogProvider;
 import com.intellij.openapi.extensions.PluginId;
-import com.intellij.openapi.util.*;
+import com.intellij.openapi.util.BuildNumber;
+import com.intellij.openapi.util.Comparing;
+import com.intellij.openapi.util.Condition;
+import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.ArrayUtil;
@@ -90,19 +93,27 @@ public class PluginManagerCore {
   public static void loadDisabledPlugins(final String configPath, final Collection<String> disabledPlugins) {
     final File file = new File(configPath, DISABLED_PLUGINS_FILENAME);
     if (file.isFile()) {
+      BufferedReader reader = null;
       try {
-        BufferedReader reader = new BufferedReader(new FileReader(file));
-        try {
-          String id;
-          while ((id = reader.readLine()) != null) {
-            disabledPlugins.add(id.trim());
-          }
-        }
-        finally {
-          reader.close();
+        reader = new BufferedReader(new FileReader(file));
+        String id;
+        while ((id = reader.readLine()) != null) {
+          disabledPlugins.add(id.trim());
         }
       }
-      catch (IOException ignored) { }
+      catch (IOException e) {
+        //do nothing
+      }
+      finally {
+        try {
+          if (reader != null) {
+            reader.close();
+          }
+        }
+        catch (IOException e) {
+          //do nothing
+        }
+      }
     }
   }
 
@@ -126,15 +137,18 @@ public class PluginManagerCore {
     if (!plugins.isFile()) {
       FileUtil.ensureCanCreateFile(plugins);
     }
-    PrintWriter printWriter = new PrintWriter(new BufferedWriter(new FileWriter(plugins, append)));
+    PrintWriter printWriter = null;
     try {
+      printWriter = new PrintWriter(new BufferedWriter(new FileWriter(plugins, append)));
       for (String id : ids) {
         printWriter.println(id);
       }
       printWriter.flush();
     }
     finally {
-      printWriter.close();
+      if (printWriter != null) {
+        printWriter.close();
+      }
     }
   }
 
@@ -219,7 +233,7 @@ public class PluginManagerCore {
                              Map<PluginId, IdeaPluginDescriptor> map,
                              final boolean checkModuleDependencies) {
     for (PluginId id: descriptor.getDependentPluginIds()) {
-      if (ArrayUtil.contains(id, (Object[])descriptor.getOptionalDependentPluginIds())) {
+      if (ArrayUtil.contains(id, descriptor.getOptionalDependentPluginIds())) {
         continue;
       }
       if (!checkModuleDependencies && isModuleDependency(id)) {
@@ -398,16 +412,19 @@ public class PluginManagerCore {
     return 0;
   }
 
+  @SuppressWarnings({"EmptyCatchBlock"})
   static Collection<URL> getClassLoaderUrls() {
     final ClassLoader classLoader = PluginManagerCore.class.getClassLoader();
     final Class<? extends ClassLoader> aClass = classLoader.getClass();
     try {
-      @SuppressWarnings("unchecked") List<URL> urls = (List<URL>)aClass.getMethod("getUrls").invoke(classLoader);
-      return urls;
+      return (List<URL>)aClass.getMethod("getUrls").invoke(classLoader);
     }
-    catch (IllegalAccessException ignored) { }
-    catch (InvocationTargetException ignored) { }
-    catch (NoSuchMethodException ignored) { }
+    catch (IllegalAccessException e) {
+    }
+    catch (InvocationTargetException e) {
+    }
+    catch (NoSuchMethodException e) {
+    }
 
     if (classLoader instanceof URLClassLoader) {
       return Arrays.asList(((URLClassLoader)classLoader).getURLs());
@@ -431,10 +448,10 @@ public class PluginManagerCore {
     }
   }
 
-  private static void addModulesAsDependents(Map<PluginId, ? super IdeaPluginDescriptorImpl> map) {
+  static <T extends IdeaPluginDescriptor> void addModulesAsDependents(final Map<PluginId, T> map) {
     for (String module : ourAvailableModules) {
       // fake plugin descriptors to satisfy dependencies
-      map.put(PluginId.getId(module), new IdeaPluginDescriptorImpl());
+      map.put(PluginId.getId(module), (T) new IdeaPluginDescriptorImpl());
     }
   }
 
@@ -631,7 +648,7 @@ public class PluginManagerCore {
         if (optionalDescriptor == null && !FileUtil.isJarOrZip(file)) {
           for (URL url : getClassLoaderUrls()) {
             if ("file".equals(url.getProtocol())) {
-              optionalDescriptor = loadDescriptor(new File(decodeUrl(url.getFile())), optionalDescriptorName);
+              optionalDescriptor = loadDescriptor(new File(URLDecoder.decode(url.getFile())), optionalDescriptorName);
               if (optionalDescriptor != null) {
                 break;
               }
@@ -778,46 +795,51 @@ public class PluginManagerCore {
     return null;
   }
 
-  static void loadDescriptorsFromClassPath(@NotNull List<IdeaPluginDescriptorImpl> result, @Nullable StartupProgress progress) {
-    Collection<URL> urls = getClassLoaderUrls();
-    String platformPrefix = System.getProperty(PlatformUtilsCore.PLATFORM_PREFIX_KEY);
-    int i = 0;
-    for (URL url : urls) {
-      i++;
-      if ("file".equals(url.getProtocol())) {
-        File file = new File(decodeUrl(url.getFile()));
+  @SuppressWarnings({"UseOfSystemOutOrSystemErr", "CallToPrintStackTrace"})
+  static void loadDescriptorsFromClassPath(final List<IdeaPluginDescriptorImpl> result, @Nullable StartupProgress progress) {
+    try {
+      final Collection<URL> urls = getClassLoaderUrls();
+      final String platformPrefix = System.getProperty(PlatformUtilsCore.PLATFORM_PREFIX_KEY);
+      int i = 0;
+      for (URL url : urls) {
+        i++;
+        final String protocol = url.getProtocol();
+        if ("file".equals(protocol)) {
+          final File file = new File(URLDecoder.decode(url.getFile()));
+          //final String canonicalPath = file.getCanonicalPath();
+          //if (!canonicalPath.startsWith(homePath) || canonicalPath.endsWith(".jar")) continue;
+          //if (!canonicalPath.startsWith(homePath)) continue;
 
-        IdeaPluginDescriptorImpl platformPluginDescriptor = null;
-        if (platformPrefix != null) {
-          platformPluginDescriptor = loadDescriptor(file, platformPrefix + "Plugin.xml");
-          if (platformPluginDescriptor != null && !result.contains(platformPluginDescriptor)) {
-            platformPluginDescriptor.setUseCoreClassLoader(true);
-            result.add(platformPluginDescriptor);
+          IdeaPluginDescriptorImpl platformPluginDescriptor = null;
+          if (platformPrefix != null) {
+            platformPluginDescriptor = loadDescriptor(file, platformPrefix + "Plugin.xml");
+            if (platformPluginDescriptor != null && !result.contains(platformPluginDescriptor)) {
+              platformPluginDescriptor.setUseCoreClassLoader(true);
+              result.add(platformPluginDescriptor);
+            }
           }
-        }
 
-        IdeaPluginDescriptorImpl pluginDescriptor = loadDescriptor(file, PLUGIN_XML);
-        if (platformPrefix != null && pluginDescriptor != null && pluginDescriptor.getName().equals(SPECIAL_IDEA_PLUGIN)) {
-          continue;
-        }
-        if (pluginDescriptor != null && !result.contains(pluginDescriptor)) {
-          if (platformPluginDescriptor != null) {
-            // if we found a regular plugin.xml in the same .jar/root as a platform-prefixed descriptor, use the core loader for it too
-            pluginDescriptor.setUseCoreClassLoader(true);
+          IdeaPluginDescriptorImpl pluginDescriptor = loadDescriptor(file, PLUGIN_XML);
+          if (platformPrefix != null && pluginDescriptor != null && pluginDescriptor.getName().equals(SPECIAL_IDEA_PLUGIN)) {
+            continue;
           }
-          result.add(pluginDescriptor);
-          if (progress != null) {
-            progress.showProgress("Plugin loaded: " + pluginDescriptor.getName(), PLUGINS_PROGRESS_MAX_VALUE * ((float)i / urls.size()));
+          if (pluginDescriptor != null && !result.contains(pluginDescriptor)) {
+            if (platformPluginDescriptor != null) {
+              // if we found a regular plugin.xml in the same .jar/root as a platform-prefixed descriptor, use the core loader for it too
+              pluginDescriptor.setUseCoreClassLoader(true);
+            }
+            result.add(pluginDescriptor);
+            if (progress != null) {
+              progress.showProgress("Plugin loaded: " + pluginDescriptor.getName(), PLUGINS_PROGRESS_MAX_VALUE * ((float)i / urls.size()));
+            }
           }
         }
       }
     }
-  }
-
-  @SuppressWarnings("deprecation")
-  private static String decodeUrl(String file) {
-    String quotePluses = StringUtil.replace(file, "+", "%2B");
-    return URLDecoder.decode(quotePluses);
+    catch (Exception e) {
+      System.err.println("Error loading plugins from classpath:");
+      e.printStackTrace();
+    }
   }
 
   static void loadDescriptorsFromProperty(final List<IdeaPluginDescriptorImpl> result) {

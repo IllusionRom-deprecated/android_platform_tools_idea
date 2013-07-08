@@ -94,32 +94,19 @@ public class HighlightClassUtil {
   static HighlightInfo checkClassWithAbstractMethods(PsiClass aClass, PsiElement implementsFixElement, TextRange range) {
     PsiMethod abstractMethod = ClassUtil.getAnyAbstractMethod(aClass);
 
-    if (abstractMethod == null) {
+    if (abstractMethod == null || abstractMethod.getContainingClass() == null) {
       return null;
     }
-
-    final PsiClass superClass = abstractMethod.getContainingClass();
-    if (superClass == null) {
-      return null;
-    }
-
     String baseClassName = HighlightUtil.formatClass(aClass, false);
     String methodName = JavaHighlightUtil.formatMethod(abstractMethod);
     String message = JavaErrorMessages.message(aClass instanceof PsiEnumConstantInitializer || implementsFixElement instanceof PsiEnumConstant ? "enum.constant.should.implement.method" : "class.must.be.abstract",
                                                baseClassName,
                                                methodName,
-                                               HighlightUtil.formatClass(superClass, false));
+                                               HighlightUtil.formatClass(abstractMethod.getContainingClass(), false));
 
     HighlightInfo errorResult = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(range).descriptionAndTooltip(message).create();
-    final PsiMethod anyMethodToImplement = ClassUtil.getAnyMethodToImplement(aClass);
-    if (anyMethodToImplement != null) {
-      if (!anyMethodToImplement.hasModifierProperty(PsiModifier.PACKAGE_LOCAL) ||
-          JavaPsiFacade.getInstance(aClass.getProject()).arePackagesTheSame(aClass, superClass)) {
-        QuickFixAction.registerQuickFixAction(errorResult, QUICK_FIX_FACTORY.createImplementMethodsFix(implementsFixElement));
-      } else {
-        QuickFixAction.registerQuickFixAction(errorResult, QUICK_FIX_FACTORY.createModifierListFix(anyMethodToImplement, PsiModifier.PROTECTED, true, true));
-        QuickFixAction.registerQuickFixAction(errorResult, QUICK_FIX_FACTORY.createModifierListFix(anyMethodToImplement, PsiModifier.PUBLIC, true, true));
-      }
+    if (ClassUtil.getAnyMethodToImplement(aClass) != null) {
+      QuickFixAction.registerQuickFixAction(errorResult, QUICK_FIX_FACTORY.createImplementMethodsFix(implementsFixElement));
     }
     if (!(aClass instanceof PsiAnonymousClass)
         && HighlightUtil.getIncompatibleModifier(PsiModifier.ABSTRACT, aClass.getModifierList()) == null) {

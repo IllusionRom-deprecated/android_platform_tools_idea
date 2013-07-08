@@ -26,7 +26,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.impl.http.HttpVirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.testFramework.LightVirtualFile;
 import com.intellij.xml.util.HtmlUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,10 +36,9 @@ import java.util.List;
 public class WebBrowserServiceImpl extends WebBrowserService {
   @Override
   public boolean canOpenInBrowser(@NotNull PsiElement psiElement) {
-    PsiFile psiFile = psiElement instanceof PsiFile ? (PsiFile)psiElement : psiElement.getContainingFile();
-    VirtualFile virtualFile = psiFile == null ? null : psiFile.getVirtualFile();
-    return virtualFile != null &&
-           ((HtmlUtil.isHtmlFile(psiFile) && !(virtualFile instanceof LightVirtualFile)) || getProvider(psiElement, psiFile) != null);
+    final PsiFile psiFile = psiElement instanceof PsiFile ? (PsiFile)psiElement : psiElement.getContainingFile();
+    return psiFile != null && psiFile.getVirtualFile() != null &&
+           (HtmlUtil.isHtmlFile(psiFile) || getProvider(psiElement) != null);
   }
 
   @Override
@@ -78,7 +76,7 @@ public class WebBrowserServiceImpl extends WebBrowserService {
         }
       }
     }
-    return virtualFile instanceof LightVirtualFile ? null : Urls.newFromVirtualFile(virtualFile);
+    return Urls.newFromVirtualFile(virtualFile);
   }
 
   @Override
@@ -95,10 +93,10 @@ public class WebBrowserServiceImpl extends WebBrowserService {
   @Nullable
   public static Pair<WebBrowserUrlProvider, Url> getProvider(@Nullable PsiElement element) {
     PsiFile psiFile = element == null ? null : element.getContainingFile();
-    return psiFile == null ? null : getProvider(element, psiFile);
-  }
+    if (psiFile == null) {
+      return null;
+    }
 
-  private static Pair<WebBrowserUrlProvider, Url> getProvider(PsiElement element, PsiFile psiFile) {
     Ref<Url> result = Ref.create();
     List<WebBrowserUrlProvider> allProviders = Arrays.asList(WebBrowserUrlProvider.EP_NAME.getExtensions());
     for (WebBrowserUrlProvider urlProvider : DumbService.getInstance(element.getProject()).filterByDumbAwareness(allProviders)) {

@@ -211,24 +211,23 @@ public class ViewOfflineResultsAction extends AnAction implements DumbAware {
     return showOfflineView(project, resMap, inspectionProfile, title);
   }
 
-  @NotNull
-  public static InspectionResultsView showOfflineView(@NotNull Project project,
-                                                      @NotNull Map<String, Map<String, Set<OfflineProblemDescriptor>>> resMap,
+  public static InspectionResultsView showOfflineView(final Project project,
+                                                      final Map<String, Map<String, Set<OfflineProblemDescriptor>>> resMap,
                                                       final InspectionProfile inspectionProfile,
                                                       final String title) {
     final AnalysisScope scope = new AnalysisScope(project);
     final InspectionManagerEx managerEx = (InspectionManagerEx)InspectionManager.getInstance(project);
-    final GlobalInspectionContextImpl context = managerEx.createNewGlobalContext(false);
-    context.setExternalProfile(inspectionProfile);
-    context.setCurrentScope(scope);
-    context.initializeTools(new ArrayList<Tools>(), new ArrayList<Tools>(), new ArrayList<Tools>(), new ArrayList<Tools>());
-    final InspectionResultsView view = new InspectionResultsView(project, inspectionProfile, scope, context,
+    final GlobalInspectionContextImpl inspectionContext = managerEx.createNewGlobalContext(false);
+    inspectionContext.setExternalProfile(inspectionProfile);
+    inspectionContext.setCurrentScope(scope);
+    inspectionContext.initializeTools(new ArrayList<Tools>(), new ArrayList<Tools>(), new ArrayList<Tools>());
+    final InspectionResultsView view = new InspectionResultsView(project, inspectionProfile, scope, inspectionContext,
                                                                  new OfflineInspectionRVContentProvider(resMap, project));
-    ((RefManagerImpl)context.getRefManager()).inspectionReadActionStarted();
+    ((RefManagerImpl)inspectionContext.getRefManager()).inspectionReadActionStarted();
     view.update();
     TreeUtil.selectFirstNode(view.getTree());
-    if (context.getContentManager() != null) { //test
-      context.addView(view, title);
+    if (inspectionContext.getContentManager() != null) { //test
+      inspectionContext.addView(view, title);
     }
     return view;
   }

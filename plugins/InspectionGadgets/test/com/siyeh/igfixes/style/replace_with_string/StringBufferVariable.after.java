@@ -1,5 +1,6 @@
 class StringBufferVariable {
   void foo() {
-      System.out.println("asdf" + "asdf");
+    String sb = "asdf" + "asdf";
+    System.out.println(sb.toString());
   }
 }

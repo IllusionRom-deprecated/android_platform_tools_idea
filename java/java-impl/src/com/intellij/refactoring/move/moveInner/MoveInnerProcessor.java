@@ -164,7 +164,7 @@ public class MoveInnerProcessor extends BaseRefactoringProcessor {
       if (myParameterNameOuterClass != null) {
         // pass outer as a parameter
         field = factory.createField(myFieldNameOuterClass, factory.createType(myOuterClass));
-        field = addOuterField(field);
+        field = (PsiField)myInnerClass.add(field);
         myInnerClass = field.getContainingClass();
         addFieldInitializationToConstructors(myInnerClass, field, myParameterNameOuterClass);
       }
@@ -294,19 +294,6 @@ public class MoveInnerProcessor extends BaseRefactoringProcessor {
     catch (IncorrectOperationException e) {
       LOG.error(e);
     }
-  }
-
-  private PsiField addOuterField(PsiField field) {
-    final PsiMember[] members = PsiTreeUtil.getChildrenOfType(myInnerClass, PsiMember.class);
-    if (members != null) {
-      for (PsiMember member : members) {
-        if (!member.hasModifierProperty(PsiModifier.STATIC)) {
-          return (PsiField)myInnerClass.addBefore(field, member);
-        }
-      }
-    }
-
-    return (PsiField)myInnerClass.add(field);
   }
 
   protected void performPsiSpoilingRefactoring() {

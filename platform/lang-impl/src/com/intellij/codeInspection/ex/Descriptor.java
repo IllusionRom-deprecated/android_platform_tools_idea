@@ -36,7 +36,7 @@ public class Descriptor {
   private final HighlightDisplayKey myKey;
 
   private Element myConfig;
-  private final InspectionToolWrapper myToolWrapper;
+  private final InspectionProfileEntry myTool;
   private final HighlightDisplayLevel myLevel;
   private boolean myEnabled = false;
   private final NamedScope myScope;
@@ -47,14 +47,14 @@ public class Descriptor {
   public Descriptor(@NotNull ScopeToolState state, @NotNull InspectionProfileImpl inspectionProfile) {
     myState = state;
     myInspectionProfile = inspectionProfile;
-    InspectionToolWrapper tool = (InspectionToolWrapper)state.getTool();
+    final InspectionProfileEntry tool = state.getTool();
     myText = tool.getDisplayName();
     final String[] groupPath = tool.getGroupPath();
     myGroup = groupPath.length == 0 ? new String[]{InspectionProfileEntry.GENERAL_GROUP_NAME} : groupPath;
     myKey = HighlightDisplayKey.find(tool.getShortName());
     myLevel = inspectionProfile.getErrorLevel(myKey, ScopeToolStateUtil.getScope(state));
     myEnabled = inspectionProfile.isToolEnabled(myKey, ScopeToolStateUtil.getScope(state));
-    myToolWrapper = tool;
+    myTool = tool;
     myScope = ScopeToolStateUtil.getScope(state);
   }
 
@@ -98,29 +98,28 @@ public class Descriptor {
     return myConfig;
   }
 
-  @NotNull
-  public InspectionToolWrapper getTool() {
-    return myToolWrapper;
+  public InspectionProfileEntry getTool() {
+    return myTool;
   }
 
   @Nullable
   public String loadDescription() {
     if (myConfig == null) {
-      InspectionToolWrapper toolWrapper = getTool();
-      myConfig = createConfigElement(toolWrapper);
+      myConfig = createConfigElement(getTool());
     }
 
-    return myToolWrapper.loadDescription();
+    if (!(myTool instanceof InspectionTool)) return null;
+    return myTool.loadDescription();
   }
 
   public InspectionProfileImpl getInspectionProfile() {
     return myInspectionProfile;
   }
 
-  public static Element createConfigElement(InspectionToolWrapper toolWrapper) {
+  public static Element createConfigElement(InspectionProfileEntry tool) {
     Element element = new Element("options");
     try {
-      toolWrapper.writeSettings(element);
+      tool.writeSettings(element);
     }
     catch (WriteExternalException e) {
       LOG.error(e);

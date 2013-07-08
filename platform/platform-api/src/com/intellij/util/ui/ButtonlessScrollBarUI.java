@@ -22,7 +22,6 @@ import com.intellij.ui.JBColor;
 import com.intellij.ui.LightColors;
 
 import javax.swing.*;
-import javax.swing.event.ChangeEvent;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.*;
 import java.awt.event.*;
@@ -104,18 +103,6 @@ public class ButtonlessScrollBarUI extends BasicScrollBarUI {
     } catch (NullPointerException ignore) {
       //installUI is not performed yet or uninstallUI has set almost every field to null. Just ignore it //IDEA-89674
     }
-  }
-
-  @Override
-  protected ModelListener createModelListener() {
-    return new ModelListener() {
-      @Override
-      public void stateChanged(ChangeEvent e) {
-        if (scrollbar != null) {
-          super.stateChanged(e);
-        }
-      }
-    };
   }
 
   public int getDecrementButtonHeight() {

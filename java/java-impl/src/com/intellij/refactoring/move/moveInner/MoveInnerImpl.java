@@ -34,16 +34,14 @@ public class MoveInnerImpl {
 
   public static final String REFACTORING_NAME = RefactoringBundle.message("move.inner.to.upper.level.title");
 
-  public static void doMove(final Project project, PsiElement[] elements, final MoveCallback moveCallback, @Nullable PsiElement targetContainer) {
+  public static void doMove(final Project project, PsiElement[] elements, final MoveCallback moveCallback) {
     if (elements.length != 1) return;
     final PsiClass aClass = (PsiClass) elements[0];
     boolean condition = aClass.getContainingClass() != null;
     LOG.assertTrue(condition);
 
     if (!CommonRefactoringUtil.checkReadOnlyStatus(project, aClass)) return;
-    if (targetContainer == null) {
-      targetContainer = getTargetContainer(aClass, true);
-    }
+    final PsiElement targetContainer = getTargetContainer(aClass, true);
     if (targetContainer == null) return;
 
     final MoveInnerDialog dialog = new MoveInnerDialog(

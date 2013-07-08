@@ -15,8 +15,6 @@
  */
 package org.jetbrains.idea.maven.importing;
 
-import com.intellij.openapi.application.AccessToken;
-import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleType;
 import com.intellij.openapi.roots.*;
@@ -27,7 +25,6 @@ import com.intellij.openapi.vfs.JarFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.java.LanguageLevel;
-import gnu.trove.THashSet;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -149,26 +146,8 @@ public class MavenModuleImporter {
   }
 
   private void configDependencies() {
-    THashSet<String> dependencyTypesFromSettings = new THashSet<String>();
-
-    AccessToken accessToken = ReadAction.start();
-    try {
-      if (myModule.getProject().isDisposed()) return;
-
-      dependencyTypesFromSettings.addAll(MavenProjectsManager.getInstance(myModule.getProject()).getImportingSettings().getDependencyTypesAsSet());
-    }
-    finally {
-      accessToken.finish();
-    }
-
-
     for (MavenArtifact artifact : myMavenProject.getDependencies()) {
-      String dependencyType = artifact.getType();
-
-      if (!dependencyTypesFromSettings.contains(dependencyType)
-          && !myMavenProject.getDependencyTypesFromImporters(SupportedRequestType.FOR_IMPORT).contains(dependencyType)) {
-        continue;
-      }
+      if (!myMavenProject.isSupportedDependency(artifact, SupportedRequestType.FOR_IMPORT)) continue;
 
       DependencyScope scope = selectScope(artifact.getScope());
 
@@ -176,7 +155,7 @@ public class MavenModuleImporter {
 
       if (depProject != null && !myMavenTree.isIgnored(depProject)) {
         if (depProject == myMavenProject) continue;
-        boolean isTestJar = MavenConstants.TYPE_TEST_JAR.equals(dependencyType) || "tests".equals(artifact.getClassifier());
+        boolean isTestJar = MavenConstants.TYPE_TEST_JAR.equals(artifact.getType()) || "tests".equals(artifact.getClassifier());
         myRootModelAdapter.addModuleDependency(myMavenProjectToModuleName.get(depProject), scope, isTestJar);
 
         Element buildHelperCfg = depProject.getPluginGoalConfiguration("org.codehaus.mojo", "build-helper-maven-plugin", "attach-artifact");
@@ -192,7 +171,7 @@ public class MavenModuleImporter {
             artifact.getArtifactId(),
             artifact.getVersion(),
             artifact.getBaseVersion(),
-            dependencyType,
+            artifact.getType(),
             artifact.getClassifier(),
             artifact.getScope(),
             artifact.isOptional(),

@@ -32,7 +32,6 @@ import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.highlighter.EditorHighlighter;
 import com.intellij.openapi.editor.markup.*;
 import com.intellij.openapi.fileTypes.FileType;
-import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.util.Disposer;
@@ -220,11 +219,7 @@ public abstract class CodeStyleAbstractPanel implements Disposable {
           PsiFile psiFile = createFileFromText(project, myTextToReformat);
           prepareForReformat(psiFile);
 
-          try {
-            apply(mySettings);
-          }
-          catch (ConfigurationException ignore) {
-          }
+          apply(mySettings);
           CodeStyleSettings clone = mySettings.clone();
           clone.RIGHT_MARGIN = getAdjustedRightMargin();
           CodeStyleSettingsManager.getInstance(project).setTemporarySettings(clone);
@@ -397,7 +392,7 @@ public abstract class CodeStyleAbstractPanel implements Disposable {
   @Nullable
   protected abstract String getPreviewText();
 
-  public abstract void apply(CodeStyleSettings settings) throws ConfigurationException;
+  public abstract void apply(CodeStyleSettings settings);
 
   public final void reset(final CodeStyleSettings settings) {
     myShouldUpdatePreview = false;

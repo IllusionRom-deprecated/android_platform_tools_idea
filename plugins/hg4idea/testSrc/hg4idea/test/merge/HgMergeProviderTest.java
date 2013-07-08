@@ -172,13 +172,11 @@ public class HgMergeProviderTest extends HgPlatformTest {
     hg("add " + aFile);
     hg("commit -m 'create file' ");
     hg("update");
-    myRepository.refresh(false, true);
     final VirtualFile parentFile = myRepository.findChild(aFile);
     assertNotNull("Can't find " + aFile + " in parent repo!", parentFile);
     cd(myChildRepo);
     hg("pull");
     hg("update");
-    myChildRepo.refresh(false, true);
     final VirtualFile childFile = myChildRepo.findChild(aFile);
     return Pair.create(parentFile, childFile);
   }
@@ -194,4 +192,5 @@ public class HgMergeProviderTest extends HgPlatformTest {
   private static void assertEquals(String s, byte[] bytes) {
     Assert.assertEquals(s, new String(bytes));
   }
+
 }

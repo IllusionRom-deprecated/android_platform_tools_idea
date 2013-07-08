@@ -50,7 +50,10 @@ import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.idea.maven.execution.*;
 import org.jetbrains.idea.maven.model.MavenArtifact;
-import org.jetbrains.idea.maven.project.*;
+import org.jetbrains.idea.maven.project.MavenArtifactDownloader;
+import org.jetbrains.idea.maven.project.MavenProject;
+import org.jetbrains.idea.maven.project.MavenProjectsManager;
+import org.jetbrains.idea.maven.project.MavenProjectsTree;
 
 import javax.swing.*;
 import java.io.File;
@@ -528,8 +531,7 @@ public abstract class MavenImportingTestCase extends MavenTestCase {
           modules.add(getModule(each));
         }
         if (useJps()) {
-          new MavenResourceCompilerConfigurationGenerator(myProject, MavenProjectsManager.getInstance(myProject).getProjectsTreeForTests())
-            .generateBuildConfiguration(false);
+          MavenProjectsManager.getInstance(myProject).generateBuildConfiguration(false);
         }
       }
     });

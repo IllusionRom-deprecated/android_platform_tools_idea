@@ -26,7 +26,6 @@ package com.intellij.openapi.application.ex;
 
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.module.impl.ModuleManagerImpl;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.JDOMUtil;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
@@ -388,7 +387,7 @@ public class PathManagerEx {
     }
 
     ourCommunityModules = new THashSet<String>();
-    File modulesXml = findFileUnderCommunityHome(Project.DIRECTORY_STORE_FOLDER + "/modules.xml");
+    File modulesXml = findFileUnderCommunityHome(".idea/modules.xml");
     if (!modulesXml.exists()) {
       throw new IllegalStateException("Cannot obtain test data path: " + modulesXml.getAbsolutePath() + " not found");
     }

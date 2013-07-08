@@ -175,10 +175,6 @@ public class JUnit4IdeaTestRunner implements IdeaTestRunner {
     return myRegistry;
   }
 
-  public String getTestClassName(Object child) {
-    return ((Description)child).getClassName();
-  }
-
   public String getStartDescription(Object child) {
     final Description description = (Description)child;
     final String methodName = description.getMethodName();

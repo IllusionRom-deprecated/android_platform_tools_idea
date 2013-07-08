@@ -36,6 +36,4 @@ public interface IdeaTestRunner {
   String getStartDescription(Object child);
 
   OutputObjectRegistry getRegistry();
-
-  String getTestClassName(Object child);
 }

@@ -18,7 +18,6 @@ package com.intellij.codeInspection.ex;
 
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInspection.InspectionProfile;
-import com.intellij.codeInspection.InspectionProfileEntry;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
@@ -27,6 +26,7 @@ import com.intellij.util.Function;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -40,29 +40,40 @@ public class InspectionProfileWrapper {
   /**
    * Key that is assumed to hold strategy that customizes {@link InspectionProfileWrapper} object to use.
    * <p/>
-   * I.e. given strategy (if any) receives {@link InspectionProfileWrapper} object that is going to be used so far and returns
+   * I.e. given strategy (if any) receives {@link InspectionProfileWrapper} object that is going to be used so far and returns 
    * {@link InspectionProfileWrapper} object that should be used later.
    */
   public static final Key<Function<InspectionProfileWrapper, InspectionProfileWrapper>> CUSTOMIZATION_KEY
     = Key.create("Inspection Profile Wrapper Customization");
-  protected final InspectionProfile myProfile;
+  private final InspectionProfileImpl myProfile;
 
-  public InspectionProfileWrapper(@NotNull InspectionProfile profile) {
-    myProfile = profile;
+  public InspectionProfileWrapper(final InspectionProfile profile) {
+    myProfile = (InspectionProfileImpl)profile;
   }
 
-  @NotNull
-  public InspectionProfileEntry[] getInspectionTools(PsiElement element){
-     return myProfile.getInspectionTools(element);
+  public InspectionTool[] getInspectionTools(PsiElement element){
+     return (InspectionTool[])myProfile.getInspectionTools(element);
+  }
+
+  public List<LocalInspectionToolWrapper> getHighlightingLocalInspectionTools(PsiElement element) {
+    List<LocalInspectionToolWrapper> enabled = new ArrayList<LocalInspectionToolWrapper>();
+    final InspectionTool[] tools = getInspectionTools(element);
+    checkInspectionsDuplicates(tools);
+    for (InspectionTool tool : tools) {
+      if (tool instanceof LocalInspectionToolWrapper && myProfile.isToolEnabled(HighlightDisplayKey.find(tool.getShortName()), element)) {
+        enabled.add((LocalInspectionToolWrapper)tool);
+      }
+    }
+    return enabled;
   }
 
   // check whether some inspection got registered twice by accident. 've bit once.
   private static boolean alreadyChecked;
-  public static void checkInspectionsDuplicates(@NotNull InspectionProfileEntry[] tools) {
+  private static void checkInspectionsDuplicates(@NotNull InspectionTool[] tools) {
     if (alreadyChecked) return;
     alreadyChecked = true;
-    Set<InspectionProfileEntry> uniqTools = new THashSet<InspectionProfileEntry>(tools.length);
-    for (InspectionProfileEntry tool : tools) {
+    Set<InspectionTool> uniqTools = new THashSet<InspectionTool>(tools.length);
+    for (InspectionTool tool : tools) {
       if (!uniqTools.add(tool)) {
         LOG.error("Inspection " + tool.getDisplayName() + " (" + tool.getClass() + ") already registered");
       }
@@ -81,13 +92,12 @@ public class InspectionProfileWrapper {
     return myProfile.isToolEnabled(key);
   }
 
-//  InspectionToolWrapper
-  public InspectionProfileEntry getInspectionTool(final String shortName, PsiElement element) {
-    return myProfile.getInspectionTool(shortName, element);
+  public InspectionTool getInspectionTool(final String shortName, PsiElement element) {
+    return (InspectionTool)myProfile.getInspectionTool(shortName, element);
   }
 
   public void init(final Project project) {
-    final List<Tools> profileEntries = myProfile.getAllEnabledInspectionTools(project);
+    final List<ToolsImpl> profileEntries = myProfile.getAllEnabledInspectionTools(project);
     for (Tools profileEntry : profileEntries) {
       for (ScopeToolState toolState : profileEntry.getTools()) {
         toolState.getTool().projectOpened(project);
@@ -95,11 +105,10 @@ public class InspectionProfileWrapper {
     }
   }
 
-  public void cleanup(@NotNull Project project){
+  public void cleanup(final Project project){
     myProfile.cleanup(project);
   }
 
-  @NotNull
   public InspectionProfile getInspectionProfile() {
     return myProfile;
   }

@@ -37,20 +37,16 @@ public class SchemaPrefixReference extends PsiReferenceBase<XmlElement> implemen
   private final SchemaPrefix myPrefix;
 
   private final String myName;
-  @Nullable
-  private final TagNameReference myTagNameReference;
 
   /**
    *
    * @param element XmlAttribute || XmlAttributeValue
    * @param range
    * @param name
-   * @param reference
    */
-  public SchemaPrefixReference(XmlElement element, TextRange range, String name, TagNameReference reference) {
+  public SchemaPrefixReference(XmlElement element, TextRange range, String name) {
     super(element, range);
     myName = name;
-    myTagNameReference = reference;
     if (myElement instanceof XmlAttribute && (((XmlAttribute)myElement).isNamespaceDeclaration())) {
       myPrefix = new SchemaPrefix((XmlAttribute)myElement, getRangeInElement(), myName);
     }
@@ -111,10 +107,5 @@ public class SchemaPrefixReference extends PsiReferenceBase<XmlElement> implemen
   @Override
   public boolean isPrefixReference() {
     return true;
-  }
-
-  @Nullable
-  public TagNameReference getTagNameReference() {
-    return myTagNameReference;
   }
 }
