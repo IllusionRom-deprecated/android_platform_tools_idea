@@ -33,10 +33,6 @@ public interface StatisticsService {
   @NonNls String DETAILS = "details";
   @NonNls String ALLOW_CHECKBOX = "allow-checkbox";
 
-  @NonNls String TITLE = "title";
-  @NonNls String DETAILS = "details";
-  @NonNls String ALLOW_CHECKBOX = "allow-checkbox";
-
   StatisticsResult send();
 
   Notification createNotification(@NotNull String groupDisplayId, @Nullable NotificationListener listener);
