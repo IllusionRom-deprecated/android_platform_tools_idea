@@ -15,12 +15,17 @@
  */
 package com.intellij.codeInspection;
 
+import com.intellij.analysis.AnalysisScope;
+import com.intellij.codeInsight.daemon.impl.DaemonProgressIndicator;
 import com.intellij.codeInspection.ex.*;
+import com.intellij.codeInspection.reference.RefElement;
 import com.intellij.codeInspection.reference.RefManagerImpl;
+import com.intellij.codeInspection.ui.InspectionToolPresentation;
 import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -34,31 +39,41 @@ public class InspectionRunningUtil {
     return runInspectionOnFile(file, new LocalInspectionToolWrapper(inspectionTool));
   }
 
-  public static List<CommonProblemDescriptor> runInspectionOnFile(@NotNull PsiFile file, @NotNull InspectionToolWrapper tool) {
+  @NotNull
+  public static List<CommonProblemDescriptor> runInspectionOnFile(@NotNull PsiFile file, @NotNull InspectionToolWrapper toolWrapper) {
     final InspectionManagerEx managerEx = (InspectionManagerEx)InspectionManager.getInstance(file.getProject());
     final GlobalInspectionContextImpl context = managerEx.createNewGlobalContext(false);
-    tool.initialize(context);
-    ((RefManagerImpl)context.getRefManager()).inspectionReadActionStarted();
+    toolWrapper.initialize(context);
+    RefManagerImpl refManager = (RefManagerImpl)context.getRefManager();
+    refManager.inspectionReadActionStarted();
     try {
-      if (tool instanceof LocalInspectionToolWrapper) {
-        ((LocalInspectionToolWrapper)tool).processFile(file, true, managerEx, false);
-        return new ArrayList<CommonProblemDescriptor>(tool.getProblemDescriptors());
+      if (toolWrapper instanceof LocalInspectionToolWrapper) {
+        LocalInspectionTool localTool = ((LocalInspectionToolWrapper)toolWrapper).getTool();
+        List<ProblemDescriptor> descriptors =
+          InspectionEngine.inspect(Collections.singletonList(localTool), file, managerEx, false, false, new DaemonProgressIndicator());
+        return new ArrayList<CommonProblemDescriptor>(descriptors);
       }
-      else if (tool instanceof GlobalInspectionToolWrapper) {
-        final GlobalInspectionTool globalInspectionTool = ((GlobalInspectionToolWrapper)tool).getTool();
-        if (globalInspectionTool instanceof GlobalSimpleInspectionTool) {
+      if (toolWrapper instanceof GlobalInspectionToolWrapper) {
+        final GlobalInspectionTool globalTool = ((GlobalInspectionToolWrapper)toolWrapper).getTool();
+        if (globalTool instanceof GlobalSimpleInspectionTool) {
+          GlobalSimpleInspectionTool simpleTool = (GlobalSimpleInspectionTool)globalTool;
           ProblemsHolder problemsHolder = new ProblemsHolder(managerEx, file, false);
-          ((GlobalSimpleInspectionTool)globalInspectionTool)
-            .checkFile(file, managerEx, problemsHolder, context, tool);
-          return new ArrayList<CommonProblemDescriptor>(tool.getProblemDescriptors());
+          InspectionToolPresentation presentation = context.getPresentation(toolWrapper);
+          simpleTool.checkFile(file, managerEx, problemsHolder, context, presentation);
+          return new ArrayList<CommonProblemDescriptor>(presentation.getProblemDescriptors());
+        }
+        RefElement fileRef = refManager.getReference(file);
+        CommonProblemDescriptor[] descriptors = globalTool.checkElement(fileRef, new AnalysisScope(file), managerEx, context);
+        if (descriptors != null) {
+          return Arrays.asList(descriptors);
         }
       }
       return Collections.emptyList();
     }
     finally {
-      ((RefManagerImpl)context.getRefManager()).inspectionReadActionFinished();
-      tool.cleanup();
-      context.cleanup(managerEx);
+      refManager.inspectionReadActionFinished();
+      toolWrapper.cleanup();
+      context.cleanup();
     }
   }
 }

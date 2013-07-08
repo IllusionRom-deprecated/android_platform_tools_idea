@@ -149,6 +149,7 @@
     <typeConverter implementation="org.jetbrains.plugins.groovy.lang.psi.typeEnhancers.GrContainerTypeConverter"/>
     <typeConverter implementation="org.jetbrains.plugins.groovy.lang.psi.typeEnhancers.GrStringTypeConverter"/>
     <typeConverter implementation="org.jetbrains.plugins.groovy.lang.psi.typeEnhancers.GrBooleanTypeConverter"/>
+    <typeConverter implementation="org.jetbrains.plugins.groovy.lang.psi.typeEnhancers.GrGenericTypeConverter"/>
 
     <typeConverter implementation="org.jetbrains.plugins.groovy.gpp.GppTypeConverter"/>
     <expectedTypesContributor implementation="org.jetbrains.plugins.groovy.gpp.GppExpectedTypesContributor"/>
@@ -196,9 +197,7 @@
     <testGenerator language="Groovy" implementationClass="org.jetbrains.plugins.groovy.testIntegration.GroovyTestGenerator"/>
     <constructorBodyGenerator language="Groovy"
                               implementationClass="org.jetbrains.plugins.groovy.annotator.intentions.dynamic.GrConstructorBodyGenerator"/>
-    <!-- In Android Studio, we don't want editor notifications to setup Groovy Path when *.gradle files are opened. This is a temporary
-    hack to remove this until we figure out how to disable it just for gradle scripts.
-    <editorNotificationProvider implementation="org.jetbrains.plugins.groovy.annotator.ConfigureGroovyLibraryNotificationProvider"/> -->
+    <editorNotificationProvider implementation="org.jetbrains.plugins.groovy.annotator.ConfigureGroovyLibraryNotificationProvider"/>
     <refactoring.introduceParameterMethodUsagesProcessor
         implementation="org.jetbrains.plugins.groovy.refactoring.introduce.parameter.java2groovy.GroovyIntroduceParameterMethodUsagesProcessor"/>
     <refactoring.changeSignatureUsageProcessor
@@ -399,6 +398,9 @@
                              implementationClass="org.jetbrains.plugins.groovy.lang.resolve.GroovyStringLiteralManipulator"/>
     <lang.elementManipulator forClass="org.jetbrains.plugins.groovy.lang.psi.api.statements.arguments.GrArgumentLabel"
                              implementationClass="org.jetbrains.plugins.groovy.lang.psi.impl.statements.arguments.GrArgumentLabelManipulator"/>
+    <lang.elementManipulator forClass="org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals.GrStringContent"
+                             implementationClass="org.jetbrains.plugins.groovy.lang.resolve.GroovyStringLiteralManipulator"/>
+
 
     <directClassInheritorsSearch implementation="org.jetbrains.plugins.groovy.lang.psi.impl.GroovyDirectInheritorsSearcher"/>
 

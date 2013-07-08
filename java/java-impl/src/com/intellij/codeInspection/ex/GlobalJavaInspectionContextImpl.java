@@ -25,6 +25,7 @@ import com.intellij.analysis.AnalysisScope;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.deadCode.UnusedDeclarationInspection;
 import com.intellij.codeInspection.reference.*;
+import com.intellij.codeInspection.ui.InspectionToolPresentation;
 import com.intellij.lang.StdLanguages;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
@@ -68,8 +69,8 @@ public class GlobalJavaInspectionContextImpl extends GlobalJavaInspectionContext
   public void enqueueClassUsagesProcessor(RefClass refClass, UsagesProcessor p) {
     if (myClassUsagesRequests == null) myClassUsagesRequests = new THashMap<SmartPsiElementPointer, List<UsagesProcessor>>();
     enqueueRequestImpl(refClass, myClassUsagesRequests, p);
-  }
 
+  }
   @Override
   public void enqueueDerivedClassesProcessor(RefClass refClass, DerivedClassesProcessor p) {
     if (myDerivedClassesRequests == null) myDerivedClassesRequests = new THashMap<SmartPsiElementPointer, List<DerivedClassesProcessor>>();
@@ -101,7 +102,7 @@ public class GlobalJavaInspectionContextImpl extends GlobalJavaInspectionContext
   }
 
   @SuppressWarnings({"UseOfSystemOutOrSystemErr"})
-  public static boolean isInspectionsEnabled(final boolean online, Project project) {
+  public static boolean isInspectionsEnabled(final boolean online, @NotNull Project project) {
     final Module[] modules = ModuleManager.getInstance(project).getModules();
     if (online) {
       if (modules.length == 0) {
@@ -413,12 +414,14 @@ public class GlobalJavaInspectionContextImpl extends GlobalJavaInspectionContext
   }
 
   @Override
-  public void performPreRunActivities(final List<Tools> globalTools, final List<Tools> localTools,
-                                      final GlobalInspectionContext context) {
+  public void performPreRunActivities(@NotNull final List<Tools> globalTools,
+                                      @NotNull final List<Tools> localTools,
+                                      @NotNull final GlobalInspectionContext context) {
     getEntryPointsManager(context.getRefManager()).resolveEntryPoints(context.getRefManager());
+    // UnusedDeclarationInspection should run first
     for (int i = 0; i < globalTools.size(); i++) {
-      InspectionProfileEntry tool = globalTools.get(i).getTool();
-      if (UnusedDeclarationInspection.SHORT_NAME.equals(tool.getShortName())) {
+      InspectionToolWrapper toolWrapper = globalTools.get(i).getTool();
+      if (UnusedDeclarationInspection.SHORT_NAME.equals(toolWrapper.getShortName())) {
         Collections.swap(globalTools, i, 0);
         break;
       }
@@ -428,17 +431,22 @@ public class GlobalJavaInspectionContextImpl extends GlobalJavaInspectionContext
 
 
   @Override
-  public void performPostRunActivities(List<InspectionProfileEntry> needRepeatSearchRequest, final GlobalInspectionContext context) {
+  public void performPostRunActivities(@NotNull List<InspectionToolWrapper> needRepeatSearchRequest, @NotNull final GlobalInspectionContext context) {
     JobDescriptor progress = context.getStdJobDescriptors().FIND_EXTERNAL_USAGES;
     progress.setTotalAmount(getRequestCount());
 
     do {
       processSearchRequests(context);
-      InspectionProfileEntry[] requestors = needRepeatSearchRequest.toArray(new InspectionProfileEntry[needRepeatSearchRequest.size()]);
-      for (InspectionProfileEntry requestor : requestors) {
-        if (requestor instanceof InspectionTool &&
-            !((InspectionTool)requestor).queryExternalUsagesRequests(InspectionManager.getInstance(context.getProject()))) {
-          needRepeatSearchRequest.remove(requestor);
+      InspectionToolWrapper[] requestors = needRepeatSearchRequest.toArray(new InspectionToolWrapper[needRepeatSearchRequest.size()]);
+      InspectionManager inspectionManager = InspectionManager.getInstance(context.getProject());
+      for (InspectionToolWrapper toolWrapper : requestors) {
+        boolean result = false;
+        if (toolWrapper instanceof GlobalInspectionToolWrapper) {
+          InspectionToolPresentation presentation = ((GlobalInspectionContextImpl)context).getPresentation(toolWrapper);
+          result = ((GlobalInspectionToolWrapper)toolWrapper).getTool().queryExternalUsagesRequests(inspectionManager, context, presentation);
+        }
+        if (!result) {
+          needRepeatSearchRequest.remove(toolWrapper);
         }
       }
       int oldSearchRequestCount = progress.getTotalAmount();

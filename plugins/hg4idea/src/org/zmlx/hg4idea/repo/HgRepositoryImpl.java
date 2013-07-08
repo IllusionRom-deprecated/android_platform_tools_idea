@@ -23,6 +23,7 @@ import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.zmlx.hg4idea.HgVcs;
 import org.zmlx.hg4idea.util.HgUtil;
 
@@ -40,12 +41,15 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
   @NotNull private final VirtualFile myHgDir;
 
   @NotNull private volatile String myCurrentBranch = DEFAULT_BRANCH;
+  @Nullable private volatile String myCurrentBookmark = null;
   @NotNull private volatile Collection<String> myBranches = Collections.emptySet();
+  @NotNull private volatile Collection<String> myBookmarks = Collections.emptySet();
+  @NotNull private volatile HgConfig myConfig;
   private boolean myIsFresh = true;
 
 
   @SuppressWarnings("ConstantConditions")
-  protected HgRepositoryImpl(@NotNull VirtualFile rootDir, @NotNull Project project,
+  private HgRepositoryImpl(@NotNull VirtualFile rootDir, @NotNull Project project,
                              @NotNull Disposable parentDisposable) {
     super(project, rootDir, parentDisposable);
     myHgDir = rootDir.findChild(HgUtil.DOT_HG);
@@ -53,12 +57,13 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
     myState = State.NORMAL;
     myCurrentRevision = null;
     myReader = new HgRepositoryReader(VfsUtilCore.virtualToIoFile(myHgDir));
+    myConfig = HgConfig.getInstance(project, rootDir);
     update();
   }
 
   @NotNull
-  public static HgRepository getFullInstance(@NotNull VirtualFile root, @NotNull Project project,
-                                             @NotNull Disposable parentDisposable) {
+  public static HgRepository getInstance(@NotNull VirtualFile root, @NotNull Project project,
+                                         @NotNull Disposable parentDisposable) {
     HgRepositoryImpl repository = new HgRepositoryImpl(root, project, parentDisposable);
     repository.setupUpdater();
     return repository;
@@ -88,6 +93,23 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
     return myBranches;
   }
 
+  @NotNull
+  @Override
+  public Collection<String> getBookmarks() {
+    return myBookmarks;
+  }
+
+  @Nullable
+  @Override
+  public String getCurrentBookmark() {
+    return myCurrentBookmark;
+  }
+
+  @NotNull
+  @Override
+  public HgConfig getRepositoryConfig() {
+    return myConfig;
+  }
 
   @Override
   public boolean isFresh() {
@@ -102,6 +124,7 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
     }
   }
 
+  @NotNull
   @Override
   public String toLogString() {
     return String.format("HgRepository{myCurrentBranch=%s, myCurrentRevision='%s', myState=%s, myRootDir=%s}",
@@ -109,12 +132,18 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
   }
 
   private void readRepository() {
-     myIsFresh = myIsFresh && myReader.checkIsFresh(); //if repository not fresh  - it will be not fresh all time
+    myIsFresh = myIsFresh && myReader.checkIsFresh(); //if repository not fresh  - it will be not fresh all time
     if (!isFresh()) {
       myState = myReader.readState();
       myCurrentRevision = myReader.readCurrentRevision();
       myCurrentBranch = myReader.readCurrentBranch();
       myBranches = myReader.readBranches();
+      myBookmarks = myReader.readBookmarks();
+      myCurrentBookmark = myReader.readCurrentBookmark();
     }
+  }
+
+  public void updateConfig(){
+    myConfig = HgConfig.getInstance(getProject(),getRoot());
   }
 }

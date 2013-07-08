@@ -99,6 +99,7 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   public void testReturningNullFromVoidMethod() throws Throwable { doTest(); }
 
   public void testCatchRuntimeException() throws Throwable { doTest(); }
+  public void testCatchThrowable() throws Throwable { doTest(); }
   public void testNotNullCatchParameter() { doTest(); }
 
   public void testAssertFailInCatch() throws Throwable {
@@ -170,6 +171,8 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
 
   public void testEqualsHasNoSideEffects() { doTest(); }
 
+  public void testHonorGetterAnnotation() { doTest(); }
+
   public void testIsNullCheck() throws Exception {
     ConditionCheckManager.getInstance(myModule.getProject()).getIsNullCheckMethods().add(
       buildConditionChecker("Value", "isNull", ConditionChecker.Type.IS_NULL_METHOD,
@@ -227,5 +230,12 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
     }
     assert psiMethod != null;
     return new ConditionChecker.FromPsiBuilder(psiMethod, psiMethod.getParameterList().getParameters()[0], type).build();
+  }
+
+  public void testIgnoreAssertions() {
+    final DataFlowInspection inspection = new DataFlowInspection();
+    inspection.IGNORE_ASSERT_STATEMENTS = true;
+    myFixture.enableInspections(inspection);
+    myFixture.testHighlighting(true, false, true, getTestName(false) + ".java");
   }
 }

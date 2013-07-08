@@ -40,7 +40,6 @@ public class SendFeedbackAction extends AnAction implements DumbAware {
     urlTemplate = urlTemplate
       .replace("$BUILD", appInfo.getBuild().asString())
       .replace("$TIMEZONE", System.getProperty("user.timezone"))
-      .replace("$VERSION", appInfo.getFullVersion())
       .replace("$EVAL", isEvaluationLicense() ? "true" : "false");
     BrowserUtil.launchBrowser(urlTemplate);
   }

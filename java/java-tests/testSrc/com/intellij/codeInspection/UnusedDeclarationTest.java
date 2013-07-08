@@ -18,6 +18,7 @@ package com.intellij.codeInspection;
 import com.intellij.JavaTestUtil;
 import com.intellij.codeInspection.deadCode.UnusedDeclarationInspection;
 import com.intellij.codeInspection.ex.EntryPointsManagerImpl;
+import com.intellij.codeInspection.ex.GlobalInspectionToolWrapper;
 import com.intellij.openapi.roots.LanguageLevelProjectExtension;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.testFramework.InspectionTestCase;
@@ -40,7 +41,7 @@ public class UnusedDeclarationTest extends InspectionTestCase {
   }
 
   private void doTest() {
-    doTest("deadCode/" + getTestName(true), myTool);
+    doTest("deadCode/" + getTestName(true), new GlobalInspectionToolWrapper(myTool));
   }
 
   public void testSCR6067() {
@@ -151,7 +152,7 @@ public class UnusedDeclarationTest extends InspectionTestCase {
   public void testJunitAbstractClassWithoutInheritor() {
     doTest();
   }
-  
+
   public void testJunitEntryPointCustomRunWith() {
     doTest();
   }

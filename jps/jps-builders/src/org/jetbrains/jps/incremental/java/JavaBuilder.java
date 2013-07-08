@@ -50,15 +50,14 @@ import org.jetbrains.jps.incremental.messages.ProgressMessage;
 import org.jetbrains.jps.javac.*;
 import org.jetbrains.jps.model.JpsDummyElement;
 import org.jetbrains.jps.model.JpsProject;
-import org.jetbrains.jps.model.JpsSimpleElement;
-import org.jetbrains.jps.model.java.*;
+import org.jetbrains.jps.model.java.JpsJavaExtensionService;
+import org.jetbrains.jps.model.java.JpsJavaSdkType;
+import org.jetbrains.jps.model.java.LanguageLevel;
 import org.jetbrains.jps.model.java.compiler.*;
 import org.jetbrains.jps.model.library.sdk.JpsSdk;
 import org.jetbrains.jps.model.module.JpsModule;
 import org.jetbrains.jps.model.module.JpsModuleType;
-import org.jetbrains.jps.model.module.JpsTypedModuleSourceRoot;
 import org.jetbrains.jps.service.JpsServiceManager;
-import org.jetbrains.jps.util.JpsPathUtil;
 
 import javax.tools.*;
 import java.io.*;
@@ -233,7 +232,6 @@ public class JavaBuilder extends ModuleLevelBuilder {
     final Collection<File> platformCp = ProjectPaths.getPlatformCompilationClasspath(chunk, false/*context.isProjectRebuild()*/);
 
     // begin compilation round
-    final DiagnosticSink diagnosticSink = new DiagnosticSink(context);
     final Mappings delta = pd.dataManager.getMappings().createDelta();
     final Callbacks.Backend mappingsCallback = delta.getCallback();
     final OutputFilesSink outputSink = new OutputFilesSink(context, outputConsumer, mappingsCallback, chunk.getName());
@@ -248,14 +246,14 @@ public class JavaBuilder extends ModuleLevelBuilder {
         exitCode = ExitCode.OK;
 
         final Set<File> srcPath = new HashSet<File>();
-        collectSourceRoots(chunk, srcPath, chunk.containsTests()? JavaSourceRootType.TEST_SOURCE : JavaSourceRootType.SOURCE);
         final BuildRootIndex index = pd.getBuildRootIndex();
         for (ModuleBuildTarget target : chunk.getTargets()) {
           for (JavaSourceRootDescriptor rd : index.getTempTargetRoots(target, context)) {
             srcPath.add(rd.root);
           }
         }
-
+        final DiagnosticSink diagnosticSink = new DiagnosticSink(context);
+        
         final String chunkName = chunk.getName();
         context.processMessage(new ProgressMessage("Parsing java... [" + chunkName + "]"));
 
@@ -276,7 +274,17 @@ public class JavaBuilder extends ModuleLevelBuilder {
               LOG.debug("  " + file.getAbsolutePath());
             }
           }
-          compiledOk = compileJava(context, chunk, files, classpath, platformCp, srcPath, diagnosticSink, outputSink);
+          try {
+            compiledOk = compileJava(context, chunk, files, classpath, platformCp, srcPath, diagnosticSink, outputSink);
+          }
+          finally {
+            // heuristic: incorrect paths data recovery, so that the next make should not contain non-existing sources in 'recompile' list
+            for (File file : diagnosticSink.getFilesWithErrors()) {
+              if (!file.exists()) {
+                FSOperations.markDeleted(context, file);
+              }
+            }
+          }
         }
 
         context.checkCanceled();
@@ -301,14 +309,6 @@ public class JavaBuilder extends ModuleLevelBuilder {
     }
 
     return exitCode;
-  }
-
-  private static void collectSourceRoots(ModuleChunk chunk, Set<File> srcPath, final JavaSourceRootType rootType) {
-    for (JpsModule module : chunk.getModules()) {
-      for (JpsTypedModuleSourceRoot<JpsSimpleElement<JavaSourceRootProperties>> root : module.getSourceRoots(rootType)) {
-        srcPath.add(JpsPathUtil.urlToFile(root.getUrl()));
-      }
-    }
   }
 
   private boolean compileJava(
@@ -780,13 +780,18 @@ public class JavaBuilder extends ModuleLevelBuilder {
     return map;
   }
 
-  private class DiagnosticSink implements DiagnosticOutputConsumer {
+  private static class DiagnosticSink implements DiagnosticOutputConsumer {
     private final CompileContext myContext;
     private volatile int myErrorCount = 0;
     private volatile int myWarningCount = 0;
+    private final Set<File> myFilesWithErrors = new HashSet<File>();
 
     public DiagnosticSink(CompileContext context) {
       myContext = context;
+    }
+
+    @Override
+    public void javaFileLoaded(File file) {
     }
 
     public void registerImports(final String className, final Collection<String> imports, final Collection<String> staticImports) {
@@ -819,7 +824,7 @@ public class JavaBuilder extends ModuleLevelBuilder {
       }
     }
 
-    private BuildMessage.Kind getKindByMessageText(String line) {
+    private static BuildMessage.Kind getKindByMessageText(String line) {
       final String lowercasedLine = line.toLowerCase(Locale.US);
       if (lowercasedLine.contains("error") || lowercasedLine.contains("requires target release")) {
         return BuildMessage.Kind.ERROR;
@@ -853,15 +858,23 @@ public class JavaBuilder extends ModuleLevelBuilder {
       catch (Exception e) {
         LOG.info(e);
       }
-      final String srcPath = sourceFile != null ? FileUtil.toSystemIndependentName(sourceFile.getPath()) : null;
+      final String srcPath;
+      if (sourceFile != null) {
+        myFilesWithErrors.add(sourceFile);
+        srcPath = FileUtil.toSystemIndependentName(sourceFile.getPath());
+      }
+      else {
+        srcPath = null;
+      }
       String message = diagnostic.getMessage(Locale.US);
       if (Utils.IS_TEST_MODE) {
         LOG.info(message);
       }
-      myContext.processMessage(
-        new CompilerMessage(BUILDER_NAME, kind, message, srcPath, diagnostic.getStartPosition(),
-                            diagnostic.getEndPosition(), diagnostic.getPosition(), diagnostic.getLineNumber(),
-                            diagnostic.getColumnNumber()));
+      myContext.processMessage(new CompilerMessage(
+        BUILDER_NAME, kind, message, srcPath, diagnostic.getStartPosition(),
+        diagnostic.getEndPosition(), diagnostic.getPosition(), diagnostic.getLineNumber(),
+        diagnostic.getColumnNumber()
+      ));
     }
 
     public int getErrorCount() {
@@ -870,6 +883,10 @@ public class JavaBuilder extends ModuleLevelBuilder {
 
     public int getWarningCount() {
       return myWarningCount;
+    }
+
+    public Collection<File> getFilesWithErrors() {
+      return myFilesWithErrors;
     }
   }
 

@@ -81,7 +81,7 @@ public class IncProjectBuilder {
   private static final String CLASSPATH_INDEX_FINE_NAME = "classpath.index";
   private static final boolean GENERATE_CLASSPATH_INDEX = Boolean.parseBoolean(System.getProperty(GlobalOptions.GENERATE_CLASSPATH_INDEX_OPTION, "false"));
   private static final GlobalContextKey<Set<BuildTarget<?>>> TARGET_WITH_CLEARED_OUTPUT = GlobalContextKey.create("_targets_with_cleared_output_");
-  private static final int MAX_BUILDER_THREADS;
+  public static final int MAX_BUILDER_THREADS;
   static {
     int maxThreads = 6;
     try {
@@ -105,6 +105,7 @@ public class IncProjectBuilder {
       }
     }
   };
+  private final boolean myIsTestMode;
 
   private volatile float myTargetsProcessed = 0.0f;
   private final float myTotalTargetsWork;
@@ -112,7 +113,7 @@ public class IncProjectBuilder {
   private final List<Future> myAsyncTasks = Collections.synchronizedList(new ArrayList<Future>());
 
   public IncProjectBuilder(ProjectDescriptor pd, BuilderRegistry builderRegistry, Map<String, String> builderParams, CanceledStatus cs,
-                           @Nullable Callbacks.ConstantAffectionResolver constantSearch) {
+                           @Nullable Callbacks.ConstantAffectionResolver constantSearch, final boolean isTestMode) {
     myProjectDescriptor = pd;
     myBuilderRegistry = builderRegistry;
     myBuilderParams = builderParams;
@@ -120,6 +121,7 @@ public class IncProjectBuilder {
     myConstantSearch = constantSearch;
     myTotalTargetsWork = pd.getBuildTargetIndex().getAllTargets().size();
     myTotalModuleLevelBuilderCount = builderRegistry.getModuleLevelBuilderCount();
+    myIsTestMode = isTestMode;
   }
 
   public void addMessageHandler(MessageHandler handler) {
@@ -936,15 +938,10 @@ public class IncProjectBuilder {
         final ProjectBuilderLogger logger = context.getLoggingManager().getProjectBuilderLogger();
         // actually delete outputs associated with removed paths
         final Collection<String> pathsForIteration;
-        if (Utils.IS_TEST_MODE) {
+        if (myIsTestMode) {
           // ensure predictable order in test logs
           pathsForIteration = new ArrayList<String>(deletedPaths);
-          Collections.sort((List<String>)pathsForIteration, new Comparator<String>() {
-            @Override
-            public int compare(String o1, String o2) {
-              return o1.compareTo(o2);
-            }
-          });
+          Collections.sort((List<String>)pathsForIteration);
         }
         else {
           pathsForIteration = deletedPaths;
@@ -1060,6 +1057,10 @@ public class IncProjectBuilder {
         BUILDER_CATEGORY_LOOP:
         for (BuilderCategory category : BuilderCategory.values()) {
           final List<ModuleLevelBuilder> builders = myBuilderRegistry.getBuilders(category);
+          if (category == BuilderCategory.CLASS_POST_PROCESSOR) {
+            // ensure changes from instrumenters are visible to class post-processors
+            saveInstrumentedClasses(outputConsumer);
+          }
           if (builders.isEmpty()) {
             continue;
           }
@@ -1117,11 +1118,7 @@ public class IncProjectBuilder {
       while (nextPassRequired);
     }
     finally {
-      for (CompiledClass compiledClass : outputConsumer.getCompiledClasses().values()) {
-        if (compiledClass.isDirty()) {
-          compiledClass.save();
-        }
-      }
+      saveInstrumentedClasses(outputConsumer);
       outputConsumer.fireFileGeneratedEvents();
       outputConsumer.clear();
       for (BuilderCategory category : BuilderCategory.values()) {
@@ -1132,6 +1129,14 @@ public class IncProjectBuilder {
     }
 
     return doneSomething;
+  }
+
+  private static void saveInstrumentedClasses(ChunkBuildOutputConsumerImpl outputConsumer) throws IOException {
+    for (CompiledClass compiledClass : outputConsumer.getCompiledClasses().values()) {
+      if (compiledClass.isDirty()) {
+        compiledClass.save();
+      }
+    }
   }
 
   private static void onChunkBuildComplete(CompileContext context, @NotNull BuildTargetChunk chunk) throws IOException {

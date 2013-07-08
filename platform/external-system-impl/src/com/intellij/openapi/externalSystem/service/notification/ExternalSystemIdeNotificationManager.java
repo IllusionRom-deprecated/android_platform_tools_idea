@@ -15,6 +15,7 @@ import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.EditorNotifications;
+import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,7 +42,10 @@ public class ExternalSystemIdeNotificationManager {
                                                  @NotNull String externalProjectName,
                                                  @NotNull ProjectSystemId externalSystemId)
   {
-    ExternalSystemManager<?,?,?,?,?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
+    if (project.isDisposed() || !project.isOpen()) {
+      return;
+    }
+    ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
     if (!(manager instanceof ExternalSystemConfigurableAware)) {
       return;
     }
@@ -62,26 +66,32 @@ public class ExternalSystemIdeNotificationManager {
     });
   }
 
-  public void showNotification(@NotNull String title,
-                               @NotNull String message,
-                               @NotNull NotificationType type,
-                               @NotNull Project project,
-                               @NotNull ProjectSystemId externalSystemId,
-                               @Nullable NotificationListener listener)
+  public void showNotification(@NotNull final String title,
+                               @NotNull final String message,
+                               @NotNull final NotificationType type,
+                               @NotNull final Project project,
+                               @NotNull final ProjectSystemId externalSystemId,
+                               @Nullable final NotificationListener listener)
   {
-    NotificationGroup group = ExternalSystemUtil.getToolWindowElement(NotificationGroup.class,
-                                                                      project,
-                                                                      ExternalSystemDataKeys.NOTIFICATION_GROUP,
-                                                                      externalSystemId);
-    if (group == null) {
-      return;
-    }
+    UIUtil.invokeLaterIfNeeded(new Runnable() {
+      @Override
+      public void run() {
+        NotificationGroup group = ExternalSystemUtil.getToolWindowElement(NotificationGroup.class,
+                                                                          project,
+                                                                          ExternalSystemDataKeys.NOTIFICATION_GROUP,
+                                                                          externalSystemId);
+        if (group == null) {
+          return;
+        }
 
-    Notification notification = group.createNotification(title, message, type, listener);
-    applyNotification(notification, project);
+        Notification notification = group.createNotification(title, message, type, listener);
+        applyNotification(notification, project); 
+      }
+    });
+    
   }
   
-  private void applyNotification(@NotNull Notification notification, @NotNull Project project) {
+  private void applyNotification(@NotNull final Notification notification, @NotNull final Project project) {
     final Notification oldNotification = myNotification.get();
     if (oldNotification != null && myNotification.compareAndSet(oldNotification, null)) {
       oldNotification.expire();
@@ -91,6 +101,8 @@ public class ExternalSystemIdeNotificationManager {
       return;
     }
 
-    notification.notify(project);
+    if (!project.isDisposed() && project.isOpen()) {
+      notification.notify(project);
+    }
   }
 }

@@ -24,7 +24,10 @@ import com.intellij.testFramework.UsefulTestCase;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.zmlx.hg4idea.HgVcs;
+import org.zmlx.hg4idea.repo.HgRepository;
+import org.zmlx.hg4idea.util.HgUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -89,20 +92,28 @@ public abstract class HgPlatformTest extends UsefulTestCase {
     super.tearDown();
   }
 
-  private static void setUpHgrc(@NotNull VirtualFile repositoryRoot) {
+  private static void setUpHgrc(@NotNull VirtualFile repositoryRoot) throws IOException {
     cd(".hg");
     File pluginRoot = new File(PluginPathManager.getPluginHomePath("hg4idea"));
     String pathToHgrc = "testData\\repo\\dot_hg";
     File hgrcFile = new File(new File(pluginRoot, FileUtil.toSystemIndependentName(pathToHgrc)), "hgrc");
     File hgrc = new File(new File(repositoryRoot.getPath(), ".hg"), "hgrc");
-    try {
-      FileUtil.appendToFile(hgrc, FileUtil.loadFile(hgrcFile));
-    }
-    catch (IOException e) {
-      e.printStackTrace();
-      fail("Can not update hgrc file.");
-    }
+    FileUtil.appendToFile(hgrc, FileUtil.loadFile(hgrcFile));
     assertTrue(hgrc.exists());
+  }
+
+  protected static void appendToHgrc(@NotNull VirtualFile repositoryRoot, @NotNull String text) throws IOException {
+    cd(".hg");
+    File hgrc = new File(new File(repositoryRoot.getPath(), ".hg"), "hgrc");
+    FileUtil.appendToFile(hgrc, text);
+    assertTrue(hgrc.exists());
+  }
+
+
+  protected static void updateRepoConfig(@NotNull Project project, @Nullable VirtualFile repo) {
+    HgRepository hgRepository = HgUtil.getRepositoryManager(project).getRepositoryForRoot(repo);
+    assertNotNull(hgRepository);
+    hgRepository.updateConfig();
   }
 
   protected void createRepository(VirtualFile root) {
