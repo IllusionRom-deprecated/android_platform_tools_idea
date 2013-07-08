@@ -193,15 +193,9 @@ public abstract class DaemonAnalyzerTestCase extends CodeInsightTestCase {
     //((VirtualFilePointerManagerImpl)VirtualFilePointerManager.getInstance()).assertPointersDisposed();
   }
 
-  protected void enableInspectionTool(@NotNull InspectionProfileEntry tool){
-    assert !(tool instanceof InspectionToolWrapper) : tool;
-    InspectionToolWrapper wrapper = InspectionToolRegistrar.wrapTool(tool);
-    final String shortName = wrapper.getShortName();
-    final HighlightDisplayKey key = HighlightDisplayKey.find(shortName);
-    if (key == null) {
-      HighlightDisplayKey.register(shortName, wrapper.getDisplayName(), ((LocalInspectionToolWrapper)wrapper).getID());
-    }
-    myAvailableTools.put(shortName, wrapper);
+  protected void enableInspectionTool(@NotNull InspectionProfileEntry tool) {
+    InspectionToolWrapper toolWrapper = InspectionToolRegistrar.wrapTool(tool);
+    LightPlatformTestCase.enableInspectionTool(myAvailableTools, toolWrapper);
   }
 
   protected void enableInspectionToolsFromProvider(InspectionToolProvider toolProvider){

@@ -44,11 +44,12 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
   @Nullable private volatile String myCurrentBookmark = null;
   @NotNull private volatile Collection<String> myBranches = Collections.emptySet();
   @NotNull private volatile Collection<String> myBookmarks = Collections.emptySet();
+  @NotNull private volatile HgConfig myConfig;
   private boolean myIsFresh = true;
 
 
   @SuppressWarnings("ConstantConditions")
-  protected HgRepositoryImpl(@NotNull VirtualFile rootDir, @NotNull Project project,
+  private HgRepositoryImpl(@NotNull VirtualFile rootDir, @NotNull Project project,
                              @NotNull Disposable parentDisposable) {
     super(project, rootDir, parentDisposable);
     myHgDir = rootDir.findChild(HgUtil.DOT_HG);
@@ -56,12 +57,13 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
     myState = State.NORMAL;
     myCurrentRevision = null;
     myReader = new HgRepositoryReader(VfsUtilCore.virtualToIoFile(myHgDir));
+    myConfig = HgConfig.getInstance(project, rootDir);
     update();
   }
 
   @NotNull
-  public static HgRepository getFullInstance(@NotNull VirtualFile root, @NotNull Project project,
-                                             @NotNull Disposable parentDisposable) {
+  public static HgRepository getInstance(@NotNull VirtualFile root, @NotNull Project project,
+                                         @NotNull Disposable parentDisposable) {
     HgRepositoryImpl repository = new HgRepositoryImpl(root, project, parentDisposable);
     repository.setupUpdater();
     return repository;
@@ -103,6 +105,12 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
     return myCurrentBookmark;
   }
 
+  @NotNull
+  @Override
+  public HgConfig getRepositoryConfig() {
+    return myConfig;
+  }
+
   @Override
   public boolean isFresh() {
     return myIsFresh;
@@ -116,6 +124,7 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
     }
   }
 
+  @NotNull
   @Override
   public String toLogString() {
     return String.format("HgRepository{myCurrentBranch=%s, myCurrentRevision='%s', myState=%s, myRootDir=%s}",
@@ -132,5 +141,9 @@ public class HgRepositoryImpl extends RepositoryImpl implements HgRepository {
       myBookmarks = myReader.readBookmarks();
       myCurrentBookmark = myReader.readCurrentBookmark();
     }
+  }
+
+  public void updateConfig(){
+    myConfig = HgConfig.getInstance(getProject(),getRoot());
   }
 }

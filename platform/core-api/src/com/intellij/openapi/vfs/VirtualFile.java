@@ -48,6 +48,42 @@ public abstract class VirtualFile extends UserDataHolderBase implements Modifica
   public static final Key<Object> REQUESTOR_MARKER = Key.create("REQUESTOR_MARKER");
   public static final VirtualFile[] EMPTY_ARRAY = new VirtualFile[0];
 
+  /**
+   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when the name of a
+   * {@link VirtualFile} changes.
+   *
+   * @see VirtualFileListener#propertyChanged
+   * @see VirtualFilePropertyEvent#getPropertyName
+   */
+  @NonNls public static final String PROP_NAME = "name";
+
+  /**
+   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when the encoding of a
+   * {@link VirtualFile} changes.
+   *
+   * @see VirtualFileListener#propertyChanged
+   * @see VirtualFilePropertyEvent#getPropertyName
+   */
+  @NonNls public static final String PROP_ENCODING = "encoding";
+
+  /**
+   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when the write permission of a
+   * {@link VirtualFile} changes.
+   *
+   * @see VirtualFileListener#propertyChanged
+   * @see VirtualFilePropertyEvent#getPropertyName
+   */
+  @NonNls public static final String PROP_WRITABLE = "writable";
+
+  /**
+   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when a visibility of a
+   * {@link VirtualFile} changes.
+   *
+   * @see VirtualFileListener#propertyChanged
+   * @see VirtualFilePropertyEvent#getPropertyName
+   */
+  @NonNls public static final String PROP_HIDDEN = VFileProperty.HIDDEN.getName();
+
   private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.vfs.VirtualFile");
   private static final Key<byte[]> BOM_KEY = Key.create("BOM");
   private static final Key<Charset> CHARSET_KEY = Key.create("CHARSET");
@@ -111,47 +147,6 @@ public abstract class VirtualFile extends UserDataHolderBase implements Modifica
   }
 
   /**
-   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when the name of a
-   * {@link VirtualFile} changes.
-   *
-   * @see VirtualFileListener#propertyChanged
-   * @see VirtualFilePropertyEvent#getPropertyName
-   */
-  @NonNls public static final String PROP_NAME = "name";
-
-  /**
-   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when the encoding of a
-   * {@link VirtualFile} changes.
-   *
-   * @see VirtualFileListener#propertyChanged
-   * @see VirtualFilePropertyEvent#getPropertyName
-   */
-  @NonNls public static final String PROP_ENCODING = "encoding";
-
-  /**
-   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when the write permission of a
-   * {@link VirtualFile} changes.
-   *
-   * @see VirtualFileListener#propertyChanged
-   * @see VirtualFilePropertyEvent#getPropertyName
-   */
-  @NonNls public static final String PROP_WRITABLE = "writable";
-
-  /**
-   * Used as a property name in the {@link VirtualFilePropertyEvent} fired when a visibility of a
-   * {@link VirtualFile} changes.
-   *
-   * @see VirtualFileListener#propertyChanged
-   * @see VirtualFilePropertyEvent#getPropertyName
-   */
-  @NonNls public static final String PROP_HIDDEN = "hidden";
-
-  /**
-   * Used as a property name in the {@link #is(String)}.
-   */
-  @NonNls public static final String PROP_SPECIAL = "special";
-
-  /**
    * Gets the extension of this file. If file name contains '.' extension is the substring from the last '.'
    * to the end of the name, otherwise extension is null.
    *
@@ -211,6 +206,10 @@ public abstract class VirtualFile extends UserDataHolderBase implements Modifica
    */
   public abstract boolean isWritable();
 
+  public void setWritable(boolean writable) throws IOException {
+    throw new IOException("Not supported");
+  }
+
   /**
    * Checks whether this file is a directory.
    *
@@ -218,30 +217,25 @@ public abstract class VirtualFile extends UserDataHolderBase implements Modifica
    */
   public abstract boolean isDirectory();
 
-  /**
-   * Checks whether this file is a symbolic link.
-   *
-   * @return <code>true</code> if this file is a symbolic link, <code>false</code> otherwise
-   * @since 11.0
-   */
+  /** @deprecated use {@link #is(VFileProperty)} (to remove in IDEA 14) */
+  @SuppressWarnings("UnusedDeclaration")
   public boolean isSymLink() {
-    return false;
+    return is(VFileProperty.SYMLINK);
   }
 
-  /** @deprecated use {@link #is(String)} (to remove in IDEA 14) */
+  /** @deprecated use {@link #is(VFileProperty)} (to remove in IDEA 14) */
   @SuppressWarnings("UnusedDeclaration")
   public boolean isSpecialFile() {
-    return is(PROP_SPECIAL);
+    return is(VFileProperty.SPECIAL);
   }
 
   /**
    * Checks whether this file has a specific property.
-   * Examples of such properties are {@link #PROP_HIDDEN} or {@link #PROP_SPECIAL}.
    *
    * @return <code>true</code> if the file has a specific property, <code>false</code> otherwise
    * @since 13.0
    */
-  public boolean is(String property) {
+  public boolean is(@NotNull VFileProperty property) {
     return false;
   }
 
@@ -358,7 +352,7 @@ public abstract class VirtualFile extends UserDataHolderBase implements Modifica
       child = this;
     }
     else if (name.equals("..")) {
-      if (isSymLink()) {
+      if (is(VFileProperty.SYMLINK)) {
         final VirtualFile canonicalFile = getCanonicalFile();
         child = canonicalFile != null ? canonicalFile.getParent() : null;
       }

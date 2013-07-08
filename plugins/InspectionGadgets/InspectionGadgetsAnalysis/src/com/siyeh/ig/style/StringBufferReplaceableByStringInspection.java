@@ -104,10 +104,22 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
       final StringBuilder stringExpression;
       if (isAppendCall(initializer)) {
         stringExpression = buildStringExpression(initializer, new StringBuilder());
+        if (stringExpression == null) {
+          return;
+        }
+      } else if (initializer instanceof PsiNewExpression) {
+        final PsiNewExpression newExpression = (PsiNewExpression)initializer;
+        final PsiExpressionList argumentList = newExpression.getArgumentList();
+        if (argumentList == null) {
+          return;
+        }
+        final PsiExpression[] arguments = argumentList.getExpressions();
+        if (arguments.length == 0 || PsiType.INT.equals(arguments[0].getType())) {
+          stringExpression = new StringBuilder();
+        } else {
+          stringExpression = new StringBuilder(arguments[0].getText());
+        }
       } else {
-        stringExpression = new StringBuilder();
-      }
-      if (stringExpression == null) {
         return;
       }
       final PsiCodeBlock codeBlock = PsiTreeUtil.getParentOfType(variable, PsiCodeBlock.class);
@@ -337,11 +349,11 @@ public class StringBufferReplaceableByStringInspection extends BaseInspection {
     }
     final PsiExpressionList argumentList = methodCallExpression.getArgumentList();
     final PsiExpression[] arguments = argumentList.getExpressions();
-    if (arguments.length == 1) {
-      return true;
+    if (arguments.length == 3) {
+      return arguments[0].getType() instanceof PsiArrayType &&
+             arguments[1].getType() == PsiType.INT && arguments[2].getType() == PsiType.INT;
     }
-    final PsiExpression argument = arguments[0];
-    return argument.getType() instanceof PsiArrayType;
+    return arguments.length == 1;
   }
 
   public static boolean isToStringCall(PsiElement element) {

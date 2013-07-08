@@ -16,14 +16,14 @@
 package com.intellij.openapi.externalSystem.service;
 
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
+import com.intellij.openapi.externalSystem.model.ExternalSystemDataKeys;
 import com.intellij.openapi.externalSystem.service.project.autoimport.ExternalSystemAutoImporter;
 import com.intellij.openapi.externalSystem.service.ui.ExternalToolWindowManager;
-import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.startup.StartupManager;
-import com.intellij.util.SystemProperties;
 
 /**
  * @author Denis Zhdanov
@@ -37,7 +37,12 @@ public class ExternalSystemStartupActivity implements StartupActivity {
       @SuppressWarnings("unchecked")
       @Override
       public void run() {
-        if (!SystemProperties.getBooleanProperty(ExternalSystemConstants.NEWLY_IMPORTED_PROJECT, false)) {
+        for (ExternalSystemManager<?, ?, ?, ?, ?> manager : ExternalSystemApiUtil.getAllManagers()) {
+          if (manager instanceof StartupActivity) {
+            ((StartupActivity)manager).runActivity(project);
+          }
+        }
+        if (project.getUserData(ExternalSystemDataKeys.NEWLY_IMPORTED_PROJECT) != Boolean.TRUE) {
           for (ExternalSystemManager manager : ExternalSystemManager.EP_NAME.getExtensions()) {
             ExternalSystemUtil.refreshProjects(project, manager.getSystemId(), false);
           }

@@ -9,6 +9,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.wm.impl.ToolWindowImpl;
+import com.intellij.util.ui.UIUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,10 +27,11 @@ import java.util.Set;
  */
 public class ExternalToolWindowManager {
 
+  @SuppressWarnings("unchecked")
   public static void handle(@NotNull final Project project) {
     for (final ExternalSystemManager<?, ?, ?, ?, ?> manager : ExternalSystemApiUtil.getAllManagers()) {
       final AbstractExternalSystemSettings settings = manager.getSettingsProvider().fun(project);
-      project.getMessageBus().connect(project).subscribe(settings.getChangesTopic(), new ExternalSystemSettingsListenerAdapter() {
+      settings.subscribe(new ExternalSystemSettingsListenerAdapter() {
         @Override
         public void onProjectsLinked(@NotNull Collection linked) {
           if (settings.getLinkedProjectsSettings().size() != 1) {
@@ -46,9 +48,14 @@ public class ExternalToolWindowManager {
           if (!settings.getLinkedProjectsSettings().isEmpty()) {
             return;
           }
-          ToolWindow toolWindow = getToolWindow(project, manager.getSystemId());
+          final ToolWindow toolWindow = getToolWindow(project, manager.getSystemId());
           if (toolWindow != null) {
-            toolWindow.setAvailable(false, null);
+            UIUtil.invokeLaterIfNeeded(new Runnable() {
+              @Override
+              public void run() {
+                toolWindow.setAvailable(false, null); 
+              }
+            });
           }
         }
       });

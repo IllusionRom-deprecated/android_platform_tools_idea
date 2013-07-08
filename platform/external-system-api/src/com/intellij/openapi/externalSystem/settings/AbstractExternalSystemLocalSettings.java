@@ -57,7 +57,7 @@ public abstract class AbstractExternalSystemLocalSettings {
     new AtomicReference<Map<ExternalProjectPojo, Collection<ExternalProjectPojo>>>(
       ContainerUtilRt.<ExternalProjectPojo, Collection<ExternalProjectPojo>>newHashMap()
     );
-  private final AtomicReference<Map<String, Collection<ExternalTaskPojo>>>                 myAvailableTasks                   =
+  private final AtomicReference<Map<String/* external project config path */, Collection<ExternalTaskPojo>>> myAvailableTasks =
     new AtomicReference<Map<String, Collection<ExternalTaskPojo>>>(
       ContainerUtilRt.<String, Collection<ExternalTaskPojo>>newHashMap()
     );
@@ -195,7 +195,7 @@ public abstract class AbstractExternalSystemLocalSettings {
       toForget.add(taskInfo.getSettings().getExternalProjectPath());
     }
     
-    AbstractExternalSystemSettings<?, ?> settings = manager.getSettingsProvider().fun(myProject);
+    AbstractExternalSystemSettings<?, ?, ?> settings = manager.getSettingsProvider().fun(myProject);
     for (ExternalProjectSettings projectSettings : settings.getLinkedProjectsSettings()) {
       toForget.remove(projectSettings.getExternalProjectPath());
     }
