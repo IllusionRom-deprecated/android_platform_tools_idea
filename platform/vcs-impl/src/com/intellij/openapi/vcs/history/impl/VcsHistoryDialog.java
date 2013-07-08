@@ -23,7 +23,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.diff.DiffManager;
 import com.intellij.openapi.diff.DiffPanel;
 import com.intellij.openapi.diff.SimpleContent;
-import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.help.HelpManager;
 import com.intellij.openapi.project.Project;
@@ -57,7 +56,6 @@ import java.util.*;
 import java.util.List;
 
 public class VcsHistoryDialog extends DialogWrapper implements DataProvider {
-  private final Editor myEditor;
   private final int mySelectionStart;
   private final int mySelectionEnd;
 
@@ -117,7 +115,7 @@ public class VcsHistoryDialog extends DialogWrapper implements DataProvider {
 
   public VcsHistoryDialog(Project project,
                           final VirtualFile file,
-                          Editor editor, final VcsHistoryProvider vcsHistoryProvider,
+                          final VcsHistoryProvider vcsHistoryProvider,
                           VcsHistorySession session,
                           AbstractVcs vcs,
                           int selectionStart,
@@ -125,7 +123,6 @@ public class VcsHistoryDialog extends DialogWrapper implements DataProvider {
                           final String title, final CachedRevisionsContents cachedContents){
     super(project, true);
     myProject = project;
-    myEditor = editor;
     mySelectionStart = selectionStart;
     mySelectionEnd = selectionEnd;
     myCachedContents = cachedContents;
@@ -466,10 +463,8 @@ public class VcsHistoryDialog extends DialogWrapper implements DataProvider {
 
     final String revisionContent = getContentOf(revision);
     if (revisionContent == null) return null;
-    if (index == 0) {
-      Block currentBlock = new Block(myEditor.getDocument().getText(), mySelectionStart, mySelectionEnd);
-      myRevisionToContentMap.put(revision, new FindBlock(revisionContent, currentBlock).getBlockInThePrevVersion());
-    }
+    if (index == 0)
+      myRevisionToContentMap.put(revision, new Block(revisionContent,  mySelectionStart, mySelectionEnd));
     else {
       Block prevBlock = getBlock(myRevisions.get(index - 1));
       if (prevBlock == null) return null;

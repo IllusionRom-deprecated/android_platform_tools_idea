@@ -120,8 +120,8 @@ public class JUnit4TestRunnerUtil {
           if (clazzAnnotation == null) { //do not override external runners
             try {
               final Method method = clazz.getMethod(methodName, null);
-              if (method != null && notForked && (method.getAnnotation(Ignore.class) != null || clazz.getAnnotation(Ignore.class) != null)) { //override ignored case only
-                final Request classRequest = createIgnoreIgnoredClassRequest(clazz, true);
+              if (method != null && notForked && method.getAnnotation(Ignore.class) != null) { //override ignored case only
+                final Request classRequest = createIgnoreIgnoredClassRequest(clazz);
                 final Filter ignoredTestFilter = Filter.matchMethodDescription(Description.createTestDescription(clazz, methodName));
                 return classRequest.filterWith(new Filter() {
                   public boolean shouldRun(Description description) {
@@ -167,7 +167,7 @@ public class JUnit4TestRunnerUtil {
       final Class clazz = (Class)result.get(0);
       try {
         if (clazz.getAnnotation(Ignore.class) != null) { //override ignored case only
-          return createIgnoreIgnoredClassRequest(clazz, false);
+          return createIgnoreIgnoredClassRequest(clazz);
         }
       }
       catch (ClassNotFoundException e) {
@@ -178,12 +178,12 @@ public class JUnit4TestRunnerUtil {
     return Request.classes(getArrayOfClasses(result));
   }
 
-  private static Request createIgnoreIgnoredClassRequest(final Class clazz, final boolean recursively) throws ClassNotFoundException {
+  private static Request createIgnoreIgnoredClassRequest(final Class clazz) throws ClassNotFoundException {
     Class.forName("org.junit.runners.BlockJUnit4ClassRunner"); //ignore IgnoreIgnored for junit4.4 and <
     return new ClassRequest(clazz) {
       public Runner getRunner() {
         try {
-          return new IgnoreIgnoredTestJUnit4ClassRunner(clazz, recursively);
+          return new IgnoreIgnoredTestJUnit4ClassRunner(clazz);
         }
         catch (Exception ignored) {
           //return super runner
@@ -245,18 +245,11 @@ public class JUnit4TestRunnerUtil {
 
 
   private static class IgnoreIgnoredTestJUnit4ClassRunner extends BlockJUnit4ClassRunner {
-    private final boolean myRecursively;
-
-    public IgnoreIgnoredTestJUnit4ClassRunner(Class clazz, boolean recursively) throws Exception {
+    public IgnoreIgnoredTestJUnit4ClassRunner(Class clazz) throws Exception {
       super(clazz);
-      myRecursively = recursively;
     }
 
     protected void runChild(FrameworkMethod method, RunNotifier notifier) {
-      if (!myRecursively){
-        super.runChild(method, notifier);
-        return;
-      }
       final Description description = describeChild(method);
       final EachTestNotifier eachNotifier = new EachTestNotifier(notifier, description);
       eachNotifier.fireTestStarted();

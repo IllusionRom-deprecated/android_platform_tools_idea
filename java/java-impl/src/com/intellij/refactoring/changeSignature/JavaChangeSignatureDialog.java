@@ -30,6 +30,7 @@ import com.intellij.openapi.fileTypes.StdFileTypes;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
+import com.intellij.openapi.ui.VerticalFlowLayout;
 import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
@@ -49,13 +50,13 @@ import com.intellij.refactoring.util.CanonicalTypes;
 import com.intellij.refactoring.util.RefactoringMessageUtil;
 import com.intellij.refactoring.util.RefactoringUtil;
 import com.intellij.ui.*;
+import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.table.JBTable;
 import com.intellij.ui.table.TableView;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.*;
 import com.intellij.util.ui.DialogUtil;
 import com.intellij.util.ui.UIUtil;
-import com.intellij.util.ui.table.JBListTable;
 import com.intellij.util.ui.table.JBTableRow;
 import com.intellij.util.ui.table.JBTableRowEditor;
 import org.jetbrains.annotations.NotNull;
@@ -227,6 +228,7 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
 
   @Override
   protected JComponent getRowPresentation(ParameterTableModelItemBase<ParameterInfoImpl> item, boolean selected, final boolean focused) {
+    final JPanel panel = new JPanel(new BorderLayout());
     final String typeText = item.typeCodeFragment.getText();
     final String separator = StringUtil.repeatSymbol(' ', getTypesMaxLength() - typeText.length() + 1);
     String text = typeText + separator + item.parameter.getName();
@@ -244,7 +246,28 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
     if (!StringUtil.isEmpty(tail)) {
       text += " //" + tail;
     }
-    return JBListTable.createEditorTextFieldPresentation(getProject(), getFileType(), " " + text, selected, focused);
+    final EditorTextField field = new EditorTextField(" " + text, getProject(), getFileType()) {
+      @Override
+      protected boolean shouldHaveBorder() {
+        return false;
+      }
+    };
+
+    Font font = EditorColorsManager.getInstance().getGlobalScheme().getFont(EditorFontType.PLAIN);
+    font = new Font(font.getFontName(), font.getStyle(), 12);
+    field.setFont(font);
+
+    if (selected && focused) {
+      panel.setBackground(UIUtil.getTableSelectionBackground());
+      field.setAsRendererWithSelection(UIUtil.getTableSelectionBackground(), UIUtil.getTableSelectionForeground());
+    } else {
+      panel.setBackground(UIUtil.getTableBackground());
+      if (selected && !focused) {
+        panel.setBorder(new DottedBorder(UIUtil.getTableForeground()));
+      }
+    }
+    panel.add(field, BorderLayout.WEST);
+    return panel;
   }
 
   private int getTypesMaxLength() {
@@ -288,20 +311,43 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
       private EditorTextField myDefaultValueEditor;      
       private JCheckBox myAnyVar;
 
+      class MyDocumentListener extends DocumentAdapter {
+        private int myColumn;
+
+        private MyDocumentListener(int column) {
+          myColumn = column;
+        }
+
+        @Override
+        public void documentChanged(DocumentEvent e) {
+          fireDocumentChanged(e, myColumn);
+        }
+      }
+
       @Override
       public void prepareEditor(JTable table, int row) {
         setLayout(new BorderLayout());
+        final JPanel typePanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 4, 2, true, false));
         final Document document = PsiDocumentManager.getInstance(getProject()).getDocument(item.typeCodeFragment);
         myTypeEditor = new EditorTextField(document, getProject(), getFileType());
         myTypeEditor.addDocumentListener(mySignatureUpdater);
+        final JBLabel typeLabel = new JBLabel("Type:", UIUtil.ComponentStyle.SMALL);
+        IJSwingUtilities.adjustComponentsOnMac(typeLabel, myTypeEditor);
+        typePanel.add(typeLabel);
+        typePanel.add(myTypeEditor);
         myTypeEditor.setPreferredWidth(t.getWidth() / 2);
-        myTypeEditor.addDocumentListener(new RowEditorChangeListener(0));
-        add(createLabeledPanel("Type:", myTypeEditor), BorderLayout.WEST);
+        myTypeEditor.addDocumentListener(new MyDocumentListener(0));
+        add(typePanel, BorderLayout.WEST);
 
+        final JPanel namePanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 4, 2, true, false));
         myNameEditor = new EditorTextField(item.parameter.getName(), getProject(), getFileType());
         myNameEditor.addDocumentListener(mySignatureUpdater);
-        myNameEditor.addDocumentListener(new RowEditorChangeListener(1));
-        add(createLabeledPanel("Name:", myNameEditor), BorderLayout.CENTER);
+        myNameEditor.addDocumentListener(new MyDocumentListener(1));
+        final JBLabel nameLabel = new JBLabel("Name:", UIUtil.ComponentStyle.SMALL);
+        IJSwingUtilities.adjustComponentsOnMac(nameLabel, myNameEditor);
+        namePanel.add(nameLabel);
+        namePanel.add(myNameEditor);
+        add(namePanel, BorderLayout.CENTER);
         new TextFieldCompletionProvider() {
 
           @Override
@@ -331,12 +377,17 @@ public class JavaChangeSignatureDialog extends ChangeSignatureDialogBase<Paramet
 
         if (!item.isEllipsisType() && item.parameter.getOldIndex() == -1) {
           final JPanel additionalPanel = new JPanel(new BorderLayout());
+          final JPanel defaultValuePanel = new JPanel(new VerticalFlowLayout(VerticalFlowLayout.TOP, 4, 2, true, false));
           final Document doc = PsiDocumentManager.getInstance(getProject()).getDocument(item.defaultValueCodeFragment);
           myDefaultValueEditor = new EditorTextField(doc, getProject(), getFileType());
           ((PsiExpressionCodeFragment)item.defaultValueCodeFragment).setExpectedType(getRowType(item));
+          final JBLabel defaultValueLabel = new JBLabel("Default value:", UIUtil.ComponentStyle.SMALL);
+          IJSwingUtilities.adjustComponentsOnMac(defaultValueLabel, myDefaultValueEditor);
+          defaultValuePanel.add(defaultValueLabel);
+          defaultValuePanel.add(myDefaultValueEditor);
           myDefaultValueEditor.setPreferredWidth(t.getWidth() / 2);
-          myDefaultValueEditor.addDocumentListener(new RowEditorChangeListener(2));
-          additionalPanel.add(createLabeledPanel("Default value:", myDefaultValueEditor), BorderLayout.WEST);
+          myDefaultValueEditor.addDocumentListener(new MyDocumentListener(2));
+          additionalPanel.add(defaultValuePanel, BorderLayout.WEST);
 
           if (!isGenerateDelegate()) {
             myAnyVar = new JCheckBox("&Use Any Var");

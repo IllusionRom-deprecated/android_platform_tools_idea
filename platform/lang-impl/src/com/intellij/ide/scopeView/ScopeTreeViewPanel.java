@@ -567,7 +567,9 @@ public class ScopeTreeViewPanel extends JPanel implements Disposable {
       else if (psiElement instanceof PsiDirectory) {
         final PsiElement[] children = psiElement.getChildren();
         if (children.length > 0) {
-          queueRefreshScope(getCurrentScope(), (PsiDirectory)psiElement);
+          for (PsiElement child : children) {
+            processNodeCreation(child);
+          }
         } else {
           final PackageDependenciesNode node = myBuilder.addDirNode((PsiDirectory)psiElement);
           if (node != null) {

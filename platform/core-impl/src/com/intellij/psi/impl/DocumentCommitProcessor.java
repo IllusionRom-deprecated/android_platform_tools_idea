@@ -23,7 +23,6 @@ import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Comparing;
-import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.PomManager;
@@ -106,8 +105,10 @@ public abstract class DocumentCommitProcessor {
   @Nullable("returns runnable to execute under write action in AWT to finish the commit")
   public Processor<Document> doCommit(@NotNull final CommitTask task,
                                       @NotNull final PsiFile file,
-                                      final boolean synchronously) {
+                                      final boolean synchronously,
+                                      @NotNull PsiDocumentManager documentManager) {
     Document document = task.document;
+    ((PsiDocumentManagerBase)documentManager).clearTreeHardRef(document);
     final TextBlock textBlock = TextBlock.get(file);
     if (textBlock.isEmpty()) return null;
     final long startDocModificationTimeStamp = document.getModificationStamp();
@@ -122,8 +123,20 @@ public abstract class DocumentCommitProcessor {
     final String oldPsiText = ApplicationManager.getApplication().isInternal() && ApplicationManager.getApplication().isUnitTestMode()
                               ? myTreeElementBeingReparsedSoItWontBeCollected.getText()
                               : null;
-    final TextRange changedPsiRange =
-      getChangedPsiRange(file, textBlock.getStartOffset(), textBlock.getPsiEndOffset(), document.getTextLength());
+    int startOffset;
+    int endOffset;
+    int lengthShift;
+    if (file.getViewProvider().supportsIncrementalReparse(file.getLanguage())) {
+      startOffset = textBlock.getStartOffset();
+      int psiEndOffset = textBlock.getPsiEndOffset();
+      endOffset = psiEndOffset;
+      lengthShift = textBlock.getTextEndOffset() - psiEndOffset;
+    }
+    else {
+      startOffset = 0;
+      endOffset = document.getTextLength();
+      lengthShift = document.getTextLength() - myTreeElementBeingReparsedSoItWontBeCollected.getTextLength();
+    }
     if (!assertBeforeCommit(document, file, textBlock, chars, oldPsiText, myTreeElementBeingReparsedSoItWontBeCollected)) {
       return new Processor<Document>() {
         @Override
@@ -138,7 +151,7 @@ public abstract class DocumentCommitProcessor {
       };
     }
     BlockSupport blockSupport = BlockSupport.getInstance(file.getProject());
-    final DiffLog diffLog = blockSupport.reparseRange(file, changedPsiRange, chars, task.indicator);
+    final DiffLog diffLog = blockSupport.reparseRange(file, startOffset, endOffset, lengthShift, chars, task.indicator);
 
     return new Processor<Document>() {
       @Override
@@ -150,12 +163,17 @@ public abstract class DocumentCommitProcessor {
         }
 
         try {
-          CodeStyleManager.getInstance(file.getProject()).performActionWithFormatterDisabled(new Runnable() {
+          textBlock.performAtomically(new Runnable() {
             @Override
             public void run() {
-              synchronized (PsiLock.LOCK) {
-                doActualPsiChange(file, diffLog);
-              }
+              CodeStyleManager.getInstance(file.getProject()).performActionWithFormatterDisabled(new Runnable() {
+                @Override
+                public void run() {
+                  synchronized (PsiLock.LOCK) {
+                    doActualPsiChange(file, diffLog);
+                  }
+                }
+              });
             }
           });
 
@@ -163,19 +181,12 @@ public abstract class DocumentCommitProcessor {
         }
         finally {
           textBlock.clear();
-          SmartPointerManagerImpl.synchronizePointers(file); //todo it's empty anyway, remove
+          SmartPointerManagerImpl.synchronizePointers(file);
         }
 
         return true;
       }
     };
-  }
-
-  public static TextRange getChangedPsiRange(PsiFile file, int changeStart, int changeEnd, int newTextLength) {
-    if (file.getViewProvider().supportsIncrementalReparse(file.getLanguage())) {
-      return new TextRange(changeStart, changeEnd);
-    }
-    return new TextRange(0, newTextLength);
   }
 
   public static void doActualPsiChange(@NotNull final PsiFile file, @NotNull final DiffLog diffLog) {
@@ -268,7 +279,7 @@ public abstract class DocumentCommitProcessor {
       file.putUserData(BlockSupport.DO_NOT_REPARSE_INCREMENTALLY, Boolean.TRUE);
       try {
         BlockSupport blockSupport = BlockSupport.getInstance(file.getProject());
-        final DiffLog diffLog = blockSupport.reparseRange(file, new TextRange(0, documentText.length()), documentText, createProgressIndicator());
+        final DiffLog diffLog = blockSupport.reparseRange(file, 0, documentText.length(), 0, documentText, createProgressIndicator());
         CodeStyleManager.getInstance(file.getProject()).performActionWithFormatterDisabled(new Runnable() {
           @Override
           public void run() {

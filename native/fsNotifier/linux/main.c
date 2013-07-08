@@ -36,7 +36,7 @@
 #define LOG_ENV_ERROR "error"
 #define LOG_ENV_OFF "off"
 
-#define VERSION "20130617.1935"
+#define VERSION "20130415.2136"
 #define VERSION_MSG "fsnotifier " VERSION "\n"
 
 #define USAGE_MSG \
@@ -73,8 +73,8 @@ static bool self_test = false;
 
 static void init_log();
 static void run_self_test();
-static bool main_loop();
-static int read_input();
+static void main_loop();
+static bool read_input();
 static bool update_roots(array* new_roots);
 static void unregister_roots();
 static bool register_roots(array* new_roots, array* unwatchable, array* mounts);
@@ -116,15 +116,12 @@ int main(int argc, char** argv) {
 
   setvbuf(stdin, NULL, _IONBF, 0);
 
-  int rv = 0;
   roots = array_create(20);
-  if (roots != NULL && init_inotify()) {
+  if (init_inotify() && roots != NULL) {
     set_inotify_callback(&inotify_callback);
 
     if (!self_test) {
-      if (!main_loop()) {
-        rv = 3;
-      }
+      main_loop();
     }
     else {
       run_self_test();
@@ -134,15 +131,14 @@ int main(int argc, char** argv) {
   }
   else {
     output("GIVEUP\n");
-    rv = 2;
   }
   close_inotify();
   array_delete(roots);
 
-  userlog(LOG_INFO, "finished (%d)", rv);
+  userlog(LOG_INFO, "finished");
   closelog();
 
-  return rv;
+  return 0;
 }
 
 
@@ -220,7 +216,7 @@ static void run_self_test() {
 }
 
 
-static bool main_loop() {
+static void main_loop() {
   int input_fd = fileno(stdin), inotify_fd = get_inotify_fd();
   int nfds = (inotify_fd > input_fd ? inotify_fd : input_fd) + 1;
   fd_set rfds;
@@ -237,16 +233,14 @@ static bool main_loop() {
     if (select(nfds, &rfds, NULL, NULL, &timeout) < 0) {
       if (errno != EINTR) {
         userlog(LOG_ERR, "select: %s", strerror(errno));
-        return false;
+        break;
       }
     }
     else if (FD_ISSET(input_fd, &rfds)) {
-      int result = read_input();
-      if (result == 0) return true;
-      else if (result != ERR_CONTINUE) return false;
+      if (!read_input()) break;
     }
     else if (FD_ISSET(inotify_fd, &rfds)) {
-      if (!process_inotify_input()) return false;
+      if (!process_inotify_input()) break;
     }
     else {
       check_missing_roots();
@@ -255,24 +249,24 @@ static bool main_loop() {
 }
 
 
-static int read_input() {
+static bool read_input() {
   char* line = read_line(stdin);
   userlog(LOG_DEBUG, "input: %s", (line ? line : "<null>"));
 
   if (line == NULL || strcmp(line, "EXIT") == 0) {
     userlog(LOG_INFO, "exiting: %s", line);
-    return 0;
+    return false;
   }
 
   if (strcmp(line, "ROOTS") == 0) {
     array* new_roots = array_create(20);
-    CHECK_NULL(new_roots, ERR_ABORT);
+    CHECK_NULL(new_roots, false);
 
     while (1) {
       line = read_line(stdin);
       userlog(LOG_DEBUG, "input: %s", (line ? line : "<null>"));
       if (line == NULL || strlen(line) == 0) {
-        return 0;
+        return false;
       }
       else if (strcmp(line, "#") == 0) {
         break;
@@ -280,15 +274,15 @@ static int read_input() {
       else {
         int l = strlen(line);
         if (l > 1 && line[l-1] == '/')  line[l-1] = '\0';
-        CHECK_NULL(array_push(new_roots, strdup(line)), ERR_ABORT);
+        CHECK_NULL(array_push(new_roots, strdup(line)), false);
       }
     }
 
-    return update_roots(new_roots) ? ERR_CONTINUE : ERR_ABORT;
+    return update_roots(new_roots);
   }
 
-  userlog(LOG_WARNING, "unrecognised command: %s", line);
-  return ERR_CONTINUE;
+  userlog(LOG_INFO, "unrecognised command: %s", line);
+  return true;
 }
 
 

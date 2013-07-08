@@ -76,11 +76,11 @@ public abstract class InspectionTestCase extends PsiTestCase {
     doTest(folderName, new GlobalInspectionToolWrapper(tool), "java 1.4", checkRange, runDeadCodeFirst);
   }
 
-  public void doTest(@NonNls String folderName, InspectionToolWrapper tool) {
+  public void doTest(@NonNls String folderName, InspectionTool tool) {
     doTest(folderName, tool, "java 1.4");
   }
 
-  public void doTest(@NonNls String folderName, InspectionToolWrapper tool, final boolean checkRange) {
+  public void doTest(@NonNls String folderName, InspectionTool tool, final boolean checkRange) {
     doTest(folderName, tool, "java 1.4", checkRange);
   }
 
@@ -88,35 +88,35 @@ public abstract class InspectionTestCase extends PsiTestCase {
     doTest(folderName, new LocalInspectionToolWrapper(tool), jdkName);
   }
 
-  public void doTest(@NonNls String folderName, InspectionToolWrapper tool, @NonNls final String jdkName) {
+  public void doTest(@NonNls String folderName, InspectionTool tool, @NonNls final String jdkName) {
     doTest(folderName, tool, jdkName, false);
   }
 
-  public void doTest(@NonNls String folderName, InspectionToolWrapper tool, @NonNls final String jdkName, boolean checkRange) {
+  public void doTest(@NonNls String folderName, InspectionTool tool, @NonNls final String jdkName, boolean checkRange) {
     doTest(folderName, tool, jdkName, checkRange, false);
   }
 
   public void doTest(@NonNls String folderName,
-                     InspectionToolWrapper toolWrapper,
+                     InspectionTool tool,
                      @NonNls final String jdkName,
                      boolean checkRange,
                      boolean runDeadCodeFirst,
-                     InspectionToolWrapper... additional) {
+                     InspectionTool... additional) {
     final String testDir = getTestDataPath() + "/" + folderName;
-    runTool(testDir, jdkName, runDeadCodeFirst, toolWrapper, additional);
+    runTool(testDir, jdkName, runDeadCodeFirst, tool, additional);
 
-    InspectionTestUtil.compareToolResults(toolWrapper, checkRange, testDir);
+    InspectionTestUtil.compareToolResults(tool, checkRange, testDir);
   }
 
-  protected void runTool(@NonNls final String testDir, @NonNls final String jdkName, final InspectionToolWrapper tool) {
+  protected void runTool(@NonNls final String testDir, @NonNls final String jdkName, final InspectionTool tool) {
     runTool(testDir, jdkName, false, tool);
   }
 
   protected void runTool(final String testDir,
                          final String jdkName,
                          boolean runDeadCodeFirst,
-                         final InspectionToolWrapper toolWrapper,
-                         @NotNull InspectionToolWrapper... additional) {
+                         final InspectionTool tool,
+                         InspectionTool... additional) {
     final VirtualFile[] sourceDir = new VirtualFile[1];
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
       @Override
@@ -132,12 +132,12 @@ public abstract class InspectionTestCase extends PsiTestCase {
     AnalysisScope scope = createAnalysisScope(sourceDir[0].getParent());
 
     InspectionManagerEx inspectionManager = (InspectionManagerEx)InspectionManager.getInstance(getProject());
-    InspectionToolWrapper[] toolWrappers = runDeadCodeFirst ? new InspectionToolWrapper []{new CommonInspectionToolWrapper(new UnusedDeclarationInspection()), toolWrapper} : new InspectionToolWrapper []{toolWrapper};
-    toolWrappers = ArrayUtil.mergeArrays(toolWrappers, additional);
+    InspectionTool[] tools = runDeadCodeFirst ? new InspectionTool[]{new UnusedDeclarationInspection(), tool} : new InspectionTool[]{tool};
+    tools = ArrayUtil.mergeArrays(tools, additional);
     final GlobalInspectionContextImpl globalContext =
-      CodeInsightTestFixtureImpl.createGlobalContextForTool(scope, getProject(), inspectionManager, toolWrappers);
+      CodeInsightTestFixtureImpl.createGlobalContextForTool(scope, getProject(), inspectionManager, tools);
 
-    InspectionTestUtil.runTool(toolWrapper, scope, globalContext, inspectionManager);
+    InspectionTestUtil.runTool(tool, scope, globalContext, inspectionManager);
   }
 
   protected AnalysisScope createAnalysisScope(VirtualFile sourceDir) {

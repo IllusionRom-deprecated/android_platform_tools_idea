@@ -36,7 +36,6 @@ public class JUnitStarter {
   private static final String SOCKET = "-socket";
   private static String ourForkMode;
   private static String ourCommandFileName;
-  private static String ourWorkingDirs;
   public static boolean SM_RUNNER = System.getProperty("idea.junit.sm_runner") != null;
 
   public static void main(String[] args) throws IOException {
@@ -78,10 +77,7 @@ public class JUnitStarter {
         isJunit4 = false;
       }
       else {
-        if (arg.startsWith("@w@")) {
-          ourWorkingDirs = arg.substring(3);
-          continue;
-        } else if (arg.startsWith("@@@")) {
+        if (arg.startsWith("@@@")) {
           final int pos = arg.indexOf(',');
           ourForkMode = arg.substring(3, pos);
           ourCommandFileName = arg.substring(pos + 1);
@@ -193,9 +189,7 @@ public class JUnitStarter {
       System.setOut(new PrintStream(out));
       System.setErr(new PrintStream(err));
       if (ourCommandFileName != null) {
-        if (!"none".equals(ourForkMode) || new File(ourWorkingDirs).length() > 0) {
-          return JUnitForkedStarter.startForkedVMs(ourWorkingDirs, args, isJUnit4, listeners, out, err, ourForkMode, ourCommandFileName);
-        }
+        return JUnitForkedStarter.startForkedVMs(args, isJUnit4, listeners, out, err, ourForkMode, ourCommandFileName);
       }
       IdeaTestRunner testRunner = (IdeaTestRunner)getAgentClass(isJUnit4).newInstance();
       testRunner.setStreams(out, err, 0);

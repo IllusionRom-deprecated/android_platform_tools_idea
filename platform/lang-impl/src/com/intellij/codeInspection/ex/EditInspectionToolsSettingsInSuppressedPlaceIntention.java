@@ -17,6 +17,7 @@
 package com.intellij.codeInspection.ex;
 
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.codeInspection.InspectionProfileEntry;
 import com.intellij.codeInspection.InspectionsBundle;
 import com.intellij.codeInspection.lang.InspectionExtensionsFactory;
 import com.intellij.openapi.editor.Editor;
@@ -82,15 +83,15 @@ public class EditInspectionToolsSettingsInSuppressedPlaceIntention implements In
   public boolean isAvailable(@NotNull Project project, Editor editor, PsiFile file) {
     myId = getSuppressedId(editor, file);
     if (myId != null) {
-      InspectionToolWrapper toolWrapper = getTool(project, file);
-      if (toolWrapper == null) return false;
-      myDisplayName = toolWrapper.getDisplayName();
+      InspectionProfileEntry tool = getTool(project, file);
+      if (tool == null) return false;
+      myDisplayName = tool.getDisplayName();
     }
     return myId != null;
   }
 
   @Nullable
-  private InspectionToolWrapper getTool(final Project project, final PsiFile file) {
+  private InspectionProfileEntry getTool(final Project project, final PsiFile file) {
     final InspectionProjectProfileManager projectProfileManager = InspectionProjectProfileManager.getInstance(project);
     final InspectionProfileImpl inspectionProfile = (InspectionProfileImpl)projectProfileManager.getInspectionProfile();
     return inspectionProfile.getToolById(myId, file);
@@ -98,11 +99,11 @@ public class EditInspectionToolsSettingsInSuppressedPlaceIntention implements In
 
   @Override
   public void invoke(@NotNull Project project, Editor editor, PsiFile file) throws IncorrectOperationException {
-    InspectionToolWrapper toolWrapper = getTool(project, file);
-    if (toolWrapper == null) return;
+    InspectionProfileEntry tool = getTool(project, file);
+    if (tool == null) return;
     final InspectionProjectProfileManager projectProfileManager = InspectionProjectProfileManager.getInstance(project);
     final InspectionProfileImpl inspectionProfile = (InspectionProfileImpl)projectProfileManager.getInspectionProfile();
-    EditInspectionToolsSettingsAction.editToolSettings(project, inspectionProfile, false, toolWrapper.getShortName());
+    EditInspectionToolsSettingsAction.editToolSettings(project, inspectionProfile, false, tool.getShortName());
   }
 
   @Override

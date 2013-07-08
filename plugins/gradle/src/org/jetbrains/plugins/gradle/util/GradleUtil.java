@@ -2,6 +2,7 @@ package org.jetbrains.plugins.gradle.util;
 
 import com.intellij.ide.actions.OpenProjectFileChooserDescriptor;
 import com.intellij.ide.util.PropertiesComponent;
+import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.fileChooser.FileTypeDescriptor;
@@ -140,7 +141,7 @@ public class GradleUtil {
     public static final FileChooserDescriptor GRADLE_BUILD_FILE_CHOOSER_DESCRIPTOR = new OpenProjectFileChooserDescriptor(true) {
       @Override
       public boolean isFileSelectable(VirtualFile file) {
-        return file.getName().endsWith(GradleConstants.EXTENSION);
+        return GradleConstants.DEFAULT_SCRIPT_NAME.equals(file.getName());
       }
 
       @Override
@@ -148,7 +149,7 @@ public class GradleUtil {
         if (!super.isFileVisible(file, showHiddenFiles)) {
           return false;
         }
-        return file.isDirectory() || file.getName().endsWith(GradleConstants.EXTENSION);
+        return file.isDirectory() || GradleConstants.DEFAULT_SCRIPT_NAME.equals(file.getName());
       }
     };
 
@@ -158,10 +159,10 @@ public class GradleUtil {
 
   /**
    * Allows to build file system path to the target gradle sub-project given the root project path.
-   *
+   * 
    * @param subProject       target sub-project which 'build.gradle' path we're interested in
    * @param rootProjectPath  root project's 'build.gradle' path
-   * @return path to the given sub-project's 'build.gradle'
+   * @return                 path to the given sub-project's 'build.gradle'
    */
   @NotNull
   public static String getConfigPath(@NotNull GradleProject subProject, @NotNull String rootProjectPath) {

@@ -97,7 +97,6 @@ public class InspectionToolRegistrar {
       }
       for (InspectionToolsFactory factory : Extensions.getExtensions(InspectionToolsFactory.EXTENSION_POINT_NAME)) {
         for (final InspectionProfileEntry profileEntry : factory.createTools()) {
-          assert !(profileEntry instanceof InspectionToolWrapper) : profileEntry;
           myInspectionToolFactories.add(new Factory<InspectionToolWrapper>() {
             @Override
             public InspectionToolWrapper create() {
@@ -111,7 +110,9 @@ public class InspectionToolRegistrar {
 
   @NotNull
   public static InspectionToolWrapper wrapTool(@NotNull InspectionProfileEntry profileEntry) {
-    assert !(profileEntry instanceof InspectionToolWrapper) : profileEntry;
+    if (profileEntry instanceof InspectionToolWrapper) {
+      return (InspectionToolWrapper)profileEntry;
+    }
     if (profileEntry instanceof LocalInspectionTool) {
       return new LocalInspectionToolWrapper((LocalInspectionTool)profileEntry);
     }

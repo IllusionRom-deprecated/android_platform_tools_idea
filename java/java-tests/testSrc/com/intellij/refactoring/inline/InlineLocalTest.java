@@ -140,10 +140,6 @@ public class InlineLocalTest extends LightCodeInsightTestCase {
                  "Variable 'arr' is accessed for writing.");
   }
 
-  public void testArrayMethodCallInitialized() throws Exception {
-    doTest(true);
-  }
-
   public void testArrayIndex() throws Exception {
     doTest(true);
   }

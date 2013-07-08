@@ -21,13 +21,17 @@ package com.intellij.openapi.util.process;
 
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.ui.GuiUtils;
-import com.intellij.util.concurrency.Semaphore;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public abstract class InterruptibleActivity {
+  private static final Logger LOG = Logger.getInstance("#com.intellij.openapi.util.process.InterruptibleActivity");
+
   private volatile boolean myIsTouched = true;
   private final long myTimeout;
   private final TimeUnit myTimeUnit;
@@ -39,6 +43,12 @@ public abstract class InterruptibleActivity {
 
   public final void touch() {
     myIsTouched = true;
+  }
+
+  private boolean isTouched() {
+    boolean touched = myIsTouched;
+    myIsTouched = false;
+    return touched;
   }
 
   protected abstract void start();
@@ -54,20 +64,13 @@ public abstract class InterruptibleActivity {
     LOG.assertTrue(!application.isDispatchThread(), "InterruptibleActivity is supposed to be lengthy thus must not block Swing UI thread");
     */
 
-    final Semaphore semaphore = new Semaphore();
-    semaphore.down();
-    application.executeOnPooledThread(new Runnable() {
+    final Future<?> future = application.executeOnPooledThread(new Runnable() {
       public void run() {
-        try {
-          start();
-        }
-        finally {
-          semaphore.up();
-        }
+        start();
       }
     });
 
-    final int rc = waitForSemaphore(semaphore);
+    final int rc = waitForFuture(future);
     if (rc != 0) {
       application.executeOnPooledThread(new Runnable() {
         public void run() {
@@ -79,28 +82,27 @@ public abstract class InterruptibleActivity {
     return rc;
   }
 
-  private int waitForSemaphore(final Semaphore semaphore) {
-    long timeoutMs = myTimeUnit.toMillis(myTimeout);
-    long lastActiveMoment = System.currentTimeMillis();
+  private int waitForFuture(final Future<?> future) {
     while (true) {
-      long current = System.currentTimeMillis();
-      if (myIsTouched) {
-        myIsTouched = false;
-        lastActiveMoment = current;
+      try {
+        future.get(myTimeout, myTimeUnit);
+        break;
       }
-      
-      long idleTime = current - lastActiveMoment;
-      if (idleTime > timeoutMs) {
-        int retCode = processTimeoutInEDT();
-        return semaphore.waitFor(0) ? 0 : retCode;
+      catch (InterruptedException e) {
+        //LOG.error(e); // Shall not happen
       }
-      
-      ProgressManager.checkCanceled();
-
-      if (semaphore.waitFor(Math.min(500, timeoutMs - idleTime))) {
-        return 0;
+      catch (ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+      catch (TimeoutException e) {
+        if (!isTouched()) {
+          int retCode = processTimeoutInEDT();
+          if (retCode != 0) return future.isDone() ? 0 : retCode;
+        }
       }
     }
+
+    return 0;
   }
 
   protected int processTimeoutInEDT() {

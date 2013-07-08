@@ -231,7 +231,7 @@ public abstract class TabbedLanguageCodeStylePanel extends CodeStyleAbstractPane
   }
 
   @Override
-  public void apply(CodeStyleSettings settings) throws ConfigurationException {
+  public void apply(CodeStyleSettings settings) {
     ensureTabs();
     for (CodeStyleAbstractPanel tab : myTabs) {
       tab.apply(settings);
@@ -514,8 +514,13 @@ public abstract class TabbedLanguageCodeStylePanel extends CodeStyleAbstractPane
     }
 
     @Override
-    public void apply(CodeStyleSettings settings) throws ConfigurationException {
-      myConfigurable.apply();
+    public void apply(CodeStyleSettings settings) {
+      try {
+        myConfigurable.apply();
+      }
+      catch (ConfigurationException e) {
+        // Ignore
+      }
     }
 
     @Override

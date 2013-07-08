@@ -24,7 +24,6 @@ public abstract class FlyIdeaTestCase extends TestCase {
     final Application old = ApplicationManagerEx.getApplication();
     myRootDisposable = Disposer.newDisposable();
     MockApplicationEx app = new MockApplicationEx(getRootDisposable()) {
-      @NotNull
       @Override
       public Future<?> executeOnPooledThread(@NotNull Runnable action) {
         return old != null ? old.executeOnPooledThread(action) : super.executeOnPooledThread(action);

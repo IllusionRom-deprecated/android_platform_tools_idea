@@ -17,7 +17,6 @@ package com.intellij.profile.codeInspection;
 
 import com.intellij.codeHighlighting.HighlightDisplayLevel;
 import com.intellij.codeInsight.daemon.InspectionProfileConvertor;
-import com.intellij.codeInsight.daemon.impl.DaemonListeners;
 import com.intellij.codeInsight.daemon.impl.HighlightInfoType;
 import com.intellij.codeInsight.daemon.impl.SeveritiesProvider;
 import com.intellij.codeInsight.daemon.impl.SeverityRegistrar;
@@ -128,7 +127,6 @@ public class InspectionProfileManagerImpl extends InspectionProfileManager imple
     mySchemesManager = schemesManagerFactory.createSchemesManager(FILE_SPEC, processor, RoamingType.PER_USER);
   }
 
-  @NotNull
   private static InspectionProfileImpl createSampleProfile() {
     return new InspectionProfileImpl("Default");
   }
@@ -319,7 +317,6 @@ public class InspectionProfileManagerImpl extends InspectionProfileManager imple
     }
   }
 
-  @NotNull
   @Override
   public Profile getRootProfile() {
     Profile current = mySchemesManager.getCurrentScheme();
@@ -338,7 +335,7 @@ public class InspectionProfileManagerImpl extends InspectionProfileManager imple
   }
 
   @Override
-  public void addProfile(@NotNull final Profile profile) {
+  public void addProfile(final Profile profile) {
     mySchemesManager.addNewScheme(profile, true);
   }
 
@@ -366,9 +363,7 @@ public class InspectionProfileManagerImpl extends InspectionProfileManager imple
       UIUtil.invokeLaterIfNeeded(new Runnable() {
         @Override
         public void run() {
-          if (!project.isDisposed()) {
-            DaemonListeners.getInstance(project).updateStatusBar();
-          }
+          InspectionProjectProfileManagerImpl.getInstanceImpl(project).updateStatusBar();
         }
       });
     }

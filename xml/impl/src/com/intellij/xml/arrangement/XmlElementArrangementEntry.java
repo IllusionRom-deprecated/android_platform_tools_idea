@@ -1,7 +1,10 @@
 package com.intellij.xml.arrangement;
 
 import com.intellij.openapi.util.TextRange;
-import com.intellij.psi.codeStyle.arrangement.*;
+import com.intellij.psi.codeStyle.arrangement.ArrangementEntry;
+import com.intellij.psi.codeStyle.arrangement.DefaultArrangementEntry;
+import com.intellij.psi.codeStyle.arrangement.NameAwareArrangementEntry;
+import com.intellij.psi.codeStyle.arrangement.TypeAwareArrangementEntry;
 import com.intellij.psi.codeStyle.arrangement.std.ArrangementSettingsToken;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -13,22 +16,19 @@ import java.util.Set;
  * @author Eugene.Kudelevsky
  */
 public class XmlElementArrangementEntry extends DefaultArrangementEntry
-  implements TypeAwareArrangementEntry, NameAwareArrangementEntry, NamespaceAwareArrangementEntry {
+  implements TypeAwareArrangementEntry, NameAwareArrangementEntry {
 
   private final ArrangementSettingsToken myType;
   private final String                   myName;
-  private final String myNamespace;
 
   public XmlElementArrangementEntry(@Nullable ArrangementEntry parent,
                                     @NotNull TextRange range,
                                     @NotNull ArrangementSettingsToken type,
                                     @Nullable String name,
-                                    @Nullable String namespace,
                                     boolean canBeMatched)
   {
     super(parent, range.getStartOffset(), range.getEndOffset(), canBeMatched);
     myName = name;
-    myNamespace = namespace;
     myType = type;
   }
 
@@ -36,12 +36,6 @@ public class XmlElementArrangementEntry extends DefaultArrangementEntry
   @Override
   public String getName() {
     return myName;
-  }
-
-  @Nullable
-  @Override
-  public String getNamespace() {
-    return myNamespace;
   }
 
   @NotNull

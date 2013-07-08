@@ -139,17 +139,13 @@ public final class ModuleBuildTarget extends JVMModuleBuildTarget<JavaSourceRoot
 
     roots_loop:
     for (JpsTypedModuleSourceRoot<JpsSimpleElement<JavaSourceRootProperties>> sourceRoot : myModule.getSourceRoots(type)) {
-      if (JpsPathUtil.isUnder(moduleExcludes, sourceRoot.getFile())) {
-        continue;
-      }
       for (ExcludedJavaSourceRootProvider provider : excludedRootProviders) {
-        if (provider.isExcludedFromCompilation(myModule, sourceRoot)) {
+        if (provider.isExcludedFromCompilation(myModule, sourceRoot) || JpsPathUtil.isUnder(moduleExcludes, sourceRoot.getFile())) {
           continue roots_loop;
         }
       }
       final String packagePrefix = sourceRoot.getProperties().getData().getPackagePrefix();
-      roots.add(new JavaSourceRootDescriptor(sourceRoot.getFile(), this, false, false, packagePrefix,
-                                             computeRootExcludes(sourceRoot.getFile(), index)));
+      roots.add(new JavaSourceRootDescriptor(sourceRoot.getFile(), this, false, false, packagePrefix, computeRootExcludes(sourceRoot.getFile(), index)));
     }
     return roots;
   }

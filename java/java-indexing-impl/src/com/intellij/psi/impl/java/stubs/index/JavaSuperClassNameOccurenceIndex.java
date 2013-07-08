@@ -24,7 +24,6 @@ import com.intellij.psi.PsiReferenceList;
 import com.intellij.psi.impl.search.JavaSourceFilterScope;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.stubs.StringStubIndexExtension;
-import com.intellij.psi.stubs.StubIndex;
 import com.intellij.psi.stubs.StubIndexKey;
 import org.jetbrains.annotations.NotNull;
 
@@ -46,7 +45,7 @@ public class JavaSuperClassNameOccurenceIndex extends StringStubIndexExtension<P
 
   @Override
   public Collection<PsiReferenceList> get(final String s, final Project project, @NotNull final GlobalSearchScope scope) {
-    return StubIndex.getInstance().safeGet(getKey(), s, project, new JavaSourceFilterScope(scope), PsiReferenceList.class);
+    return super.get(s, project, new JavaSourceFilterScope(scope));
   }
 
   @Override

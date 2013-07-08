@@ -241,9 +241,11 @@ public class AnnotationUtilEx {
   @Nullable
   public static String calcAnnotationValue(@NotNull PsiAnnotation annotation, @NonNls String attr) {
     PsiElement value = annotation.findAttributeValue(attr);
-    Object o = CONSTANT_EVALUATION_HELPER.computeConstantExpression(value);
-    if (o instanceof String) {
-      return (String)o;
+    if (value instanceof PsiExpression) {
+      Object o = CONSTANT_EVALUATION_HELPER.computeConstantExpression(value);
+      if (o instanceof String) {
+        return (String)o;
+      }
     }
     return null;
   }

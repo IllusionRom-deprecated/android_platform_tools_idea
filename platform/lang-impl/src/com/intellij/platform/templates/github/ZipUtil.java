@@ -22,6 +22,7 @@ import java.util.zip.ZipInputStream;
 /**
  * @author Sergey Simonchik
  */
+@SuppressWarnings("IOResourceOpenedButNotSafelyClosed")
 public class ZipUtil {
 
   private static final Logger LOG = Logger.getInstance(ZipUtil.class);
@@ -36,22 +37,16 @@ public class ZipUtil {
     @Nullable Project project,
     @NotNull String progressTitle,
     @NotNull final File zipArchive,
-    @NotNull final File extractToDir,
-    final boolean unwrapSingleTopLevelFolder) throws GeneratorException
+    @NotNull final File extractToDir) throws GeneratorException
   {
-    final Outcome<Boolean> outcome = DownloadUtil.provideDataWithProgressSynchronously(
+    Outcome<Boolean> outcome = DownloadUtil.provideDataWithProgressSynchronously(
       project, progressTitle, "Unpacking ...",
       new Callable<Boolean>() {
         @Override
         public Boolean call() throws IOException {
           ProgressIndicator progress = ProgressManager.getInstance().getProgressIndicator();
           ZipInputStream stream = new ZipInputStream(new FileInputStream(zipArchive));
-          try {
-            unzip(progress, extractToDir, stream, null, null, unwrapSingleTopLevelFolder);
-          }
-          finally {
-            stream.close();
-          }
+          unzip(progress, extractToDir, stream, null, null);
           return true;
         }
       },
@@ -74,37 +69,20 @@ public class ZipUtil {
   }
 
   public static void unzip(@Nullable ProgressIndicator progress,
-                           @NotNull File targetDir,
-                           @NotNull ZipInputStream stream,
+                           File extractToDir,
+                           ZipInputStream stream,
                            @Nullable NullableFunction<String, String> pathConvertor,
-                           @Nullable ContentProcessor contentProcessor,
-                           boolean unwrapSingleTopLevelFolder) throws IOException {
+                           @Nullable ContentProcessor contentProcessor) throws IOException {
     if (progress != null) {
       progress.setText("Extracting...");
     }
-    File unzipToDir = targetDir;
-    if (unwrapSingleTopLevelFolder) {
-      unzipToDir = FileUtil.createTempDirectory("unzip-dir-", null);
-    }
-
-    ZipEntry entry;
-    while ((entry = stream.getNextEntry()) != null) {
-      unzipEntryToDir(progress, entry, unzipToDir, stream, pathConvertor, contentProcessor);
-    }
-
-    if (unwrapSingleTopLevelFolder) {
-      File[] topLevelFiles = unzipToDir.listFiles();
-      File dirToMove;
-      if (topLevelFiles != null && topLevelFiles.length == 1 && topLevelFiles[0].isDirectory()) {
-        dirToMove = topLevelFiles[0];
+    try {
+      ZipEntry entry;
+      while ((entry = stream.getNextEntry()) != null) {
+        unzipEntryToDir(progress, entry, extractToDir, stream, pathConvertor, contentProcessor);
       }
-      else {
-        dirToMove = unzipToDir;
-      }
-      if (!FileUtil.moveDirWithContent(dirToMove, targetDir)) {
-        FileUtil.copyDirContent(dirToMove, targetDir);
-      }
-      FileUtil.delete(unzipToDir);
+    } finally {
+      stream.close();
     }
   }
 
@@ -114,6 +92,7 @@ public class ZipUtil {
                                       ZipInputStream stream,
                                       @Nullable NullableFunction<String, String> pathConvertor,
                                       @Nullable ContentProcessor contentProcessor) throws IOException {
+
     String relativeExtractPath = createRelativeExtractPath(zipEntry);
     if (pathConvertor != null) {
       relativeExtractPath = pathConvertor.fun(relativeExtractPath);
@@ -133,25 +112,22 @@ public class ZipUtil {
     if (progress != null) {
       progress.setText("Extracting " + relativeExtractPath + " ...");
     }
-    if (contentProcessor == null) {
-      FileOutputStream fileOutputStream = new FileOutputStream(child);
-      try {
+    FileOutputStream fileOutputStream = null;
+    try {
+      if (contentProcessor == null) {
+        fileOutputStream = new FileOutputStream(child);
         FileUtil.copy(stream, fileOutputStream);
       }
-      finally {
-        fileOutputStream.close();
-      }
-    }
-    else {
-      byte[] content = contentProcessor.processContent(FileUtil.loadBytes(stream), child);
-      if (content != null) {
-        FileOutputStream fileOutputStream = new FileOutputStream(child);
-        try {
+      else {
+        byte[] content = contentProcessor.processContent(FileUtil.loadBytes(stream), child);
+        if (content != null) {
+          fileOutputStream = new FileOutputStream(child);
           fileOutputStream.write(content);
         }
-        finally {
-          fileOutputStream.close();
-        }
+      }
+    } finally {
+      if (fileOutputStream != null) {
+        fileOutputStream.close();
       }
     }
     LOG.info("Extract: " + relativeExtractPath);
@@ -162,4 +138,5 @@ public class ZipUtil {
     String name = StringUtil.trimStart(zipEntry.getName(), "/");
     return StringUtil.trimEnd(name, "/");
   }
+
 }

@@ -92,13 +92,17 @@ public class TextBlock {
   }
 
   public void performAtomically(@NotNull Runnable runnable) {
-    assert !isLocked();
-    lock();
+    boolean wasLocked = isLocked();
+    if (!wasLocked) {
+      lock();
+    }
     try {
       runnable.run();
     }
     finally {
-      unlock();
+      if (!wasLocked) {
+        unlock();
+      }
     }
   }
 

@@ -16,14 +16,15 @@
 package com.intellij.codeInspection;
 
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.psi.*;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiElementVisitor;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiNamedElement;
 import org.intellij.lang.annotations.Language;
 import org.intellij.lang.annotations.Pattern;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
 
 /**
  * @author max
@@ -171,29 +172,4 @@ public abstract class LocalInspectionTool extends InspectionProfileEntry {
 
   @Deprecated()
   public void inspectionFinished(@NotNull LocalInspectionToolSession session) {}
-  @NotNull
-  public List<ProblemDescriptor> processFile(@NotNull PsiFile file,
-                                             @NotNull InspectionManager manager) {
-    final ProblemsHolder holder = new ProblemsHolder(manager, file, false);
-    LocalInspectionToolSession session = new LocalInspectionToolSession(file, 0, file.getTextLength());
-    final PsiElementVisitor customVisitor = buildVisitor(holder, false, session);
-    LOG.assertTrue(!(customVisitor instanceof PsiRecursiveElementVisitor),
-                   "The visitor returned from LocalInspectionTool.buildVisitor() must not be recursive");
-
-    inspectionStarted(session, false);
-
-    file.accept(new PsiRecursiveElementWalkingVisitor() {
-      @Override
-      public void visitElement(PsiElement element) {
-        element.accept(customVisitor);
-        super.visitElement(element);
-      }
-    });
-
-    inspectionFinished(session, holder);
-
-    return holder.getResults();
-  }
-
-
 }

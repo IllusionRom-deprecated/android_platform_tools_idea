@@ -605,15 +605,4 @@ class Foo {
     assert myFixture.editor.document.text.contains('List<Map.Entry<String, Integer>> result;')
   }
 
-  public void "test name shadowing"() {
-    myFixture.configureByText "a.java", """class LiveTemplateVarSuggestion {
-    private Object value;
-    public void setValue(Object value, Object value1){
-      inn<caret>
-    }
-}"""
-    myFixture.type('\t')
-    assert myFixture.lookupElementStrings == ['value', 'value1']
-  }
-
 }

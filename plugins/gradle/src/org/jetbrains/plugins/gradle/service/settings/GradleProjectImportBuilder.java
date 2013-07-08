@@ -26,8 +26,6 @@ import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.*;
 import com.intellij.openapi.roots.LanguageLevelProjectExtension;
-import com.intellij.openapi.vfs.LocalFileSystem;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.java.LanguageLevel;
 import icons.GradleIcons;
 import org.jetbrains.annotations.NotNull;
@@ -63,8 +61,7 @@ public class GradleProjectImportBuilder extends AbstractExternalProjectImportBui
   @Override
   protected void doPrepare(@NotNull WizardContext context) {
     String pathToUse = context.getProjectFileDirectory();
-    VirtualFile file = LocalFileSystem.getInstance().refreshAndFindFileByPath(pathToUse);
-    if (file != null && file.isDirectory()) {
+    if (!pathToUse.endsWith(GradleConstants.DEFAULT_SCRIPT_NAME)) {
       pathToUse = new File(pathToUse, GradleConstants.DEFAULT_SCRIPT_NAME).getAbsolutePath();
     }
     getControl(context.getProject()).setLinkedProjectPath(pathToUse);
@@ -126,7 +123,13 @@ public class GradleProjectImportBuilder extends AbstractExternalProjectImportBui
   @NotNull
   @Override
   protected File getExternalProjectConfigToUse(@NotNull File file) {
-    return file.isDirectory() ? file : file.getParentFile();
+    if (file.isDirectory()) {
+      File candidate = new File(file, GradleConstants.DEFAULT_SCRIPT_NAME);
+      if (candidate.isFile()) {
+        return candidate;
+      }
+    }
+    return file;
   }
 
   @Override

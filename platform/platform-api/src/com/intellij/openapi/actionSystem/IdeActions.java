@@ -261,6 +261,4 @@ public interface IdeActions {
 
   String CONSOLE_CLEAR_ALL = "ConsoleView.ClearAll";
   String MOVE_TO_ANOTHER_CHANGE_LIST = "ChangesView.Move";
-
-  String ACTION_RECENT_FILES = "RecentFiles";
 }

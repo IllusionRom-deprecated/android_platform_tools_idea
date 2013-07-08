@@ -50,11 +50,11 @@ import java.util.Map;
  * @author Gregory.Shrago
  */
 public class GroovyLanguageInjectionSupport extends AbstractLanguageInjectionSupport {
-  @NonNls public static final String GROOVY_SUPPORT_ID = "groovy";
+  @NonNls private static final String SUPPORT_ID = "groovy";
 
   @NotNull
   public String getId() {
-    return GROOVY_SUPPORT_ID;
+    return SUPPORT_ID;
   }
 
   @NotNull

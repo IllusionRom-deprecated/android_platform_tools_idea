@@ -170,7 +170,7 @@ public class Main {
   public static void showMessage(String title, String message, boolean error) {
     if (isCommandLine()) {
       PrintStream stream = error ? System.err : System.out;
-      stream.println("\n" + title + ": " + message);
+      stream.println(title + ": " + message);
     }
     else {
       try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); }
