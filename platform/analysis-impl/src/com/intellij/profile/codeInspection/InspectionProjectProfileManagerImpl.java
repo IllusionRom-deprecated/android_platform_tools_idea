@@ -15,11 +15,8 @@
  */
 package com.intellij.profile.codeInspection;
 
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer;
 import com.intellij.codeInsight.daemon.impl.SeverityRegistrar;
-import com.intellij.codeInsight.daemon.impl.analysis.HighlightingSettingsPerFile;
 import com.intellij.codeInspection.InspectionProfile;
-import com.intellij.codeInspection.ex.InspectionProfileImpl;
 import com.intellij.codeInspection.ex.InspectionProfileWrapper;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.Application;
@@ -31,16 +28,13 @@ import com.intellij.openapi.startup.StartupManager;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
-import com.intellij.openapi.wm.WindowManager;
-import com.intellij.openapi.wm.ex.StatusBarEx;
-import com.intellij.openapi.wm.impl.status.TogglePopupHintsPanel;
 import com.intellij.packageDependencies.DependencyValidationManager;
 import com.intellij.profile.Profile;
+import com.intellij.profile.ProfileEx;
 import com.intellij.psi.search.scope.packageSet.NamedScopeManager;
 import com.intellij.psi.search.scope.packageSet.NamedScopesHolder;
 import com.intellij.util.ui.UIUtil;
 import org.jdom.Element;
-import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashSet;
@@ -65,7 +59,6 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
   private final Map<String, InspectionProfileWrapper>  myName2Profile = new ConcurrentHashMap<String, InspectionProfileWrapper>();
   private final SeverityRegistrar mySeverityRegistrar;
   private final NamedScopeManager myLocalScopesHolder;
-  private TogglePopupHintsPanel myTogglePopupHintsPanel;
   private NamedScopesHolder.ScopeListener myScopeListener;
 
   public InspectionProjectProfileManagerImpl(final Project project,
@@ -79,11 +72,6 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
 
   public static InspectionProjectProfileManagerImpl getInstanceImpl(Project project){
     return (InspectionProjectProfileManagerImpl)project.getComponent(InspectionProjectProfileManager.class);
-  }
-
-  @Override
-  public String getProfileName() {
-    return getInspectionProfile().getName();
   }
 
   @Override
@@ -144,25 +132,7 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
   }
 
   @Override
-  @NotNull
-  @NonNls
-  public String getComponentName() {
-    return "InspectionProjectProfileManager";
-  }
-
-  @Override
-  public void initComponent() {
-  }
-
-  @Override
-  public void disposeComponent() {
-  }
-
-  @Override
   public void projectOpened() {
-    StatusBarEx statusBar = (StatusBarEx)WindowManager.getInstance().getStatusBar(myProject);
-    myTogglePopupHintsPanel = new TogglePopupHintsPanel(myProject);
-    statusBar.addWidget(myTogglePopupHintsPanel, myProject);
     StartupManager.getInstance(myProject).registerPostStartupActivity(new DumbAwareRunnable() {
       @Override
       public void run() {
@@ -177,19 +147,14 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
             for (Profile profile : profiles) {
               initProfileWrapper(profile);
             }
-            //restart daemon when profiles are ready
-            ApplicationManager.getApplication().invokeLater(new Runnable() {
-              @Override
-              public void run() {
-                DaemonCodeAnalyzer.getInstance(myProject).restart();
-              }
-            }, myProject.getDisposed());
+            fireProfilesInitialized();
           }
         };
         if (app.isUnitTestMode() || app.isHeadlessEnvironment()) {
           initInspectionProfilesRunnable.run();
           UIUtil.dispatchAllInvocationEvents(); //do not restart daemon in the middle of the test
-        } else {
+        }
+        else {
           app.executeOnPooledThread(initInspectionProfilesRunnable);
         }
         myScopeListener = new NamedScopesHolder.ScopeListener() {
@@ -222,7 +187,6 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
 
   @Override
   public void projectClosed() {
-
     final Application app = ApplicationManager.getApplication();
     Runnable cleanupInspectionProfilesRunnable = new Runnable() {
       @Override
@@ -230,6 +194,7 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
         for (InspectionProfileWrapper wrapper : myName2Profile.values()) {
           wrapper.cleanup(myProject);
         }
+        fireProfilesShutdown();
       }
     };
     if (app.isUnitTestMode() || app.isHeadlessEnvironment()) {
@@ -238,7 +203,6 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
     else {
       app.executeOnPooledThread(cleanupInspectionProfilesRunnable);
     }
-    HighlightingSettingsPerFile.getInstance(myProject).cleanProfileSettings();
   }
 
   @NotNull
@@ -265,10 +229,6 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
     mySeverityRegistrar.writeExternal(element);
   }
 
-  public void updateStatusBar() {
-    if (myTogglePopupHintsPanel != null) myTogglePopupHintsPanel.updateStatus();
-  }
-
   @Override
   public Profile getProfile(@NotNull final String name) {
     return getProfile(name, true);
@@ -278,7 +238,7 @@ public class InspectionProjectProfileManagerImpl extends InspectionProjectProfil
   public void convert(Element element) throws InvalidDataException {
     super.convert(element);
     if (PROJECT_PROFILE != null) {
-      ((InspectionProfileImpl)getProjectProfileImpl()).convert(element);
+      ((ProfileEx)getProjectProfileImpl()).convert(element);
     }
   }
 }

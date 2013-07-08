@@ -62,15 +62,15 @@ public class StatisticsConfigurationComponent {
     if (service != null) {
       Map<String, String> overrides = service.getStatisticsConfigurationLabels();
       if (overrides != null) {
-        String s = overrides.get("title");
+        String s = overrides.get(StatisticsService.TITLE);
         if (s != null) {
           myTitle.setText(s);
         }
-        s = overrides.get("details");
+        s = overrides.get(StatisticsService.DETAILS);
         if (s != null) {
           myLabel.setText(s);
         }
-        s = overrides.get("allow-checkbox");
+        s = overrides.get(StatisticsService.ALLOW_CHECKBOX);
         if (s != null) {
           myAllowToSendUsagesCheckBox.setText(s);
         }
