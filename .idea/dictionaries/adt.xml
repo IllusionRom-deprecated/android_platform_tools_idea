@@ -133,6 +133,7 @@
       <w>ints</w>
       <w>invokestatic</w>
       <w>invokevirtual</w>
+      <w>ipsum</w>
       <w>ireturn</w>
       <w>iterable</w>
       <w>jarfile</w>
@@ -173,6 +174,7 @@
       <w>lookups</w>
       <w>lookupswitch</w>
       <w>looper</w>
+      <w>lorem</w>
       <w>lpackage</w>
       <w>makefile</w>
       <w>malloc</w>
@@ -185,6 +187,7 @@
       <w>mkdirs</w>
       <w>monospace</w>
       <w>moreunit</w>
+      <w>multimap</w>
       <w>multipart</w>
       <w>multitouch</w>
       <w>nano</w>
@@ -289,6 +292,7 @@
       <w>userdata</w>
       <w>versioncode</w>
       <w>vert</w>
+      <w>viewport</w>
       <w>vmsig</w>
       <w>wakelock</w>
       <w>wakelocks</w>
