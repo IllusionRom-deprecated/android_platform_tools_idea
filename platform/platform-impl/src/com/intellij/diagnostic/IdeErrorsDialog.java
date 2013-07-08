@@ -1000,11 +1000,6 @@ public class IdeErrorsDialog extends DialogWrapper implements MessagePoolListene
     }
     ErrorReportSubmitter submitter = null;
     for (ErrorReportSubmitter reporter : reporters) {
-      /** Android Studio: Always use the android error reporter */
-      String canonicalName = reporter.getClass().getCanonicalName();
-      if (canonicalName != null && canonicalName.contains("android")) {
-        return reporter;
-      }
       final PluginDescriptor descriptor = reporter.getPluginDescriptor();
       if (pluginId == null && (descriptor == null || PluginId.getId("com.intellij") == descriptor.getPluginId())
           || descriptor != null && Comparing.equal(pluginId, descriptor.getPluginId())) {

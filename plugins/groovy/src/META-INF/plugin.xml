@@ -196,9 +196,7 @@
     <testGenerator language="Groovy" implementationClass="org.jetbrains.plugins.groovy.testIntegration.GroovyTestGenerator"/>
     <constructorBodyGenerator language="Groovy"
                               implementationClass="org.jetbrains.plugins.groovy.annotator.intentions.dynamic.GrConstructorBodyGenerator"/>
-    <!-- In Android Studio, we don't want editor notifications to setup Groovy Path when *.gradle files are opened. This is a temporary
-    hack to remove this until we figure out how to disable it just for gradle scripts.
-    <editorNotificationProvider implementation="org.jetbrains.plugins.groovy.annotator.ConfigureGroovyLibraryNotificationProvider"/> -->
+    <editorNotificationProvider implementation="org.jetbrains.plugins.groovy.annotator.ConfigureGroovyLibraryNotificationProvider"/>
     <refactoring.introduceParameterMethodUsagesProcessor
         implementation="org.jetbrains.plugins.groovy.refactoring.introduce.parameter.java2groovy.GroovyIntroduceParameterMethodUsagesProcessor"/>
     <refactoring.changeSignatureUsageProcessor

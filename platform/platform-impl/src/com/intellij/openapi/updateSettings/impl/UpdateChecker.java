@@ -15,7 +15,6 @@
  */
 package com.intellij.openapi.updateSettings.impl;
 
-import com.google.common.net.HttpHeaders;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.plugins.*;
 import com.intellij.ide.reporter.ConnectionException;
@@ -739,27 +738,7 @@ public final class UpdateChecker {
 
     OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFile));
     try {
-      URL requestUrl = new URL(new URL(getPatchesUrl()), fileName);
-      URLConnection connection;
-
-      int followCount = 2;
-      while(true) {
-        connection = requestUrl.openConnection();
-
-        if (connection instanceof HttpURLConnection) {
-          HttpURLConnection hcnx = (HttpURLConnection)connection;
-          int code = hcnx.getResponseCode();
-          if (code >= 301 && code <= 307 && --followCount >= 0) {
-            String loc = hcnx.getHeaderField(HttpHeaders.LOCATION);
-            if (loc != null) {
-              requestUrl = new URL(loc);
-              continue;
-            }
-          }
-        }
-        break;
-      }
-
+      URLConnection connection = new URL(new URL(getPatchesUrl()), fileName).openConnection();
       try {
         InputStream in = UrlConnectionUtil.getConnectionInputStreamWithException(connection, i);
         try {

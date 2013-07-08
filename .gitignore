@@ -3,5 +3,3 @@
 .idea/workspace.xml
 /out
 .DS_Store
-bin/build.log
-bin/build-log.xml
