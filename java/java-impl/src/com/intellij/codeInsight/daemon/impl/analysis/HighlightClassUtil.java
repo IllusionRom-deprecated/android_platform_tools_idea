@@ -55,10 +55,7 @@ import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 public class HighlightClassUtil {
   private static final QuickFixFactory QUICK_FIX_FACTORY = QuickFixFactory.getInstance();
@@ -998,7 +995,7 @@ public class HighlightClassUtil {
       if (classReference == null) return;
       final PsiClass psiClass = (PsiClass)classReference.resolve();
       if (psiClass == null) return;
-      final MemberChooser<PsiMethodMember> chooser = chooseMethodsToImplement(editor, startElement, psiClass);
+      final MemberChooser<PsiMethodMember> chooser = chooseMethodsToImplement(editor, startElement, psiClass, false);
       if (chooser == null) return;
 
       final List<PsiMethodMember> selectedElements = chooser.getSelectedElements();
@@ -1012,12 +1009,17 @@ public class HighlightClassUtil {
           newExpression = (PsiNewExpression)startElement.replace(newExpression);
           final PsiClass psiClass = newExpression.getAnonymousClass();
           if (psiClass == null) return;
-          PsiClassType baseClassType = ((PsiAnonymousClass)psiClass).getBaseClassType();
-          PsiClass resolve = baseClassType.resolve();
-          if (resolve == null) return;
-          PsiSubstitutor superClassSubstitutor = TypeConversionUtil.getSuperClassSubstitutor(resolve, psiClass, PsiSubstitutor.EMPTY);
+          Map<PsiClass, PsiSubstitutor> subst = new HashMap<PsiClass, PsiSubstitutor>();
           for (PsiMethodMember selectedElement : selectedElements) {
-            selectedElement.setSubstitutor(superClassSubstitutor);
+            final PsiClass baseClass = selectedElement.getElement().getContainingClass();
+            if (baseClass != null) {
+              PsiSubstitutor substitutor = subst.get(baseClass);
+              if (substitutor == null) {
+                substitutor = TypeConversionUtil.getSuperClassSubstitutor(baseClass, psiClass, PsiSubstitutor.EMPTY);
+                subst.put(baseClass, substitutor);
+              }
+              selectedElement.setSubstitutor(substitutor);
+            }
           }
           OverrideImplementUtil.overrideOrImplementMethodsInRightPlace(editor, psiClass, selectedElements, chooser.isCopyJavadoc(),
                                                                        chooser.isInsertOverrideAnnotation());

@@ -18,7 +18,7 @@ package com.intellij.xml.impl;
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInsight.daemon.Validator;
 import com.intellij.codeInspection.InspectionProfile;
-import com.intellij.codeInspection.InspectionProfileEntry;
+import com.intellij.codeInspection.ex.InspectionToolWrapper;
 import com.intellij.ide.highlighter.XHtmlFileType;
 import com.intellij.ide.highlighter.XmlFileType;
 import com.intellij.lang.Language;
@@ -45,6 +45,7 @@ import com.intellij.xml.actions.validate.ValidateXmlActionHandler;
 import com.intellij.xml.util.XmlResourceResolver;
 import com.intellij.xml.util.XmlUtil;
 import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.NotNull;
 import org.xml.sax.SAXParseException;
 
 import java.lang.ref.WeakReference;
@@ -112,6 +113,7 @@ public class ExternalDocumentValidator {
     final List<ValidationInfo> results = new LinkedList<ValidationInfo>();
 
     myHost = new Validator.ValidationHost() {
+      @Override
       public void addMessage(PsiElement context, String message, int type) {
         final ValidationInfo o = new ValidationInfo();
 
@@ -121,19 +123,23 @@ public class ExternalDocumentValidator {
         o.type = type;
       }
 
-      public void addMessage(final PsiElement context, final String message, final ErrorType type) {
+      @Override
+      public void addMessage(final PsiElement context, final String message, @NotNull final ErrorType type) {
         addMessage(context, message, type.ordinal());
       }
     };
 
     myHandler.setErrorReporter(new ErrorReporter(myHandler) {
+      @Override
       public boolean isStopOnUndeclaredResource() {
         return true;
       }
 
+      @Override
       public void processError(final SAXParseException e, final ValidateXmlActionHandler.ProblemType warning) {
         try {
           ApplicationManager.getApplication().runReadAction(new Runnable() {
+            @Override
             public void run() {
               if (e.getPublicId() != null) {
                 return;
@@ -341,7 +347,7 @@ public class ExternalDocumentValidator {
     if (containingFile.getViewProvider() instanceof TemplateLanguageFileViewProvider) {
       return;
     }
-    
+
     final FileType fileType = containingFile.getViewProvider().getVirtualFile().getFileType();
     if (fileType != XmlFileType.INSTANCE && fileType != XHtmlFileType.INSTANCE) {
       return;
@@ -360,7 +366,7 @@ public class ExternalDocumentValidator {
     final Project project = document.getProject();
 
     final InspectionProfile profile = InspectionProjectProfileManager.getInstance(project).getInspectionProfile();
-    final InspectionProfileEntry toolWrapper =
+    final InspectionToolWrapper toolWrapper =
       profile.getInspectionTool(INSPECTION_SHORT_NAME, containingFile);
 
     if (toolWrapper == null) return;

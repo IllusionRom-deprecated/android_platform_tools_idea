@@ -209,6 +209,11 @@ public class TestNGResults extends TestResultsPanel implements TestFrameworkRunn
     }
     return sb.toString();
   }
+  
+  public String getTime() {
+    final long time = end - start;
+    return time == 0 ? "0.0 s" : NumberFormat.getInstance().format((double)time / 1000.0) + " s";
+  }
 
   public TestProxy testStarted(TestResultMessage result) {
     return testStarted(result, true);
@@ -322,6 +327,7 @@ public class TestNGResults extends TestResultsPanel implements TestFrameworkRunn
     }
     myStatusLine.setFraction((double)count / total);
     updateStatusLine();
+    TestsUIUtil.showIconProgress(project, count, total, failed.size());
   }
 
   private TestProxy getPackageClassNodeFor(final TestResultMessage result) {
@@ -451,6 +457,7 @@ public class TestNGResults extends TestResultsPanel implements TestFrameworkRunn
   public void dispose() {
     super.dispose();
     tree.getSelectionModel().removeTreeSelectionListener(openSourceListener);
+    TestsUIUtil.clearIconProgress(project);
   }
 
   public TestProxy getFailedToStart() {

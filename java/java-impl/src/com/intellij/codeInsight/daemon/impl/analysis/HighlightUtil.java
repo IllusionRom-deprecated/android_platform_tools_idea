@@ -2516,7 +2516,7 @@ public class HighlightUtil extends HighlightUtilBase {
       PsiClass aClass = (PsiClass)resolved;
       if (refGrandParent instanceof PsiClass) {
         if (refGrandParent instanceof PsiTypeParameter) {
-          highlightInfo = GenericsHighlightUtil.checkElementInTypeParameterExtendsList(referenceList, resolveResult, ref);
+          highlightInfo = GenericsHighlightUtil.checkElementInTypeParameterExtendsList(referenceList, (PsiClass)refGrandParent, resolveResult, ref);
         }
         else {
           highlightInfo = HighlightClassUtil.checkExtendsClassAndImplementsInterface(referenceList, resolveResult, ref);

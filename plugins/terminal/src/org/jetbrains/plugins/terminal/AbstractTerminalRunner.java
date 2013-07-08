@@ -18,7 +18,7 @@ import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.util.ui.UIUtil;
-import com.jediterm.emulator.TtyConnector;
+import com.jediterm.terminal.TtyConnector;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
@@ -44,9 +44,16 @@ public abstract class AbstractTerminalRunner<T extends Process> {
         try {
           doRun();
         }
-        catch (Exception e) {
+        catch (final Exception e) {
           LOG.warn("Error running terminal", e);
-          Messages.showErrorDialog(AbstractTerminalRunner.this.getProject(), getTitle(), e.getMessage());
+          
+          UIUtil.invokeLaterIfNeeded(new Runnable() {
+
+            @Override
+            public void run() {
+              Messages.showErrorDialog(AbstractTerminalRunner.this.getProject(), e.getMessage(), getTitle());
+            }
+          });
         }
       }
     });

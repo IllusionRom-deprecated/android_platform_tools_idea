@@ -27,7 +27,11 @@ import java.util.Map;
 
 public interface StatisticsService {
 
-  ExtensionPointName<StatisticsService> EP_NAME = ExtensionPointName.create("com.intellij.statisticsService");
+  ExtensionPointName<StatisticsServiceEP> EP_NAME = ExtensionPointName.create("com.intellij.statisticsService");
+
+  @NonNls String TITLE = "title";
+  @NonNls String DETAILS = "details";
+  @NonNls String ALLOW_CHECKBOX = "allow-checkbox";
 
   @NonNls String TITLE = "title";
   @NonNls String DETAILS = "details";
