@@ -16,8 +16,10 @@
 package com.intellij.designer.designSurface.tools;
 
 import com.intellij.designer.designSurface.OperationContext;
+import com.intellij.designer.model.RadComponent;
 
 import java.util.Collections;
+import java.util.List;
 
 /**
  * @author Alexander Lobas
@@ -49,6 +51,11 @@ public class CreationTool extends AbstractCreationTool {
 
   @Override
   protected void updateTarget() {
-    myTargetOperation.setComponent(myContext.getComponents().get(0));
+    if (myTargetOperation != null && myContext != null) {
+      List<RadComponent> components = myContext.getComponents();
+      if (components != null && !components.isEmpty()) {
+        myTargetOperation.setComponent(components.get(0));
+      }
+    }
   }
 }
