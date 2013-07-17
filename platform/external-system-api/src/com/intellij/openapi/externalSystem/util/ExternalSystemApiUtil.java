@@ -363,7 +363,8 @@ public class ExternalSystemApiUtil {
   }
 
   @SuppressWarnings("ConstantConditions")
-  public static String normalizePath(String s) {
+  @Nullable
+  public static String normalizePath(@Nullable String s) {
     return StringUtil.isEmpty(s) ? null : s.replace('\\', ExternalSystemConstants.PATH_SEPARATOR);
   }
 
