@@ -38,5 +38,5 @@ public interface CompilerOptionsManager {
     EXTERNAL_BUILD, AUTO_MAKE, PARALLEL_COMPILATION, REBUILD_MODULE_ON_DEPENDENCY_CHANGE, HEAP_SIZE, COMPILER_VM_OPTIONS
   }
 
-  boolean isAvailable(@NotNull Project project, @NotNull Setting setting);
+  boolean isAvailable(@NotNull Setting setting, @NotNull Project project);
 }
