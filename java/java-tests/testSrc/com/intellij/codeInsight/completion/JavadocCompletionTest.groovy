@@ -216,6 +216,41 @@ class Foo {
     myFixture.assertPreferredCompletionItems 0, 'param', 'param param2'
   }
 
+  public void "test suggest same param descriptions"() {
+    myFixture.configureByText "a.java", '''
+class Foo {
+  /**
+  * @param intParam so<caret> xxx
+  * @throws Foo
+  */
+  void foo2(int intParam, Object param2) { }
+
+  /**
+  * @param intParam some integer param
+  */
+  void foo(int intParam, Object param2) { }
+}
+'''
+    myFixture.completeBasic()
+    myFixture.assertPreferredCompletionItems 0, 'some', 'some integer param'
+    myFixture.lookup.currentItem = myFixture.lookupElements[1]
+    myFixture.type('\t')
+    myFixture.checkResult '''
+class Foo {
+  /**
+  * @param intParam some integer param<caret>
+  * @throws Foo
+  */
+  void foo2(int intParam, Object param2) { }
+
+  /**
+  * @param intParam some integer param
+  */
+  void foo(int intParam, Object param2) { }
+}
+'''
+  }
+
   public void "test see super class"() {
     myFixture.addClass("package foo; public interface Foo {}")
     myFixture.addClass("package bar; public class Bar {} ")

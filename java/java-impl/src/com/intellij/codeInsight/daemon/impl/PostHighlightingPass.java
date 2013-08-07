@@ -27,8 +27,7 @@ import com.intellij.codeInsight.daemon.impl.quickfix.*;
 import com.intellij.codeInsight.intention.EmptyIntentionAction;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInsight.intention.IntentionManager;
-import com.intellij.codeInspection.InspectionProfile;
-import com.intellij.codeInspection.InspectionsBundle;
+import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.deadCode.UnusedDeclarationInspection;
 import com.intellij.codeInspection.ex.InspectionManagerEx;
 import com.intellij.codeInspection.reference.UnusedDeclarationFixProvider;
@@ -36,8 +35,8 @@ import com.intellij.codeInspection.unusedImport.UnusedImportLocalInspection;
 import com.intellij.codeInspection.unusedParameters.UnusedParametersInspection;
 import com.intellij.codeInspection.unusedSymbol.UnusedSymbolLocalInspection;
 import com.intellij.codeInspection.util.SpecialAnnotationsUtilBase;
+import com.intellij.diagnostic.AttachmentFactory;
 import com.intellij.diagnostic.LogMessageEx;
-import com.intellij.diagnostic.errordialog.Attachment;
 import com.intellij.find.FindManager;
 import com.intellij.find.findUsages.*;
 import com.intellij.find.impl.FindManagerImpl;
@@ -82,6 +81,8 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.PropertyKey;
 
 import java.util.*;
+
+import static com.intellij.psi.search.PsiSearchHelper.SearchCostResult.*;
 
 public class PostHighlightingPass extends TextEditorHighlightingPass {
   private static final Logger LOG = Logger.getInstance("#com.intellij.codeInsight.daemon.impl.PostHighlightingPass");
@@ -211,7 +212,7 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
           String afterText = file.getText();
           if (Comparing.strEqual(beforeText, afterText)) {
             LOG.error(LogMessageEx.createEvent("Import optimizer  hasn't optimized any imports", file.getViewProvider().getVirtualFile().getPath(),
-                                               new Attachment(file.getViewProvider().getVirtualFile())));
+                                               AttachmentFactory.createAttachment(file.getViewProvider().getVirtualFile())));
           }
         }
       }
@@ -312,7 +313,7 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
       return processField((PsiField)parent, identifier, progress, helper);
     }
     if (parent instanceof PsiParameter && myUnusedSymbolInspection.PARAMETER) {
-      if (InspectionManagerEx.isSuppressed(identifier, UnusedParametersInspection.SHORT_NAME)) return null;
+      if (SuppressionUtil.isSuppressed(identifier, UnusedParametersInspection.SHORT_NAME)) return null;
       return processParameter((PsiParameter)parent, identifier, progress);
     }
     if (parent instanceof PsiMethod && myUnusedSymbolInspection.METHOD) {
@@ -499,10 +500,11 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
         if (UnusedSymbolLocalInspection.isInjected(method)) return null;
         HighlightInfo highlightInfo = checkUnusedParameter(parameter, identifier, progress);
         if (highlightInfo != null) {
-          final ArrayList<IntentionAction> options = new ArrayList<IntentionAction>();
+          List<IntentionAction> options = new ArrayList<IntentionAction>();
           options.addAll(IntentionManager.getInstance().getStandardIntentionOptions(myUnusedSymbolKey, myFile));
           if (myUnusedParametersInspection != null) {
-            Collections.addAll(options, myUnusedParametersInspection.getSuppressActions(parameter));
+            SuppressQuickFix[] batchSuppressActions = myUnusedParametersInspection.getBatchSuppressActions(parameter);
+            Collections.addAll(options, SuppressManagerImpl.convertBatchToSuppressIntentionActions(batchSuppressActions));
           }
           //need suppress from Unused Parameters but settings from Unused Symbol
           QuickFixAction.registerQuickFixAction(highlightInfo, new RemoveUnusedParameterFix(parameter),
@@ -623,15 +625,27 @@ public class PostHighlightingPass extends TextEditorHighlightingPass {
         useScope = GlobalSearchScope.projectScope(project).uniteWith((GlobalSearchScope)useScope);
       }
 
-      PsiSearchHelper.SearchCostResult cheapEnough = PsiSearchHelper.SERVICE.getInstance(project).isCheapEnoughToSearch(name, (GlobalSearchScope)useScope,
-                                                                                                                        helper.isCurrentFileAlreadyChecked() ? member.getContainingFile() : null,
-                                                                                                                        progress);
-      if (cheapEnough == PsiSearchHelper.SearchCostResult.TOO_MANY_OCCURRENCES) return false;
+      PsiSearchHelper searchHelper = PsiSearchHelper.SERVICE.getInstance(project);
+      PsiFile file = member.getContainingFile();
+      PsiFile ignoreFile = helper.isCurrentFileAlreadyChecked() ? file : null;
+      PsiSearchHelper.SearchCostResult cheapEnough = searchHelper.isCheapEnoughToSearch(name, (GlobalSearchScope)useScope, ignoreFile, progress);
+      if (cheapEnough == TOO_MANY_OCCURRENCES) return false;
 
       //search usages if it cheap
       //if count is 0 there is no usages since we've called myRefCountHolder.isReferenced() before
-      if (cheapEnough == PsiSearchHelper.SearchCostResult.ZERO_OCCURRENCES) {
+      if (cheapEnough == ZERO_OCCURRENCES) {
         if (!canBeReferencedViaWeirdNames(member)) return true;
+      }
+
+      if (member instanceof PsiMethod) {
+        String propertyName = PropertyUtil.getPropertyName(member);
+        if (propertyName != null && file != null) {
+          SearchScope fileScope = file.getUseScope();
+          if (fileScope instanceof GlobalSearchScope &&
+              searchHelper.isCheapEnoughToSearch(propertyName, (GlobalSearchScope)fileScope, ignoreFile, progress) == TOO_MANY_OCCURRENCES) {
+            return false;
+          }
+        }
       }
     }
     FindUsagesManager findUsagesManager = ((FindManagerImpl)FindManager.getInstance(project)).getFindUsagesManager();

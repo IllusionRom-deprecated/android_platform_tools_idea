@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * @author Eugene Zhuravlev
@@ -47,7 +48,11 @@ public abstract class FileBasedIndexExtension<K, V> {
   public abstract FileBasedIndex.InputFilter getInputFilter();
   
   public abstract boolean dependsOnFileContent();
-  
+
+  public boolean indexDirectories() {
+    return false;
+  }
+
   public abstract int getVersion();
 
   /**
@@ -73,5 +78,10 @@ public abstract class FileBasedIndexExtension<K, V> {
 
   public boolean isKeyHighlySelective() {
     return false;
+  }
+
+  /** Per-filetype index version support */
+  public Map<FileType, Integer> getVersionMap() {
+    return Collections.emptyMap();
   }
 }

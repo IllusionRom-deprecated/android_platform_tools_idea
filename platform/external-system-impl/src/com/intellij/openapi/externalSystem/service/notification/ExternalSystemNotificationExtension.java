@@ -51,7 +51,7 @@ public interface ExternalSystemNotificationExtension {
   enum UsageHint {
     PROJECT_REFRESH
   }
-
+  
   class CustomizationResult {
 
     @Nullable private final String               myTitle;

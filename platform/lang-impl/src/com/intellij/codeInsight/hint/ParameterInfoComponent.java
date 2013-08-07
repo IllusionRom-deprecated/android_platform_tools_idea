@@ -276,6 +276,7 @@ class ParameterInfoComponent extends JPanel {
       int added = 0;
       for (int i = 0; i < texts.length; i++) {
         String line = texts[i];
+        if (lines.length <= index) break;
         String text = lines[index];
         final int paramCount = StringUtil.split(text, ", ").size();
         final EnumSet<ParameterInfoUIContextEx.Flag> flag = flags[i];
@@ -340,7 +341,7 @@ class ParameterInfoComponent extends JPanel {
       myLabel.setForeground(FOREGROUND_COLOR);
 
       if (flagsMap.isEmpty()) {
-        myLabel.setText(XmlStringUtil.wrapInHtml(text));
+        myLabel.setText(XmlStringUtil.wrapInHtml(XmlStringUtil.escapeString(text)));
       }
       else {
         String labelText = buildLabelText(text, flagsMap);

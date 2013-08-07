@@ -2,13 +2,13 @@ package org.jetbrains.plugins.terminal;
 
 import com.intellij.execution.ExecutionManager;
 import com.intellij.execution.Executor;
-import com.intellij.execution.ExecutorRegistry;
 import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.ui.RunContentDescriptor;
 import com.intellij.execution.ui.actions.CloseAction;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.keymap.KeymapManager;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
@@ -19,10 +19,15 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.util.ui.UIUtil;
 import com.jediterm.terminal.TtyConnector;
+import com.jediterm.terminal.ui.AbstractSystemSettingsProvider;
+import com.jediterm.terminal.ui.TerminalSession;
+import com.jediterm.terminal.ui.TerminalWidget;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -46,7 +51,7 @@ public abstract class AbstractTerminalRunner<T extends Process> {
         }
         catch (final Exception e) {
           LOG.warn("Error running terminal", e);
-          
+
           UIUtil.invokeLaterIfNeeded(new Runnable() {
 
             @Override
@@ -80,20 +85,29 @@ public abstract class AbstractTerminalRunner<T extends Process> {
 
   protected abstract ProcessHandler createProcessHandler(T process);
 
+  public TerminalWidget createTerminalWidget() {
+    JBTerminalSystemSettingsProvider provider = new JBTerminalSystemSettingsProvider();
+    JBTabbedTerminalWidget terminalWidget = new JBTabbedTerminalWidget(provider);
+    provider.setTerminalWidget(terminalWidget);
+    openSession(terminalWidget);
+    return terminalWidget;
+  }
+
   private void initConsoleUI(final T process) {
-    final Executor defaultExecutor = ExecutorRegistry.getInstance().getExecutorById(DefaultRunExecutor.EXECUTOR_ID);
+    final Executor defaultExecutor = DefaultRunExecutor.getRunExecutorInstance();
     final DefaultActionGroup toolbarActions = new DefaultActionGroup();
     final ActionToolbar actionToolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.UNKNOWN, toolbarActions, false);
 
-    final JBTerminal term = new JBTerminal();
+    JBTerminalSystemSettingsProvider provider = new JBTerminalSystemSettingsProvider();
+    TerminalWidget widget = new JBTabbedTerminalWidget(provider);
+    provider.setTerminalWidget(widget);
 
-    term.setTtyConnector(createTtyConnector(process));
+    openSession(widget, createTtyConnector(process));
 
     final JPanel panel = new JPanel(new BorderLayout());
     panel.add(actionToolbar.getComponent(), BorderLayout.WEST);
 
-    panel.add(term, BorderLayout.CENTER);
-    term.start();
+    panel.add(widget.getComponent(), BorderLayout.CENTER);
 
     actionToolbar.setTargetComponent(panel);
 
@@ -106,9 +120,15 @@ public abstract class AbstractTerminalRunner<T extends Process> {
 
     toolbarActions.add(createCloseAction(defaultExecutor, contentDescriptor));
 
-    showConsole(defaultExecutor, contentDescriptor, term.getTerminalPanel());
+    showConsole(defaultExecutor, contentDescriptor, widget.getComponent());
 
     processHandler.startNotify();
+  }
+
+  public static void openSession(TerminalWidget terminal, TtyConnector ttyConnector) {
+    TerminalSession session = terminal.createTerminalSession();
+    session.setTtyConnector(ttyConnector);
+    session.start();
   }
 
   protected abstract String getTerminalConnectionName(T process);
@@ -135,5 +155,58 @@ public abstract class AbstractTerminalRunner<T extends Process> {
 
   protected Project getProject() {
     return myProject;
+  }
+
+  private class JBTerminalSystemSettingsProvider extends AbstractSystemSettingsProvider {
+    private TerminalWidget myTerminalWidget;
+
+    public void setTerminalWidget(TerminalWidget terminalWidget) {
+      myTerminalWidget = terminalWidget;
+    }
+
+    @Override
+    public AbstractAction getNewSessionAction() {
+      return new AbstractAction("New Session") {
+        @Override
+        public void actionPerformed(ActionEvent event) {
+          openSession(myTerminalWidget);
+        }
+      };
+    }
+
+    @Override
+    public KeyStroke[] getCopyKeyStrokes() {
+      return getKeyStrokesByActionId("$Copy");
+    }
+
+    @Override
+    public KeyStroke[] getPasteKeyStrokes() {
+      return getKeyStrokesByActionId("$Paste");
+    }
+
+    private KeyStroke[] getKeyStrokesByActionId(String actionId) {
+      java.util.List<KeyStroke> keyStrokes = new ArrayList<KeyStroke>();
+      Shortcut[] shortcuts = KeymapManager.getInstance().getActiveKeymap().getShortcuts(actionId);
+      for (Shortcut sc : shortcuts) {
+        if (sc instanceof KeyboardShortcut) {
+          KeyStroke ks = ((KeyboardShortcut)sc).getFirstKeyStroke();
+          keyStrokes.add(ks);
+        }
+      }
+
+      return keyStrokes.toArray(new KeyStroke[keyStrokes.size()]);
+    }
+  }
+
+  public void openSession(TerminalWidget terminalWidget) {
+    // Create Server process
+    try {
+      final T process = createProcess();
+
+      openSession(terminalWidget, createTtyConnector(process));
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e.getMessage(), e);
+    }
   }
 }

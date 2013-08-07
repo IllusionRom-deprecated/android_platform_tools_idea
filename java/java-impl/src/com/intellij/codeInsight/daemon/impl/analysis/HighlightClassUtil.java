@@ -377,7 +377,7 @@ public class HighlightClassUtil {
       .parent(PsiMatchers.hasClass(PsiModifierList.class))
       .parent(PsiMatchers.hasClass(parentClass))
       .parent(PsiMatchers.hasClass(PsiClass.class))
-      .dot(PsiMatchers.hasModifier(PsiModifier.STATIC, false))
+      .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, false))
       .parent(PsiMatchers.hasClass(PsiClass.class, PsiDeclarationStatement.class, PsiNewExpression.class, PsiEnumConstant.class))
       .getElement();
   }
@@ -387,9 +387,9 @@ public class HighlightClassUtil {
     // keyword points to 'class' or 'interface' or 'enum'
     if (new PsiMatcherImpl(keyword)
       .parent(PsiMatchers.hasClass(PsiClass.class))
-      .dot(PsiMatchers.hasModifier(PsiModifier.STATIC, true))
+      .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, true))
       .parent(PsiMatchers.hasClass(PsiClass.class))
-      .dot(PsiMatchers.hasModifier(PsiModifier.STATIC, false))
+      .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, false))
       .parent(PsiMatchers.hasClass(PsiClass.class, PsiDeclarationStatement.class, PsiNewExpression.class, PsiEnumConstant.class))
       .getElement() == null) {
       return null;
@@ -626,7 +626,7 @@ public class HighlightClassUtil {
   }
 
   @Nullable
-  public static HighlightInfo checkExtendsDuplicate(PsiJavaCodeReferenceElement element, PsiElement resolved) {
+  public static HighlightInfo checkExtendsDuplicate(PsiJavaCodeReferenceElement element, PsiElement resolved, @NotNull PsiFile containingFile) {
     if (!(element.getParent() instanceof PsiReferenceList)) return null;
     PsiReferenceList list = (PsiReferenceList)element.getParent();
     if (!(list.getParent() instanceof PsiClass)) return null;
@@ -634,9 +634,10 @@ public class HighlightClassUtil {
     PsiClass aClass = (PsiClass)resolved;
     PsiClassType[] referencedTypes = list.getReferencedTypes();
     int dupCount = 0;
+    PsiManager manager = containingFile.getManager();
     for (PsiClassType referencedType : referencedTypes) {
       PsiClass resolvedElement = referencedType.resolve();
-      if (resolvedElement != null && list.getManager().areElementsEquivalent(resolvedElement, aClass)) {
+      if (resolvedElement != null && manager.areElementsEquivalent(resolvedElement, aClass)) {
         dupCount++;
       }
     }

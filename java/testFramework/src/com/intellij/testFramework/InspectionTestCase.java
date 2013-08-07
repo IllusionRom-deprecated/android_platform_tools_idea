@@ -18,9 +18,11 @@ package com.intellij.testFramework;
 import com.intellij.ExtensionPoints;
 import com.intellij.analysis.AnalysisScope;
 import com.intellij.codeInspection.GlobalInspectionTool;
+import com.intellij.codeInspection.InspectionEP;
 import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.deadCode.UnusedDeclarationInspection;
+import com.intellij.codeInspection.deadCode.UnusedDeclarationPresentation;
 import com.intellij.codeInspection.ex.*;
 import com.intellij.codeInspection.reference.EntryPoint;
 import com.intellij.codeInspection.reference.RefElement;
@@ -55,6 +57,15 @@ public abstract class InspectionTestCase extends PsiTestCase {
   private static final Logger LOG = Logger.getInstance("#com.intellij.testFramework.InspectionTestCase");
   private EntryPoint myUnusedCodeExtension;
   private VirtualFile ext_src;
+
+  protected static GlobalInspectionToolWrapper getUnusedDeclarationWrapper() {
+    InspectionEP ep = new InspectionEP();
+    ep.presentation = UnusedDeclarationPresentation.class.getName();
+    ep.implementationClass = UnusedDeclarationInspection.class.getName();
+    ep.shortName = UnusedDeclarationInspection.SHORT_NAME;
+    GlobalInspectionToolWrapper wrapper = new GlobalInspectionToolWrapper(ep);
+    return wrapper;
+  }
 
   public InspectionManagerEx getManager() {
     return (InspectionManagerEx)InspectionManager.getInstance(myProject);
@@ -103,20 +114,20 @@ public abstract class InspectionTestCase extends PsiTestCase {
                      boolean runDeadCodeFirst,
                      InspectionToolWrapper... additional) {
     final String testDir = getTestDataPath() + "/" + folderName;
-    runTool(testDir, jdkName, runDeadCodeFirst, toolWrapper, additional);
+    GlobalInspectionContextImpl context = runTool(testDir, jdkName, runDeadCodeFirst, toolWrapper, additional);
 
-    InspectionTestUtil.compareToolResults(toolWrapper, checkRange, testDir);
+    InspectionTestUtil.compareToolResults(context, toolWrapper, checkRange, testDir);
   }
 
   protected void runTool(@NonNls final String testDir, @NonNls final String jdkName, final InspectionToolWrapper tool) {
     runTool(testDir, jdkName, false, tool);
   }
 
-  protected void runTool(final String testDir,
-                         final String jdkName,
-                         boolean runDeadCodeFirst,
-                         @NotNull InspectionToolWrapper toolWrapper,
-                         @NotNull InspectionToolWrapper... additional) {
+  protected GlobalInspectionContextImpl runTool(final String testDir,
+                                                final String jdkName,
+                                                boolean runDeadCodeFirst,
+                                                @NotNull InspectionToolWrapper toolWrapper,
+                                                @NotNull InspectionToolWrapper... additional) {
     final VirtualFile[] sourceDir = new VirtualFile[1];
     ApplicationManager.getApplication().runWriteAction(new Runnable() {
       @Override
@@ -132,12 +143,13 @@ public abstract class InspectionTestCase extends PsiTestCase {
     AnalysisScope scope = createAnalysisScope(sourceDir[0].getParent());
 
     InspectionManagerEx inspectionManager = (InspectionManagerEx)InspectionManager.getInstance(getProject());
-    InspectionToolWrapper[] toolWrappers = runDeadCodeFirst ? new InspectionToolWrapper []{new GlobalInspectionToolWrapper(new UnusedDeclarationInspection()), toolWrapper} : new InspectionToolWrapper []{toolWrapper};
+    InspectionToolWrapper[] toolWrappers = runDeadCodeFirst ? new InspectionToolWrapper []{getUnusedDeclarationWrapper(), toolWrapper} : new InspectionToolWrapper []{toolWrapper};
     toolWrappers = ArrayUtil.mergeArrays(toolWrappers, additional);
     final GlobalInspectionContextImpl globalContext =
       CodeInsightTestFixtureImpl.createGlobalContextForTool(scope, getProject(), inspectionManager, toolWrappers);
 
     InspectionTestUtil.runTool(toolWrapper, scope, globalContext, inspectionManager);
+    return globalContext;
   }
 
   @NotNull

@@ -34,6 +34,7 @@ import com.intellij.psi.search.ProjectScope;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.tree.TokenSet;
 import com.intellij.util.IncorrectOperationException;
+import com.intellij.util.TimeoutUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.EmptyIterable;
 import com.intellij.util.containers.HashMap;
@@ -1015,10 +1016,28 @@ public final class PsiUtil extends PsiUtilCore {
 
   public static void ensureValidType(@NotNull PsiType type) {
     if (!type.isValid()) {
+      TimeoutUtil.sleep(1); // to see if processing in another thread suddenly makes the type valid again (which is a bug)
+      if (type.isValid()) {
+        LOG.error("PsiType resurrected: " + type + " of " + type.getClass());
+        return;
+      }
       if (type instanceof PsiClassType) {
         ((PsiClassType)type).resolve(); // should throw exception
       }
       throw new AssertionError("Invalid type: " + type + " of class " + type.getClass());
     }
+  }
+
+  @Nullable
+  public static String getMemberQualifiedName(PsiMember member) {
+    if (member instanceof PsiClass) {
+      return ((PsiClass)member).getQualifiedName();
+    }
+
+    PsiClass containingClass = member.getContainingClass();
+    if (containingClass == null) return null;
+    String className = containingClass.getQualifiedName();
+    if (className == null) return null;
+    return className + "." + member.getName();
   }
 }

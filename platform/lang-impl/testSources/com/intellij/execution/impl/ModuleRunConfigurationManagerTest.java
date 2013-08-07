@@ -164,11 +164,7 @@ public class ModuleRunConfigurationManagerTest extends LightPlatformTestCase {
       return null;
     }
 
-    @Override
-    protected ModuleBasedConfiguration createInstance() {
-      return null;
-    }
-
+    @NotNull
     @Override
     public SettingsEditor<? extends RunConfiguration> getConfigurationEditor() {
       return null;
