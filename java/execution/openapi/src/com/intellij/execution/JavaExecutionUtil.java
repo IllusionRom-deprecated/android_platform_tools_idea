@@ -59,7 +59,8 @@ public class JavaExecutionUtil {
     final DefaultRunProfile profile = new DefaultRunProfile(project, cmdLine, contentName, icon, filters);
     final ProgramRunner runner = RunnerRegistry.getInstance().getRunner(DefaultRunExecutor.EXECUTOR_ID, profile);
     if (runner != null) {
-      runner.execute(DefaultRunExecutor.getRunExecutorInstance(), new ExecutionEnvironment(profile, project, null, null, null));
+      Executor executor = DefaultRunExecutor.getRunExecutorInstance();
+      runner.execute(new ExecutionEnvironment(profile, executor, project, null));
       return true;
     }
 
@@ -131,9 +132,6 @@ public class JavaExecutionUtil {
     public String getName() {
       return myContentName;
     }
-
-    public void checkConfiguration() {}
-
   }
 
   @Nullable
@@ -143,6 +141,7 @@ public class JavaExecutionUtil {
 
   @Nullable
   public static String getPresentableClassName(final String rtClassName, final JavaRunConfigurationModule configurationModule) {
+    if (StringUtil.isEmpty(rtClassName)) return null;
     final PsiClass psiClass = configurationModule.findClass(rtClassName);
     if (psiClass != null) {
       return psiClass.getName();

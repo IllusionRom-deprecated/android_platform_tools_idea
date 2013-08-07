@@ -31,7 +31,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.Presentation;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.markup.GutterIconRenderer;
+import com.intellij.codeInsight.daemon.GutterMark;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -405,24 +405,24 @@ public interface CodeInsightTestFixture extends IdeaProjectTestFixture {
    * @return gutter renderer at the caret position.
    */
   @Nullable
-  GutterIconRenderer findGutter(@TestDataFile @NonNls String filePath);
+  GutterMark findGutter(@TestDataFile @NonNls String filePath);
 
   PsiManager getPsiManager();
 
   /**
    * @return null if the only item was auto-completed
    */
-  @Nullable LookupElement[] completeBasic();
+  LookupElement[] completeBasic();
 
   /**
    * @return null if the only item was auto-completed
    */
-  @Nullable LookupElement[] complete(CompletionType type);
+  LookupElement[] complete(CompletionType type);
 
   /**
    * @return null if the only item was auto-completed
    */
-  @Nullable LookupElement[] complete(CompletionType type, int invocationCount);
+  LookupElement[] complete(CompletionType type, int invocationCount);
 
   void checkResult(final String text);
 
@@ -431,7 +431,7 @@ public interface CodeInsightTestFixture extends IdeaProjectTestFixture {
   Document getDocument(PsiFile file);
 
   @NotNull
-  Collection<GutterIconRenderer> findAllGutters(String filePath);
+  Collection<GutterMark> findAllGutters(String filePath);
 
   void type(final char c);
 

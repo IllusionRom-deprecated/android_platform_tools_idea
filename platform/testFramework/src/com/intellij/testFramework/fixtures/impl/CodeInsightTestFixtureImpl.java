@@ -65,7 +65,7 @@ import com.intellij.openapi.editor.ex.EditorEx;
 import com.intellij.openapi.editor.ex.util.EditorUtil;
 import com.intellij.openapi.editor.impl.DocumentImpl;
 import com.intellij.openapi.editor.impl.DocumentMarkupModel;
-import com.intellij.openapi.editor.markup.GutterIconRenderer;
+import com.intellij.codeInsight.daemon.GutterMark;
 import com.intellij.openapi.editor.markup.RangeHighlighter;
 import com.intellij.openapi.extensions.ExtensionPoint;
 import com.intellij.openapi.extensions.ExtensionPointName;
@@ -204,8 +204,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
         }
         else {
           if (!fromFile.exists()) {
-            fail("Cannot find source file: '" + sourceFilePath + "'. getTestDataPath()='" + testDataPath + "'. " +
-                 "getHomePath()='" + getHomePath() + "'.");
+            Assert.fail("Cannot find source file: '" + sourceFilePath + "'. getTestDataPath()='" + testDataPath + "'. ");
           }
           try {
             FileUtil.copy(fromFile, targetFile);
@@ -369,9 +368,9 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
         @Override
         public Trinity<PsiFile, Editor, ExpectedHighlightingData> fun(final VirtualFile file) {
           final PsiFile psiFile = myPsiManager.findFile(file);
-          assertNotNull(psiFile);
+          Assert.assertNotNull(psiFile);
           final Document document = PsiDocumentManager.getInstance(getProject()).getDocument(psiFile);
-          assertNotNull(document);
+          Assert.assertNotNull(document);
           ExpectedHighlightingData data = new ExpectedHighlightingData(document, checkWarnings, checkWeakWarnings, checkInfos, psiFile);
           data.init();
           return Trinity.create(psiFile, createEditor(file), data);
@@ -451,7 +450,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
     GlobalInspectionContextImpl globalContext = createGlobalContextForTool(scope, getProject(), inspectionManager, toolWrapper);
 
     InspectionTestUtil.runTool(toolWrapper, scope, globalContext, inspectionManager);
-    InspectionTestUtil.compareToolResults(toolWrapper, false, new File(getTestDataPath(), testDir).getPath());
+    InspectionTestUtil.compareToolResults(globalContext, toolWrapper, false, new File(getTestDataPath(), testDir).getPath());
   }
 
   @NotNull
@@ -668,7 +667,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
                              myFile.getName() +
                              " at caret position, offset " +
                              myEditor.getCaretModel().getOffset() + "\"" +
-                             " psi structure: " + DebugUtil.psiToString(myFile, true);
+                             " psi structure: " + DebugUtil.psiToString(myFile, true, true);
     return element;
   }
 
@@ -857,14 +856,14 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
 
   @Override
   @Nullable
-  public GutterIconRenderer findGutter(final String filePath) {
+  public GutterMark findGutter(final String filePath) {
     configureByFilesInner(filePath);
     int offset = myEditor.getCaretModel().getOffset();
 
     final Collection<HighlightInfo> infos = doHighlighting();
     for (HighlightInfo info : infos) {
       if (info.endOffset >= offset && info.startOffset <= offset) {
-        final GutterIconRenderer renderer = info.getGutterIconRenderer();
+        final GutterMark renderer = info.getGutterIconRenderer();
         if (renderer != null) {
           return renderer;
         }
@@ -873,7 +872,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
     RangeHighlighter[] highlighters = DocumentMarkupModel.forDocument(myEditor.getDocument(), getProject(), true).getAllHighlighters();
     for (RangeHighlighter highlighter : highlighters) {
       if (highlighter.getEndOffset() >= offset && highlighter.getStartOffset() <= offset) {
-        GutterIconRenderer renderer = highlighter.getGutterIconRenderer();
+        GutterMark renderer = highlighter.getGutterIconRenderer();
         if (renderer != null) {
           return renderer;
         }
@@ -884,9 +883,9 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
 
   @Override
   @NotNull
-  public Collection<GutterIconRenderer> findAllGutters(final String filePath) {
+  public Collection<GutterMark> findAllGutters(final String filePath) {
     final Project project = getProject();
-    final SortedMap<Integer, List<GutterIconRenderer>> result = new TreeMap<Integer, List<GutterIconRenderer>>();
+    final SortedMap<Integer, List<GutterMark>> result = new TreeMap<Integer, List<GutterMark>>();
     configureByFilesInner(filePath);
 
     List<HighlightInfo> infos = doHighlighting();
@@ -902,14 +901,14 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
     return ContainerUtil.concat(result.values());
   }
 
-  private static void addGutterIconRenderer(final GutterIconRenderer renderer,
+  private static void addGutterIconRenderer(final GutterMark renderer,
                                             final int offset,
-                                            SortedMap<Integer, List<GutterIconRenderer>> result) {
+                                            SortedMap<Integer, List<GutterMark>> result) {
     if (renderer == null) return;
 
-    List<GutterIconRenderer> renderers = result.get(offset);
+    List<GutterMark> renderers = result.get(offset);
     if (renderers == null) {
-      result.put(offset, renderers = new SmartList<GutterIconRenderer>());
+      result.put(offset, renderers = new SmartList<GutterMark>());
     }
     renderers.add(renderer);
   }
@@ -1081,7 +1080,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
   public void setUp() throws Exception {
     super.setUp();
 
-    edt(new Runnable() {
+    UIUtil.invokeAndWaitIfNeeded(new Runnable() {
       @Override
       public void run() {
         try {
@@ -1106,7 +1105,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
 
   @Override
   public void tearDown() throws Exception {
-    edt(new Runnable() {
+    UIUtil.invokeAndWaitIfNeeded(new Runnable() {
       @Override
       public void run() {
         FileEditorManager editorManager = FileEditorManager.getInstance(getProject());
@@ -1272,12 +1271,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
           vFile = root.findOrCreateChildData(this, fileName);
         }
         else if (myTempDirFixture instanceof TempDirTestFixtureImpl) {
-          String prefix = StringUtil.getPackageName(fileName);
-          if (prefix.length() < 3) {
-            prefix += "___";
-          }
-          String suffix = "." + StringUtil.getShortName(fileName);
-          final File tempFile = ((TempDirTestFixtureImpl)myTempDirFixture).createTempFile(prefix, suffix);
+          final File tempFile = ((TempDirTestFixtureImpl)myTempDirFixture).createTempFile(fileName);
           vFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile);
         }
         else {
@@ -1700,7 +1694,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
       final int actualLine = myEditor.getCaretModel().getLogicalPosition().line;
       final int actualCol = myEditor.getCaretModel().getLogicalPosition().column;
       boolean caretPositionEquals = caretLine == actualLine && caretCol == actualCol;
-      assertTrue("Caret position in " + expectedFile + " differs. Expected " + genCaretPositionPresentation(caretLine, caretCol) +
+      Assert.assertTrue("Caret position in " + expectedFile + " differs. Expected " + genCaretPositionPresentation(caretLine, caretCol) +
         ". Actual " + genCaretPositionPresentation(actualLine, actualCol), caretPositionEquals);
     }
 
@@ -1850,7 +1844,7 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
     final String cleanContent = expectedContent.replaceAll(START_FOLD, "").replaceAll(END_FOLD, "");
     final String actual = getFoldingDescription(cleanContent, verificationFileName, doCheckCollapseStatus);
 
-    assertEquals(expectedContent, actual);
+    Assert.assertEquals(expectedContent, actual);
   }
 
   @Override
@@ -1866,16 +1860,16 @@ public class CodeInsightTestFixtureImpl extends BaseFixture implements CodeInsig
   @Override
   public void assertPreferredCompletionItems(final int selected, @NonNls final String... expected) {
     final LookupImpl lookup = getLookup();
-    assertNotNull(lookup);
+    Assert.assertNotNull(lookup);
 
     final JList list = lookup.getList();
     List<String> strings = getLookupElementStrings();
     assert strings != null;
     final List<String> actual = strings.subList(0, Math.min(expected.length, strings.size()));
     if (!actual.equals(Arrays.asList(expected))) {
-      assertOrderedEquals(DumpLookupElementWeights.getLookupElementWeights(lookup), expected);
+      UsefulTestCase.assertOrderedEquals(DumpLookupElementWeights.getLookupElementWeights(lookup), expected);
     }
-    assertEquals(selected, list.getSelectedIndex());
+    Assert.assertEquals(selected, list.getSelectedIndex());
   }
 
   @Override

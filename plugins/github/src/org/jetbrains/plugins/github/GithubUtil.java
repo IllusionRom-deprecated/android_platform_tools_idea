@@ -15,29 +15,31 @@
  */
 package org.jetbrains.plugins.github;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Pair;
+import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ThrowableConsumer;
 import com.intellij.util.ThrowableConvertor;
+import git4idea.GitUtil;
 import git4idea.config.GitVcsApplicationSettings;
 import git4idea.config.GitVersion;
 import git4idea.i18n.GitBundle;
 import git4idea.repo.GitRemote;
 import git4idea.repo.GitRepository;
-import org.apache.commons.httpclient.auth.AuthenticationException;
+import git4idea.repo.GitRepositoryManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.github.api.*;
+import org.jetbrains.plugins.github.ui.GithubBasicLoginDialog;
 import org.jetbrains.plugins.github.ui.GithubLoginDialog;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -51,68 +53,113 @@ public class GithubUtil {
 
   public static final Logger LOG = Logger.getInstance("github");
 
-  @Nullable
-  public static GithubAuthData runAndGetValidAuth(@NotNull Project project,
+  // TODO: these functions ugly inside and out
+  @NotNull
+  public static GithubAuthData runAndGetValidAuth(@Nullable Project project,
                                                   @NotNull ProgressIndicator indicator,
                                                   @NotNull ThrowableConsumer<GithubAuthData, IOException> task) throws IOException {
     GithubAuthData auth = GithubSettings.getInstance().getAuthData();
     try {
+      if (auth.getAuthType() == GithubAuthData.AuthType.ANONYMOUS) {
+        throw new GithubAuthenticationException("Bad authentication type");
+      }
       task.consume(auth);
       return auth;
     }
-    catch (AuthenticationException e) {
+    catch (GithubAuthenticationException e) {
       auth = getValidAuthData(project, indicator);
       if (auth == null) {
-        return null;
+        throw new GithubAuthenticationCanceledException("Can't get valid credentials");
       }
       task.consume(auth);
       return auth;
     }
     catch (IOException e) {
-      GithubSslSupport sslSupport = GithubSslSupport.getInstance();
-      if (GithubSslSupport.isCertificateException(e)) {
-        if (sslSupport.askIfShouldProceed(auth.getHost())) {
-          return runAndGetValidAuth(project, indicator, task);
-        }
-        else {
-          return null;
-        }
+      if (checkSSLCertificate(e, auth.getHost(), indicator)) {
+        return runAndGetValidAuth(project, indicator, task);
       }
       throw e;
     }
   }
 
-  @Nullable
-  public static <T> T runWithValidAuth(@NotNull Project project,
+  @NotNull
+  public static <T> T runWithValidAuth(@Nullable Project project,
                                        @NotNull ProgressIndicator indicator,
                                        @NotNull ThrowableConvertor<GithubAuthData, T, IOException> task) throws IOException {
     GithubAuthData auth = GithubSettings.getInstance().getAuthData();
     try {
+      if (auth.getAuthType() == GithubAuthData.AuthType.ANONYMOUS) {
+        throw new GithubAuthenticationException("Bad authentication type");
+      }
       return task.convert(auth);
     }
-    catch (AuthenticationException e) {
+    catch (GithubAuthenticationException e) {
       auth = getValidAuthData(project, indicator);
       if (auth == null) {
-        return null;
+        throw new GithubAuthenticationCanceledException("Can't get valid credentials");
       }
       return task.convert(auth);
     }
     catch (IOException e) {
-      GithubSslSupport sslSupport = GithubSslSupport.getInstance();
-      if (GithubSslSupport.isCertificateException(e)) {
-        if (sslSupport.askIfShouldProceed(auth.getHost())) {
-          return runWithValidAuth(project, indicator, task);
-        }
-        else {
-          return null;
-        }
+      if (checkSSLCertificate(e, auth.getHost(), indicator)) {
+        return runWithValidAuth(project, indicator, task);
       }
       throw e;
     }
   }
 
+  @NotNull
+  public static <T> T runWithValidBasicAuth(@Nullable Project project,
+                                            @NotNull ProgressIndicator indicator,
+                                            @NotNull ThrowableConvertor<GithubAuthData, T, IOException> task) throws IOException {
+    GithubAuthData auth;
+    if (GithubSettings.getInstance().getAuthType() == GithubAuthData.AuthType.BASIC) {
+      auth = GithubSettings.getInstance().getAuthData();
+    }
+    else {
+      auth = GithubAuthData.createAnonymous();
+    }
+    try {
+      if (auth.getAuthType() != GithubAuthData.AuthType.BASIC) {
+        throw new GithubAuthenticationException("Bad authentication type");
+      }
+      return task.convert(auth);
+    }
+    catch (GithubAuthenticationException e) {
+      auth = getValidBasicAuthData(project, indicator);
+      if (auth == null) {
+        throw new GithubAuthenticationCanceledException("Can't get valid credentials");
+      }
+      return task.convert(auth);
+    }
+    catch (IOException e) {
+      if (checkSSLCertificate(e, auth.getHost(), indicator)) {
+        return runWithValidBasicAuth(project, indicator, task);
+      }
+      throw e;
+    }
+  }
+
+  private static boolean checkSSLCertificate(IOException e, final String host, ProgressIndicator indicator) {
+    final GithubSslSupport sslSupport = GithubSslSupport.getInstance();
+    if (GithubSslSupport.isCertificateException(e)) {
+      final Ref<Boolean> result = new Ref<Boolean>();
+      ApplicationManager.getApplication().invokeAndWait(new Runnable() {
+        @Override
+        public void run() {
+          result.set(sslSupport.askIfShouldProceed(host));
+        }
+      }, indicator.getModalityState());
+      return result.get();
+    }
+    return false;
+  }
+
+  /**
+   * @return null if user canceled login dialog. Valid GithubAuthData otherwise.
+   */
   @Nullable
-  public static GithubAuthData getValidAuthData(@NotNull Project project, @NotNull ProgressIndicator indicator) {
+  public static GithubAuthData getValidAuthData(@Nullable Project project, @NotNull ProgressIndicator indicator) {
     final GithubLoginDialog dialog = new GithubLoginDialog(project);
     ApplicationManager.getApplication().invokeAndWait(new Runnable() {
       @Override
@@ -126,168 +173,113 @@ public class GithubUtil {
     return dialog.getAuthData();
   }
 
+  /**
+   * @return null if user canceled login dialog. Valid GithubAuthData otherwise.
+   */
   @Nullable
-  public static GithubAuthData getValidAuthDataFromConfig(@NotNull Project project, @NotNull ProgressIndicator indicator) {
+  public static GithubAuthData getValidBasicAuthData(@Nullable Project project, @NotNull ProgressIndicator indicator) {
+    final GithubLoginDialog dialog = new GithubBasicLoginDialog(project);
+    ApplicationManager.getApplication().invokeAndWait(new Runnable() {
+      @Override
+      public void run() {
+        dialog.show();
+      }
+    }, indicator.getModalityState());
+    if (!dialog.isOK()) {
+      return null;
+    }
+    return dialog.getAuthData();
+  }
+
+  @Nullable
+  public static GithubAuthData getValidAuthDataFromConfig(@Nullable Project project, @NotNull ProgressIndicator indicator) {
     GithubAuthData auth = GithubSettings.getInstance().getAuthData();
-    boolean valid = false;
     try {
-      valid = checkAuthData(auth);
+      checkAuthData(auth);
+      return auth;
     }
-    catch (IOException e) {
-      LOG.error("Connection error", e);
-    }
-    if (!valid) {
+    catch (GithubAuthenticationException e) {
       return getValidAuthData(project, indicator);
     }
-    else {
-      return auth;
+    catch (IOException e) {
+      LOG.info("Connection error", e);
+      return null;
     }
   }
 
-  public static boolean checkAuthData(GithubAuthData auth) throws IOException {
-    if (StringUtil.isEmptyOrSpaces(auth.getHost()) ||
-        StringUtil.isEmptyOrSpaces(auth.getLogin()) ||
-        StringUtil.isEmptyOrSpaces(auth.getPassword())) {
-      return false;
+  @NotNull
+  public static GithubUserDetailed checkAuthData(@NotNull GithubAuthData auth) throws IOException {
+    if (StringUtil.isEmptyOrSpaces(auth.getHost())) {
+      throw new GithubAuthenticationException("Target host not defined");
+    }
+
+    switch (auth.getAuthType()) {
+      case BASIC:
+        GithubAuthData.BasicAuth basicAuth = auth.getBasicAuth();
+        assert basicAuth != null;
+        if (StringUtil.isEmptyOrSpaces(basicAuth.getLogin()) || StringUtil.isEmptyOrSpaces(basicAuth.getPassword())) {
+          throw new GithubAuthenticationException("Empty login or password");
+        }
+        break;
+      case TOKEN:
+        GithubAuthData.TokenAuth tokenAuth = auth.getTokenAuth();
+        assert tokenAuth != null;
+        if (StringUtil.isEmptyOrSpaces(tokenAuth.getToken())) {
+          throw new GithubAuthenticationException("Empty token");
+        }
+        break;
+      case ANONYMOUS:
+        throw new GithubAuthenticationException("Anonymous connection not allowed");
     }
 
     try {
       return testConnection(auth);
     }
-    catch (AuthenticationException e) {
-      return false;
+    catch (JsonException e) {
+      throw new GithubAuthenticationException("Can't get user info", e);
     }
-  }
-
-  private static boolean testConnection(@NotNull GithubAuthData auth) throws IOException {
-    GithubUser user = getCurrentUserInfo(auth);
-    return user != null;
-  }
-
-  @Nullable
-  public static GithubUser getCurrentUserInfo(@NotNull GithubAuthData auth) throws IOException {
-    JsonElement result = GithubApiUtil.getRequest(auth, "/user");
-    return parseUserInfo(result);
-  }
-
-  @Nullable
-  private static GithubUser parseUserInfo(@Nullable JsonElement result) {
-    if (result == null) {
-      return null;
-    }
-    if (!result.isJsonObject()) {
-      LOG.error(String.format("Unexpected JSON result format: %s", result));
-      return null;
-    }
-
-    JsonObject obj = (JsonObject)result;
-    String login = obj.get("login").getAsString();
-    int privateRepos = obj.get("owned_private_repos").getAsInt();
-    int maxPrivateRepos = obj.get("plan").getAsJsonObject().get("private_repos").getAsInt();
-    return new GithubUser(login, privateRepos, maxPrivateRepos);
   }
 
   @NotNull
-  public static List<RepositoryInfo> getAvailableRepos(@NotNull GithubAuthData auth) throws IOException {
-    final String request = "/user/repos";
-    JsonElement result = GithubApiUtil.getRequest(auth, request);
-    if (result == null) {
-      return Collections.emptyList();
-    }
-    return parseRepositoryInfos(result);
+  private static GithubUserDetailed testConnection(@NotNull GithubAuthData auth) throws IOException {
+    return GithubApiUtil.getCurrentUserDetailed(auth);
   }
 
-  @NotNull
-  public static List<RepositoryInfo> getAvailableRepos(@NotNull GithubAuthData auth, @NotNull String user) throws IOException {
-    final String request = "/users/" + user + "/repos";
-    JsonElement result = GithubApiUtil.getRequest(auth, request);
-    if (result == null) {
-      return Collections.emptyList();
-    }
-    return parseRepositoryInfos(result);
-  }
-
-  @NotNull
-  private static List<RepositoryInfo> parseRepositoryInfos(@NotNull JsonElement result) {
-    if (!result.isJsonArray()) {
-      LOG.assertTrue(result.isJsonObject(), String.format("Unexpected JSON result format: %s", result));
-      return Collections.singletonList(parseSingleRepositoryInfo(result.getAsJsonObject()));
-    }
-
-    List<RepositoryInfo> repositories = new ArrayList<RepositoryInfo>();
-    for (JsonElement element : result.getAsJsonArray()) {
-      LOG.assertTrue(element.isJsonObject(),
-                     String.format("This element should be a JsonObject: %s%nTotal JSON response: %n%s", element, result));
-      repositories.add(parseSingleRepositoryInfo(element.getAsJsonObject()));
-    }
-    return repositories;
-  }
-
-  @NotNull
-  private static RepositoryInfo parseSingleRepositoryInfo(@NotNull JsonObject result) {
-    String name = result.get("name").getAsString();
-    String browserUrl = result.get("html_url").getAsString();
-    String cloneUrl = result.get("clone_url").getAsString();
-    String ownerName = result.get("owner").getAsJsonObject().get("login").getAsString();
-    String parentName = result.has("parent") ? result.get("parent").getAsJsonObject().get("full_name").getAsString() : null;
-    boolean fork = result.get("fork").getAsBoolean();
-    return new RepositoryInfo(name, browserUrl, cloneUrl, ownerName, parentName, fork);
-  }
-
-  @Nullable
-  public static RepositoryInfo getDetailedRepoInfo(@NotNull GithubAuthData auth, @NotNull String owner, @NotNull String name)
-    throws IOException {
-    final String request = "/repos/" + owner + "/" + name;
-    JsonElement jsonObject = GithubApiUtil.getRequest(auth, request);
-    if (jsonObject == null) {
-      LOG.info(String.format("Information about repository is unavailable. Owner: %s, Name: %s", owner, name));
-      return null;
-    }
-    return parseSingleRepositoryInfo(jsonObject.getAsJsonObject());
-  }
-
-  public static void deleteGithubRepository(@NotNull GithubAuthData auth, @NotNull String repo) throws IOException {
-    String path = "/repos/" + auth.getLogin() + "/" + repo;
-    GithubApiUtil.deleteRequest(auth, path);
-  }
-
-  public static void deleteGist(@NotNull GithubAuthData auth, @NotNull String id) throws IOException {
-    String path = "/gists/" + id;
-    GithubApiUtil.deleteRequest(auth, path);
-  }
-
-  @Nullable
-  public static JsonObject getGist(@NotNull GithubAuthData auth, @NotNull String id) throws IOException {
-    String path = "/gists/" + id;
-    JsonElement result = GithubApiUtil.getRequest(auth, path);
-    if (result == null) {
-      return null;
-    }
-    return result.getAsJsonObject();
-  }
+  /*
+  * Git utils
+  */
 
   @Nullable
   public static String findGithubRemoteUrl(@NotNull GitRepository repository) {
-    String githubUrl = null;
+    Pair<GitRemote, String> remote = findGithubRemote(repository);
+    if (remote == null) {
+      return null;
+    }
+    return remote.getSecond();
+  }
+
+  @Nullable
+  public static Pair<GitRemote, String> findGithubRemote(@NotNull GitRepository repository) {
+    Pair<GitRemote, String> githubRemote = null;
     for (GitRemote gitRemote : repository.getRemotes()) {
       for (String remoteUrl : gitRemote.getUrls()) {
         if (GithubUrlUtil.isGithubUrl(remoteUrl)) {
           final String remoteName = gitRemote.getName();
           if ("github".equals(remoteName) || "origin".equals(remoteName)) {
-            return remoteUrl;
+            return new Pair<GitRemote, String>(gitRemote, remoteUrl);
           }
-          if (githubUrl == null) {
-            githubUrl = remoteUrl;
+          if (githubRemote == null) {
+            githubRemote = new Pair<GitRemote, String>(gitRemote, remoteUrl);
           }
           break;
         }
       }
     }
-    return githubUrl;
+    return githubRemote;
   }
 
   @Nullable
-  public static String findGithubUpstreamRemote(@NotNull GitRepository repository) {
+  public static String findUpstreamRemote(@NotNull GitRepository repository) {
     for (GitRemote gitRemote : repository.getRemotes()) {
       final String remoteName = gitRemote.getName();
       if ("upstream".equals(remoteName)) {
@@ -310,7 +302,7 @@ public class GithubUtil {
       version = GitVersion.identifyVersion(executable);
     }
     catch (Exception e) {
-      GithubNotifications.showErrorDialog(project, GitBundle.getString("find.git.error.title"), e.getMessage());
+      GithubNotifications.showErrorDialog(project, GitBundle.getString("find.git.error.title"), e);
       return false;
     }
 
@@ -326,7 +318,7 @@ public class GithubUtil {
     return findGithubRemoteUrl(repository) != null;
   }
 
-  static void setVisibleEnabled(AnActionEvent e, boolean visible, boolean enabled) {
+  public static void setVisibleEnabled(AnActionEvent e, boolean visible, boolean enabled) {
     e.getPresentation().setVisible(visible);
     e.getPresentation().setEnabled(enabled);
   }
@@ -334,6 +326,25 @@ public class GithubUtil {
   @NotNull
   public static String getErrorTextFromException(@NotNull IOException e) {
     return e.getMessage();
+  }
+
+  @Nullable
+  public static GitRepository getGitRepository(@NotNull Project project, @Nullable VirtualFile file) {
+    GitRepositoryManager manager = GitUtil.getRepositoryManager(project);
+    List<GitRepository> repositories = manager.getRepositories();
+    if (repositories.size() == 0) {
+      return null;
+    }
+    if (repositories.size() == 1) {
+      return repositories.get(0);
+    }
+    if (file != null) {
+      GitRepository repository = manager.getRepositoryForFile(file);
+      if (repository != null) {
+        return repository;
+      }
+    }
+    return manager.getRepositoryForFile(project.getBaseDir());
   }
 
 }

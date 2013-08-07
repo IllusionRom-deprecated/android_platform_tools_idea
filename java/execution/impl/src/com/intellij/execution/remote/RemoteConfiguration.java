@@ -65,8 +65,8 @@ public class RemoteConfiguration extends ModuleBasedConfiguration<JavaRunConfigu
   public String HOST;
   public String PORT;
 
-  public RemoteConfiguration(final String name, final Project project, ConfigurationFactory configurationFactory) {
-    super(name, new JavaRunConfigurationModule(project, true), configurationFactory);
+  public RemoteConfiguration(final Project project, ConfigurationFactory configurationFactory) {
+    super(new JavaRunConfigurationModule(project, true), configurationFactory);
   }
 
   public RemoteConnection createRemoteConnection() {
@@ -74,22 +74,19 @@ public class RemoteConfiguration extends ModuleBasedConfiguration<JavaRunConfigu
   }
 
   public RunProfileState getState(@NotNull final Executor executor, @NotNull final ExecutionEnvironment env) throws ExecutionException {
-    GenericDebuggerRunnerSettings debuggerSettings = ((GenericDebuggerRunnerSettings)env.getRunnerSettings().getData());
+    GenericDebuggerRunnerSettings debuggerSettings = (GenericDebuggerRunnerSettings)env.getRunnerSettings();
     debuggerSettings.LOCAL = false;
     debuggerSettings.setDebugPort(USE_SOCKET_TRANSPORT ? PORT : SHMEM_ADDRESS);
     debuggerSettings.setTransport(USE_SOCKET_TRANSPORT ? DebuggerSettings.SOCKET_TRANSPORT : DebuggerSettings.SHMEM_TRANSPORT);
-    return new RemoteStateState(getProject(), createRemoteConnection(), env.getRunnerSettings(), env.getConfigurationSettings());
+    return new RemoteStateState(getProject(), createRemoteConnection());
   }
 
+  @NotNull
   public SettingsEditor<? extends RunConfiguration> getConfigurationEditor() {
     SettingsEditorGroup<RemoteConfiguration> group = new SettingsEditorGroup<RemoteConfiguration>();
     group.addEditor(ExecutionBundle.message("run.configuration.configuration.tab.title"), new RemoteConfigurable(getProject()));
     group.addEditor(ExecutionBundle.message("logs.tab.title"), new LogConfigurationPanel<RemoteConfiguration>());
     return group;
-  }
-
-  protected ModuleBasedConfiguration createInstance() {
-    return new RemoteConfiguration(getName(), getProject(), RemoteConfigurationType.getInstance().getConfigurationFactories()[0]);
   }
 
   public Collection<Module> getValidModules() {

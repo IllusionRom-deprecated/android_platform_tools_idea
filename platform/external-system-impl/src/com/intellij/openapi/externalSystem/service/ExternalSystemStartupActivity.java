@@ -17,13 +17,16 @@ package com.intellij.openapi.externalSystem.service;
 
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.model.ExternalSystemDataKeys;
+import com.intellij.openapi.externalSystem.service.project.ProjectRenameAware;
 import com.intellij.openapi.externalSystem.service.project.autoimport.ExternalSystemAutoImporter;
 import com.intellij.openapi.externalSystem.service.ui.ExternalToolWindowManager;
+import com.intellij.openapi.externalSystem.service.vcs.ExternalSystemVcsRegistrar;
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.startup.StartupManager;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Denis Zhdanov
@@ -32,7 +35,7 @@ import com.intellij.openapi.startup.StartupManager;
 public class ExternalSystemStartupActivity implements StartupActivity {
 
   @Override
-  public void runActivity(final Project project) {
+  public void runActivity(@NotNull final Project project) {
     Runnable task = new Runnable() {
       @SuppressWarnings("unchecked")
       @Override
@@ -49,6 +52,8 @@ public class ExternalSystemStartupActivity implements StartupActivity {
         }
         ExternalSystemAutoImporter.letTheMagicBegin(project);
         ExternalToolWindowManager.handle(project);
+        ExternalSystemVcsRegistrar.handle(project);
+        ProjectRenameAware.beAware(project);
       }
     };
 
@@ -57,6 +62,6 @@ public class ExternalSystemStartupActivity implements StartupActivity {
     }
     else {
       StartupManager.getInstance(project).registerPostStartupActivity(task);
-    } 
+    }
   }
 }

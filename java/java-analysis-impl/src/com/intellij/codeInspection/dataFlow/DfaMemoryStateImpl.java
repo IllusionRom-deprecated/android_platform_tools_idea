@@ -292,6 +292,9 @@ public class DfaMemoryStateImpl implements DfaMemoryState {
       if (value instanceof DfaVariableValue) {
         myVariableStates.put(var, getVariableState((DfaVariableValue)value).clone());
       }
+      else if (value instanceof DfaBoxedValue) {
+        getVariableState(var).setNullable(false);
+      }
     }
 
     if (getVariableState(var).isNotNull()) {
@@ -542,6 +545,19 @@ public class DfaMemoryStateImpl implements DfaMemoryState {
   }
 
   @Override
+  @Nullable
+  public DfaConstValue getConstantValue(DfaVariableValue value) {
+    DfaConstValue result = null;
+    for (DfaValue equal : getEqClassesFor(value)) {
+      if (equal == value) continue;
+      DfaConstValue constValue = asConstantValue(equal);
+      if (constValue == null) return null;
+      result = constValue;
+    }
+    return result;
+  }
+
+  @Override
   public boolean applyInstanceofOrNull(DfaRelationValue dfaCond) {
     DfaValue left = dfaCond.getLeftOperand();
     if (left instanceof DfaBoxedValue) {
@@ -698,7 +714,7 @@ public class DfaMemoryStateImpl implements DfaMemoryState {
     if (dfaRight instanceof DfaConstValue) {
       Object constVal = ((DfaConstValue)dfaRight).getValue();
       if (constVal instanceof Boolean) {
-        DfaConstValue negVal = myFactory.getConstFactory().createFromValue(!((Boolean)constVal).booleanValue(), PsiType.BOOLEAN);
+        DfaConstValue negVal = myFactory.getConstFactory().createFromValue(!((Boolean)constVal).booleanValue(), PsiType.BOOLEAN, null);
         if (!applyRelation(dfaLeft, negVal, !negated)) {
           return false;
         }
@@ -886,13 +902,16 @@ public class DfaMemoryStateImpl implements DfaMemoryState {
     myVariableStates.remove(varNegated);
   }
 
+  @Nullable private static DfaConstValue asConstantValue(DfaValue value) {
+    if (value instanceof DfaConstValue) return (DfaConstValue)value;
+    if (value instanceof DfaBoxedValue && ((DfaBoxedValue)value).getWrappedValue() instanceof DfaConstValue) return (DfaConstValue)((DfaBoxedValue)value).getWrappedValue();
+    return null;
+  }
+
   private boolean containsConstantsOnly(int id) {
     SortedIntSet varClass = myEqClasses.get(id);
     for (int i = 0; i < varClass.size(); i++) {
-      int cl = varClass.get(i);
-      DfaValue value = myFactory.getValue(cl);
-      if (!(value instanceof DfaConstValue) &&
-          !(value instanceof DfaBoxedValue && ((DfaBoxedValue)value).getWrappedValue() instanceof DfaConstValue)) {
+      if (asConstantValue(myFactory.getValue(varClass.get(i))) == null) {
         return false;
       }
     }

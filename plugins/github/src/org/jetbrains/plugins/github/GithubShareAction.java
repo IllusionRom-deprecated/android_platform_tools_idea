@@ -15,8 +15,6 @@
  */
 package org.jetbrains.plugins.github;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.ServiceManager;
@@ -30,11 +28,14 @@ import com.intellij.openapi.ui.Splitter;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.VcsException;
+import com.intellij.openapi.vcs.changes.ChangeListManager;
 import com.intellij.openapi.vcs.changes.ui.SelectFilesDialog;
 import com.intellij.openapi.vcs.ui.CommitMessage;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ThrowableConsumer;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.HashSet;
+import com.intellij.vcsUtil.VcsFileUtil;
 import git4idea.DialogManager;
 import git4idea.GitLocalBranch;
 import git4idea.GitUtil;
@@ -49,14 +50,12 @@ import git4idea.util.GitUIUtil;
 import icons.GithubIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.github.api.*;
 import org.jetbrains.plugins.github.ui.GithubShareDialog;
 
 import javax.swing.*;
-import java.awt.*;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import static org.jetbrains.plugins.github.GithubUtil.setVisibleEnabled;
 
@@ -64,7 +63,7 @@ import static org.jetbrains.plugins.github.GithubUtil.setVisibleEnabled;
  * @author oleg
  */
 public class GithubShareAction extends DumbAwareAction {
-  private static final Logger LOG = Logger.getInstance(GithubShareAction.class.getName());
+  private static final Logger LOG = GithubUtil.LOG;
 
   public GithubShareAction() {
     super("Share project on GitHub", "Easily share project on GitHub", GithubIcons.Github_icon);
@@ -91,22 +90,22 @@ public class GithubShareAction extends DumbAwareAction {
   @Override
   public void actionPerformed(final AnActionEvent e) {
     final Project project = e.getData(PlatformDataKeys.PROJECT);
-    final VirtualFile root = e.getData(PlatformDataKeys.VIRTUAL_FILE);
+    final VirtualFile file = e.getData(PlatformDataKeys.VIRTUAL_FILE);
 
-    if (root == null || project == null || project.isDisposed()) {
+    if (project == null || project.isDisposed()) {
       return;
     }
 
-    shareProjectOnGithub(project, root);
+    shareProjectOnGithub(project, file);
   }
 
-  public static void shareProjectOnGithub(@NotNull final Project project, @NotNull final VirtualFile root) {
+  public static void shareProjectOnGithub(@NotNull final Project project, @Nullable final VirtualFile file) {
     BasicAction.saveAll();
 
     // get gitRepository
-    final GitRepositoryManager manager = GitUtil.getRepositoryManager(project);
-    final GitRepository gitRepository = manager.getRepositoryForFile(root);
+    final GitRepository gitRepository = GithubUtil.getGitRepository(project, file);
     final boolean gitDetected = gitRepository != null;
+    final VirtualFile root = gitDetected ? gitRepository.getRoot() : project.getBaseDir();
 
     // check for existing git repo
     boolean externalRemoteDetected = false;
@@ -160,7 +159,7 @@ public class GithubShareAction extends DumbAwareAction {
           }
         }
 
-        GitRepositoryManager repositoryManager = ServiceManager.getService(project, GitRepositoryManager.class);
+        GitRepositoryManager repositoryManager = GitUtil.getRepositoryManager(project);
         final GitRepository repository = repositoryManager.getRepositoryForRoot(root);
         LOG.assertTrue(repository != null, "GitRepository is null for root " + root);
 
@@ -186,7 +185,7 @@ public class GithubShareAction extends DumbAwareAction {
           return;
         }
 
-        GithubNotifications.showInfoURL(project, "Successfully created project on GitHub", name, url);
+        GithubNotifications.showInfoURL(project, "Successfully shared project on GitHub", name, url);
       }
     }.queue();
   }
@@ -199,27 +198,21 @@ public class GithubShareAction extends DumbAwareAction {
       public void run(@NotNull ProgressIndicator indicator) {
         try {
           // get existing github repos (network) and validate auth data
-          final Ref<List<RepositoryInfo>> availableReposRef = new Ref<List<RepositoryInfo>>();
+          final Ref<List<GithubRepo>> availableReposRef = new Ref<List<GithubRepo>>();
           final GithubAuthData auth =
             GithubUtil.runAndGetValidAuth(project, indicator, new ThrowableConsumer<GithubAuthData, IOException>() {
               @Override
               public void consume(GithubAuthData authData) throws IOException {
-                availableReposRef.set(GithubUtil.getAvailableRepos(authData));
+                availableReposRef.set(GithubApiUtil.getAvailableRepos(authData));
               }
             });
-          if (auth == null || availableReposRef.isNull()) {
-            return;
-          }
           final HashSet<String> names = new HashSet<String>();
-          for (RepositoryInfo info : availableReposRef.get()) {
+          for (GithubRepo info : availableReposRef.get()) {
             names.add(info.getName());
           }
 
           // check access to private repos (network)
-          final GithubUser userInfo = GithubUtil.getCurrentUserInfo(auth);
-          if (userInfo == null) {
-            return;
-          }
+          final GithubUserDetailed userInfo = GithubApiUtil.getCurrentUserDetailed(auth);
           githubInfoRef.set(new GithubInfo(auth, userInfo, names));
         }
         catch (IOException e) {
@@ -228,11 +221,10 @@ public class GithubShareAction extends DumbAwareAction {
       }
     });
     if (!exceptionRef.isNull()) {
-      GithubNotifications.showErrorDialog(project, "Failed to connect to GitHub", exceptionRef.get().getMessage());
-      return null;
-    }
-    if (githubInfoRef.isNull()) {
-      GithubNotifications.showErrorDialog(project, "Failed to connect to GitHub", "Failed to gather user information");
+      if (exceptionRef.get() instanceof GithubAuthenticationCanceledException) {
+        return null;
+      }
+      GithubNotifications.showErrorDialog(project, "Failed to connect to GitHub", exceptionRef.get());
       return null;
     }
     return githubInfoRef.get();
@@ -244,38 +236,15 @@ public class GithubShareAction extends DumbAwareAction {
                                                @NotNull String name,
                                                @NotNull String description,
                                                boolean isPrivate) {
-    String path = "/user/repos";
-    String requestBody = prepareRequest(name, description, isPrivate);
-    JsonElement result;
+
     try {
-      result = GithubApiUtil.postRequest(auth, path, requestBody);
+      GithubRepo response = GithubApiUtil.createRepo(auth, name, description, !isPrivate);
+      return response.getHtmlUrl();
     }
     catch (IOException e) {
-      GithubNotifications.showError(project, "Creating GitHub Repository", e);
+      GithubNotifications.showError(project, "Failed to create GitHub Repository", e);
       return null;
     }
-    if (result == null) {
-      GithubNotifications.showError(project, "Creating GitHub Repository", "Failed to create new GitHub repository");
-      return null;
-    }
-    if (!result.isJsonObject()) {
-      LOG.error(String.format("Unexpected JSON result format: %s", result));
-      GithubNotifications.showError(project, "Creating GitHub Repository", "Failed to create new GitHub repository");
-      return null;
-    }
-    if (!result.getAsJsonObject().has("html_url")) {
-      GithubNotifications.showError(project, "Creating GitHub Repository", "Failed to create new GitHub repository");
-      return null;
-    }
-    return result.getAsJsonObject().get("html_url").getAsString();
-  }
-
-  private static String prepareRequest(String name, String description, boolean isPrivate) {
-    JsonObject json = new JsonObject();
-    json.addProperty("name", name);
-    json.addProperty("description", description);
-    json.addProperty("public", Boolean.toString(!isPrivate));
-    return json.toString();
   }
 
   private static boolean createEmptyGitRepository(@NotNull Project project,
@@ -309,14 +278,14 @@ public class GithubShareAction extends DumbAwareAction {
       }
     }
     catch (VcsException e) {
-      GithubNotifications.showError(project, "Failed to add GitHub repository as remote", e.getMessage());
-      LOG.info("Failed to add GitHub as remote: " + e.getMessage());
+      GithubNotifications.showError(project, "Failed to add GitHub repository as remote", e);
       return false;
     }
     return true;
   }
 
-  private static boolean performFirstCommitIfRequired(@NotNull final Project project, @NotNull VirtualFile root,
+  private static boolean performFirstCommitIfRequired(@NotNull final Project project,
+                                                      @NotNull VirtualFile root,
                                                       @NotNull GitRepository repository,
                                                       @NotNull ProgressIndicator indicator,
                                                       @NotNull String name,
@@ -332,25 +301,39 @@ public class GithubShareAction extends DumbAwareAction {
       indicator.setText("Adding files to git...");
 
       // ask for files to add
-      final List<VirtualFile> untrackedFiles = new ArrayList<VirtualFile>(repository.getUntrackedFilesHolder().retrieveUntrackedFiles());
+      final List<VirtualFile> trackedFiles = ChangeListManager.getInstance(project).getAffectedFiles();
+      final Collection<VirtualFile> untrackedFiles = repository.getUntrackedFilesHolder().retrieveUntrackedFiles();
+      final List<VirtualFile> allFiles = new ArrayList<VirtualFile>();
+      allFiles.addAll(trackedFiles);
+      allFiles.addAll(untrackedFiles);
+
       final Ref<GithubUntrackedFilesDialog> dialogRef = new Ref<GithubUntrackedFilesDialog>();
       ApplicationManager.getApplication().invokeAndWait(new Runnable() {
         @Override
         public void run() {
-          GithubUntrackedFilesDialog dialog = new GithubUntrackedFilesDialog(project, untrackedFiles);
+          GithubUntrackedFilesDialog dialog = new GithubUntrackedFilesDialog(project, allFiles);
+          if (!trackedFiles.isEmpty()) {
+            dialog.setSelectedFiles(trackedFiles);
+          }
           DialogManager.show(dialog);
           dialogRef.set(dialog);
         }
       }, indicator.getModalityState());
       final GithubUntrackedFilesDialog dialog = dialogRef.get();
 
-      final Collection<VirtualFile> files2add = dialog.getSelectedFiles();
-      if (!dialog.isOK() || files2add.isEmpty()) {
-        GithubNotifications
-          .showWarningURL(project, "Can't finish GitHub sharing process", "No files to commit. ", "'" + name + "'", " on GitHub", url);
+      final Collection<VirtualFile> files2commit = dialog.getSelectedFiles();
+      if (!dialog.isOK() || files2commit.isEmpty()) {
+        GithubNotifications.showInfoURL(project, "Successfully created empty repository on GitHub", name, url);
         return false;
       }
+
+      Collection<VirtualFile> files2add = ContainerUtil.intersection(untrackedFiles, files2commit);
+      Collection<VirtualFile> files2rm = ContainerUtil.subtract(trackedFiles, files2commit);
+      Collection<VirtualFile> modified = new HashSet<VirtualFile>(trackedFiles);
+      modified.addAll(files2commit);
+
       GitFileUtils.addFiles(project, root, files2add);
+      GitFileUtils.deleteFilesFromCache(project, root, files2rm);
 
       // commit
       LOG.info("Performing commit");
@@ -359,9 +342,11 @@ public class GithubShareAction extends DumbAwareAction {
       handler.addParameters("-m", dialog.getCommitMessage());
       handler.endOptions();
       handler.run();
+
+      VcsFileUtil.refreshFiles(project, modified);
     }
     catch (VcsException e) {
-      LOG.info("Failed to perform initial commit");
+      LOG.warn(e);
       GithubNotifications.showErrorURL(project, "Can't finish GitHub sharing process", "Successfully created project ", "'" + name + "'",
                                        " on GitHub, but initial commit failed:<br/>" + e.getMessage(), url);
       return false;
@@ -373,7 +358,9 @@ public class GithubShareAction extends DumbAwareAction {
   private static boolean pushCurrentBranch(@NotNull Project project,
                                            @NotNull GitRepository repository,
                                            @NotNull String remoteName,
-                                           @NotNull String remoteUrl, @NotNull String name, @NotNull String url) {
+                                           @NotNull String remoteUrl,
+                                           @NotNull String name,
+                                           @NotNull String url) {
     Git git = ServiceManager.getService(Git.class);
 
     GitLocalBranch currentBranch = repository.getCurrentBranch();
@@ -410,7 +397,6 @@ public class GithubShareAction extends DumbAwareAction {
     @Override
     protected JComponent createCenterPanel() {
       final JComponent tree = super.createCenterPanel();
-      final JPanel panel = new JPanel(new BorderLayout());
 
       myCommitMessagePanel = new CommitMessage(myProject);
       myCommitMessagePanel.setCommitMessage("Initial commit");
@@ -420,9 +406,8 @@ public class GithubShareAction extends DumbAwareAction {
       splitter.setFirstComponent(tree);
       splitter.setSecondComponent(myCommitMessagePanel);
       splitter.setProportion(0.7f);
-      panel.add(splitter, BorderLayout.CENTER);
 
-      return panel;
+      return splitter;
     }
 
     @NotNull
@@ -439,18 +424,18 @@ public class GithubShareAction extends DumbAwareAction {
   }
 
   private static class GithubInfo {
-    @NotNull private final GithubUser myUser;
+    @NotNull private final GithubUserDetailed myUser;
     @NotNull private final GithubAuthData myAuthData;
     @NotNull private final HashSet<String> myRepositoryNames;
 
-    GithubInfo(@NotNull GithubAuthData auth, @NotNull GithubUser user, @NotNull HashSet<String> repositoryNames) {
+    GithubInfo(@NotNull GithubAuthData auth, @NotNull GithubUserDetailed user, @NotNull HashSet<String> repositoryNames) {
       myUser = user;
       myAuthData = auth;
       myRepositoryNames = repositoryNames;
     }
 
     @NotNull
-    public GithubUser getUser() {
+    public GithubUserDetailed getUser() {
       return myUser;
     }
 

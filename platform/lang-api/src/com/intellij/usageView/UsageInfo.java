@@ -74,7 +74,8 @@ public class UsageInfo {
   }
 
   public UsageInfo(@NotNull SmartPsiElementPointer<?> smartPointer,
-                   SmartPsiFileRange psiFileRange, boolean dynamicUsage,
+                   SmartPsiFileRange psiFileRange,
+                   boolean dynamicUsage,
                    boolean nonCodeUsage) {
     myDynamicUsage = dynamicUsage;
     isNonCodeUsage = nonCodeUsage;
@@ -189,6 +190,10 @@ public class UsageInfo {
     TextRange rangeInElement = getRangeInElement();
     if (rangeInElement == null) return -1;
     return range.getStartOffset() + rangeInElement.getStartOffset();
+  }
+
+  public boolean isValid() {
+    return getSegment() != null;
   }
 
   @Nullable

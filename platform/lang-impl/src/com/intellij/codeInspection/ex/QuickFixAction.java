@@ -35,7 +35,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.ReadonlyStatusHandler;
-import com.intellij.openapi.vfs.VfsUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
@@ -109,7 +109,7 @@ public class QuickFixAction extends AnAction {
     if (isProblemDescriptorsAcceptable()) {
       final CommonProblemDescriptor[] descriptors = tree.getSelectedDescriptors();
       if (descriptors.length > 0) {
-        doApplyFix(view.getProject(), descriptors);
+        doApplyFix(view.getProject(), descriptors, tree.getContext());
         return;
       }
     }
@@ -119,11 +119,14 @@ public class QuickFixAction extends AnAction {
 
 
   protected void applyFix(@NotNull Project project,
+                          @NotNull GlobalInspectionContextImpl context,
                           @NotNull CommonProblemDescriptor[] descriptors,
                           @NotNull Set<PsiElement> ignoredElements) {
   }
 
-  private void doApplyFix(@NotNull final Project project, @NotNull final CommonProblemDescriptor[] descriptors) {
+  private void doApplyFix(@NotNull final Project project,
+                          @NotNull final CommonProblemDescriptor[] descriptors,
+                          @NotNull final GlobalInspectionContextImpl context) {
     final Set<VirtualFile> readOnlyFiles = new THashSet<VirtualFile>();
     for (CommonProblemDescriptor descriptor : descriptors) {
       final PsiElement psiElement = descriptor instanceof ProblemDescriptor ? ((ProblemDescriptor)descriptor).getPsiElement() : null;
@@ -134,7 +137,7 @@ public class QuickFixAction extends AnAction {
 
     if (!FileModificationService.getInstance().prepareVirtualFilesForWrite(project, readOnlyFiles)) return;
 
-    final RefManagerImpl refManager = (RefManagerImpl)myToolWrapper.getContext().getRefManager();
+    final RefManagerImpl refManager = (RefManagerImpl)context.getRefManager();
 
     final boolean initial = refManager.isInProcess();
 
@@ -153,7 +156,7 @@ public class QuickFixAction extends AnAction {
               final SequentialModalProgressTask progressTask =
                 new SequentialModalProgressTask(project, getTemplatePresentation().getText(), false);
               progressTask.setMinIterationTime(200);
-              progressTask.setTask(new PerformFixesTask(project, descriptors, ignoredElements, progressTask));
+              progressTask.setTask(new PerformFixesTask(project, descriptors, ignoredElements, progressTask, context));
               ProgressManager.getInstance().run(progressTask);
             }
           });
@@ -209,7 +212,7 @@ public class QuickFixAction extends AnAction {
     }
   }
 
-  private static Set<VirtualFile> getReadOnlyFiles(final RefEntity[] refElements) {
+  private static Set<VirtualFile> getReadOnlyFiles(@NotNull RefEntity[] refElements) {
     Set<VirtualFile> readOnlyFiles = new THashSet<VirtualFile>();
     for (RefEntity refElement : refElements) {
       PsiElement psiElement = refElement instanceof RefElement ? ((RefElement)refElement).getElement() : null;
@@ -283,13 +286,13 @@ public class QuickFixAction extends AnAction {
 
   /**
    * @return true if immediate UI update needed.
-   * @param refElements
    */
-  protected boolean applyFix(RefEntity[] refElements) {
+  protected boolean applyFix(@NotNull RefEntity[] refElements) {
     Set<VirtualFile> readOnlyFiles = getReadOnlyFiles(refElements);
     if (!readOnlyFiles.isEmpty()) {
       final Project project = refElements[0].getRefManager().getProject();
-      final ReadonlyStatusHandler.OperationStatus operationStatus = ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(VfsUtil.toVirtualFileArray(readOnlyFiles));
+      final ReadonlyStatusHandler.OperationStatus operationStatus = ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(
+        VfsUtilCore.toVirtualFileArray(readOnlyFiles));
       if (operationStatus.hasReadonlyFiles()) return false;
     }
     return true;
@@ -302,16 +305,19 @@ public class QuickFixAction extends AnAction {
     @NotNull
     private final Set<PsiElement> myIgnoredElements;
     private final SequentialModalProgressTask myTask;
+    @NotNull private final GlobalInspectionContextImpl myContext;
     private int myCount = 0;
 
     public PerformFixesTask(@NotNull Project project,
                             @NotNull CommonProblemDescriptor[] descriptors,
                             @NotNull Set<PsiElement> ignoredElements,
-                            @NotNull SequentialModalProgressTask task) {
+                            @NotNull SequentialModalProgressTask task,
+                            @NotNull GlobalInspectionContextImpl context) {
       myProject = project;
       myDescriptors = descriptors;
       myIgnoredElements = ignoredElements;
       myTask = task;
+      myContext = context;
     }
 
     @Override
@@ -336,7 +342,7 @@ public class QuickFixAction extends AnAction {
           }
         }
       }
-      applyFix(myProject, new CommonProblemDescriptor[]{descriptor}, myIgnoredElements);
+      applyFix(myProject, myContext, new CommonProblemDescriptor[]{descriptor}, myIgnoredElements);
       return isDone();
     }
 

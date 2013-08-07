@@ -52,7 +52,7 @@ import java.util.List;
 public class DetachExternalProjectAction extends AnAction implements DumbAware {
 
   public DetachExternalProjectAction() {
-    getTemplatePresentation().setText(ExternalSystemBundle.message("action.detach.external.project.text"));
+    getTemplatePresentation().setText(ExternalSystemBundle.message("action.detach.external.project.text", "external"));
     getTemplatePresentation().setDescription(ExternalSystemBundle.message("action.detach.external.project.description"));
     getTemplatePresentation().setIcon(SystemInfoRt.isMac ? AllIcons.ToolbarDecorator.Mac.Remove : AllIcons.ToolbarDecorator.Remove);
   }
@@ -60,13 +60,7 @@ public class DetachExternalProjectAction extends AnAction implements DumbAware {
   @Override
   public void update(AnActionEvent e) {
     MyInfo info = getProcessingInfo(e.getDataContext());
-    String place = e.getPlace();
-    if (ExternalSystemConstants.TOOL_WINDOW_PLACE.equals(place)) {
-      e.getPresentation().setEnabled(info.externalProject != null);
-    }
-    else if (ExternalSystemConstants.TREE_CONTEXT_MENU_PLACE.equals(place)) {
-      e.getPresentation().setVisible(info.externalProject != null);
-    }
+    e.getPresentation().setEnabled(info.externalProject != null);
   }
 
   @Override
@@ -77,6 +71,10 @@ public class DetachExternalProjectAction extends AnAction implements DumbAware {
     {
       return;
     }
+    
+    e.getPresentation().setText(
+      ExternalSystemBundle.message("action.detach.external.project.text",info.externalSystemId.getReadableName())
+    );
 
     ExternalSystemTasksTreeModel allTasksModel = ExternalSystemDataKeys.ALL_TASKS_MODEL.getData(e.getDataContext());
     if (allTasksModel != null) {
@@ -88,7 +86,7 @@ public class DetachExternalProjectAction extends AnAction implements DumbAware {
       recentTasksList.getModel().forgetTasksFrom(info.externalProject.getPath());
     }
     
-    info.localSettings.forgetExternalProject(Collections.singleton(info.externalProject.getPath()));
+    info.localSettings.forgetExternalProjects(Collections.singleton(info.externalProject.getPath()));
     info.settings.unlinkExternalProject(info.externalProject.getPath());
 
     // Process orphan modules.

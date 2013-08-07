@@ -27,7 +27,7 @@ import com.intellij.codeInspection.reference.RefManager;
 import com.intellij.codeInspection.reference.RefModule;
 import com.intellij.codeInspection.unnecessaryModuleDependency.UnnecessaryModuleDependencyInspection;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleUtil;
+import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.roots.*;
@@ -44,6 +44,11 @@ import java.util.Set;
 
 public class InconsistentLanguageLevelInspection extends GlobalInspectionTool {
   @Override
+  public boolean isGraphNeeded() {
+    return false;
+  }
+
+  @Override
   public void runInspection(@NotNull AnalysisScope scope,
                             @NotNull InspectionManager manager,
                             @NotNull GlobalInspectionContext globalContext,
@@ -52,7 +57,7 @@ public class InconsistentLanguageLevelInspection extends GlobalInspectionTool {
     scope.accept(new PsiElementVisitor(){
       @Override
       public void visitElement(PsiElement element) {
-        final Module module = ModuleUtil.findModuleForPsiElement(element);
+        final Module module = ModuleUtilCore.findModuleForPsiElement(element);
         if (module != null) {
           modules.add(module);
         }
