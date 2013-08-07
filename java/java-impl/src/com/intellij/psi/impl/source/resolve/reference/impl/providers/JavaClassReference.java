@@ -17,7 +17,6 @@ package com.intellij.psi.impl.source.resolve.reference.impl.providers;
 
 import com.intellij.codeInsight.completion.JavaLookupElementBuilder;
 import com.intellij.codeInsight.completion.scope.JavaCompletionProcessor;
-import com.intellij.codeInsight.daemon.QuickFixProvider;
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInsight.daemon.impl.quickfix.OrderEntryFix;
 import com.intellij.codeInsight.daemon.impl.quickfix.QuickFixAction;
@@ -68,7 +67,7 @@ import java.util.Map;
 /**
  * @author peter
  */
-public class JavaClassReference extends GenericReference implements PsiJavaReference, QuickFixProvider, LocalQuickFixProvider {
+public class JavaClassReference extends GenericReference implements PsiJavaReference, LocalQuickFixProvider {
   private static final Logger LOG = Logger.getInstance("#com.intellij.psi.impl.source.resolve.reference.impl.providers.JavaClassReference");
   protected final int myIndex;
   private TextRange myRange;
@@ -94,7 +93,7 @@ public class JavaClassReference extends GenericReference implements PsiJavaRefer
   }
 
   @Override
-  public void processVariants(final PsiScopeProcessor processor) {
+  public void processVariants(@NotNull final PsiScopeProcessor processor) {
     if (processor instanceof JavaCompletionProcessor) {
       final Map<CustomizableReferenceProvider.CustomizationKey, Object> options = getOptions();
       if (options != null &&
@@ -470,11 +469,6 @@ public class JavaClassReference extends GenericReference implements PsiJavaRefer
     final JavaResolveResult javaResolveResult = advancedResolve(incompleteCode);
     if (javaResolveResult.getElement() == null) return JavaResolveResult.EMPTY_ARRAY;
     return new JavaResolveResult[]{javaResolveResult};
-  }
-
-  @Override
-  public void registerQuickfix(HighlightInfo info, PsiReference reference) {
-    registerFixes(info);
   }
 
   @Nullable

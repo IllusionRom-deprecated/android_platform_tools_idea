@@ -141,7 +141,11 @@ public class GradleSystemSettingsControl implements ExternalSystemSettingsContro
 
   @Nullable
   private static String trimIfPossible(@Nullable String s) {
-    return s == null ? null : s.trim();
+    if (s == null) {
+      return null;
+    }
+    String result = s.trim();
+    return result.isEmpty() ? null : result;
   }
 
   @Override

@@ -20,7 +20,7 @@ public class GithubShareProjectTest extends GithubShareProjectTestBase {
 
     GithubShareAction.shareProjectOnGithub(myProject, myProjectRoot);
 
-    checkNotification(NotificationType.INFORMATION, "Successfully created project on GitHub", null);
+    checkNotification(NotificationType.INFORMATION, "Successfully shared project on GitHub", null);
     checkGitExists();
     checkGithubExists();
     checkRemoteConfigured();
@@ -46,12 +46,13 @@ public class GithubShareProjectTest extends GithubShareProjectTestBase {
 
     cd(myProjectRoot.getPath());
     git("init");
+    setGitIdentity(myProjectRoot);
     git("add file.txt");
     git("commit -m init");
 
     GithubShareAction.shareProjectOnGithub(myProject, myProjectRoot);
 
-    checkNotification(NotificationType.INFORMATION, "Successfully created project on GitHub", null);
+    checkNotification(NotificationType.INFORMATION, "Successfully shared project on GitHub", null);
     checkGitExists();
     checkGithubExists();
     checkRemoteConfigured();
@@ -69,7 +70,7 @@ public class GithubShareProjectTest extends GithubShareProjectTestBase {
 
     GithubShareAction.shareProjectOnGithub(myProject, myProjectRoot);
 
-    checkNotification(NotificationType.INFORMATION, "Successfully created project on GitHub", null);
+    checkNotification(NotificationType.INFORMATION, "Successfully shared project on GitHub", null);
     checkGitExists();
     checkGithubExists();
     checkRemoteConfigured();
@@ -82,7 +83,7 @@ public class GithubShareProjectTest extends GithubShareProjectTestBase {
 
     GithubShareAction.shareProjectOnGithub(myProject, myProjectRoot);
 
-    checkNotification(NotificationType.WARNING, "Failed to commit file during post activities", "No files to commit");
+    checkNotification(NotificationType.INFORMATION, "Successfully created empty repository on GitHub", null);
     checkGitExists();
     checkGithubExists();
     checkRemoteConfigured();

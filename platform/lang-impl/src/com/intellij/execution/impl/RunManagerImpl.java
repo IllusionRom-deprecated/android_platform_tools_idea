@@ -142,8 +142,8 @@ public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, 
 
   @Override
   @NotNull
-  public RunnerAndConfigurationSettings createConfiguration(final RunConfiguration runConfiguration,
-                                                            final ConfigurationFactory factory) {
+  public RunnerAndConfigurationSettings createConfiguration(@NotNull final RunConfiguration runConfiguration,
+                                                            @NotNull final ConfigurationFactory factory) {
     RunnerAndConfigurationSettings template = getConfigurationTemplate(factory);
     myConfigurationToBeforeTasksMap.put(runConfiguration, getBeforeRunTasks(template.getConfiguration()));
     shareConfiguration(runConfiguration, isConfigurationShared(template));
@@ -268,6 +268,8 @@ public class RunManagerImpl extends RunManagerEx implements JDOMExternalizable, 
     return Collections.unmodifiableMap(result);
   }
 
+  @Override
+  @NotNull
   public RunnerAndConfigurationSettings getConfigurationTemplate(final ConfigurationFactory factory) {
     RunnerAndConfigurationSettings template = myTemplateConfigurationsMap.get(factory.getType().getId() + "." + factory.getName());
     if (template == null) {

@@ -22,10 +22,10 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
+import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
 import com.intellij.openapi.externalSystem.service.notification.ExternalSystemProgressNotificationManager;
-import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
 import com.intellij.openapi.externalSystem.service.remote.ExternalSystemProgressNotificationManagerImpl;
 import com.intellij.openapi.externalSystem.service.remote.RemoteExternalSystemProgressNotificationManager;
 import com.intellij.openapi.externalSystem.service.remote.wrapper.ExternalSystemFacadeWrapper;
@@ -35,13 +35,17 @@ import com.intellij.openapi.externalSystem.util.IntegrationKey;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectBundle;
 import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.projectRoots.*;
+import com.intellij.openapi.projectRoots.JavaSdkType;
+import com.intellij.openapi.projectRoots.JdkUtil;
+import com.intellij.openapi.projectRoots.Sdk;
+import com.intellij.openapi.projectRoots.SimpleJavaSdkType;
 import com.intellij.openapi.roots.DependencyScope;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.ShutDownTracker;
 import com.intellij.psi.PsiBundle;
 import com.intellij.util.Alarm;
+import com.intellij.util.Consumer;
 import com.intellij.util.PathUtil;
 import com.intellij.util.SystemProperties;
 import com.intellij.util.containers.ContainerUtil;
@@ -58,6 +62,7 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -162,7 +167,7 @@ public class ExternalSystemFacadeManager {
         params.getClassPath().addAll(classPath);
 
         params.setMainClass(MAIN_CLASS_NAME);
-        params.getVMParametersList().addParametersString("-Djava.awt.headless=true -Xmx512m");
+        params.getVMParametersList().addParametersString("-Djava.awt.headless=true");
 
         // It may take a while for gradle api to resolve external dependencies. Default RMI timeout
         // is 15 seconds (http://download.oracle.com/javase/6/docs/technotes/guides/rmi/sunrmiproperties.html#connectionTimeout),
@@ -221,6 +226,34 @@ public class ExternalSystemFacadeManager {
   public synchronized void shutdown(boolean wait) {
     mySupport.stopAll(wait);
   }
+
+  public void onProjectRename(@NotNull String oldName, @NotNull String newName) {
+    onProjectRename(myFacadeWrappers, oldName, newName);
+    onProjectRename(myRemoteFacades, oldName, newName);
+  }
+
+  private static <V> void onProjectRename(@NotNull Map<IntegrationKey, V> data,
+                                          @NotNull String oldName,
+                                          @NotNull String newName)
+  {
+    Set<IntegrationKey> keys = ContainerUtilRt.newHashSet(data.keySet());
+    for (IntegrationKey key : keys) {
+      if (!key.getIdeProjectName().equals(oldName)) {
+        continue;
+      }
+      IntegrationKey newKey = new IntegrationKey(newName,
+                                                 key.getIdeProjectLocationHash(),
+                                                 key.getExternalSystemId(),
+                                                 key.getExternalProjectConfigPath());
+      V value = data.get(key);
+      data.put(newKey, value);
+      data.remove(key);
+      if (value instanceof Consumer) {
+        //noinspection unchecked
+        ((Consumer)value).consume(newKey);
+      }
+    }
+  }
   
   /**
    * @return              gradle api facade to use
@@ -238,7 +271,7 @@ public class ExternalSystemFacadeManager {
     final RemoteExternalSystemFacade facade = myFacadeWrappers.get(key);
     if (facade == null) {
       final RemoteExternalSystemFacade newFacade = (RemoteExternalSystemFacade)Proxy.newProxyInstance(
-        ExternalSystemFacadeManager.class.getClassLoader(), new Class[]{RemoteExternalSystemFacade.class}, new MyHandler(key)
+        ExternalSystemFacadeManager.class.getClassLoader(), new Class[]{RemoteExternalSystemFacade.class, Consumer.class}, new MyHandler(key)
       );
       myFacadeWrappers.putIfAbsent(key, newFacade);
     }
@@ -381,16 +414,22 @@ public class ExternalSystemFacadeManager {
   }
   
   private class MyHandler implements InvocationHandler {
-    
-    @NotNull private final IntegrationKey myKey;
+
+    @NotNull private final AtomicReference<IntegrationKey> myKey = new AtomicReference<IntegrationKey>();
 
     MyHandler(@NotNull IntegrationKey key) {
-      myKey = key;
+      myKey.set(key);
     }
-
+    
+    @Nullable
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-      return doInvoke(myKey, findProject(myKey), method, args, REMOTE_FAIL_RECOVERY_ATTEMPTS_NUMBER);
+      if ("consume".equals(method.getName())) {
+        myKey.set((IntegrationKey)args[0]);
+        return null;
+      }
+      Project project = findProject(myKey.get());
+      return doInvoke(myKey.get(), project, method, args, REMOTE_FAIL_RECOVERY_ATTEMPTS_NUMBER);
     }
   }
 }

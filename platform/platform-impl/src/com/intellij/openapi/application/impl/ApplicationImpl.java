@@ -57,13 +57,9 @@ import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.wm.IdeFrame;
 import com.intellij.openapi.wm.WindowManager;
-import com.intellij.openapi.wm.ex.ProgressIndicatorEx;
 import com.intellij.psi.PsiLock;
 import com.intellij.ui.Splash;
-import com.intellij.util.Consumer;
-import com.intellij.util.EventDispatcher;
-import com.intellij.util.ReflectionCache;
-import com.intellij.util.Restarter;
+import com.intellij.util.*;
 import com.intellij.util.containers.Stack;
 import com.intellij.util.io.storage.HeavyProcessLatch;
 import com.intellij.util.ui.UIUtil;
@@ -226,9 +222,10 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     BundleBase.assertKeyIsFound = IconLoader.STRICT = isUnitTestMode || isInternal;
 
     AWTExceptionHandler.register(); // do not crash AWT on exceptions
-    if ((isInternal || isUnitTestMode) && !Comparing.equal("off", System.getProperty("idea.disposer.debug"))) {
-      Disposer.setDebugMode(true);
-    }
+
+    String debugDisposer = System.getProperty("idea.disposer.debug");
+    Disposer.setDebugMode((isInternal || isUnitTestMode || "on".equals(debugDisposer)) && !"off".equals(debugDisposer));
+
     myStartTime = System.currentTimeMillis();
     mySplash = splash;
     myName = appName;
@@ -255,8 +252,9 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
           invokeLater(new Runnable() {
             @Override
             public void run() {
+              LOG.info("ApplicationImpl.externalInstanceListener invocation");
               String currentDirectory = args.isEmpty() ? null : args.get(0);
-              List<String> realArgs = args.size() <= 1 ? args : args.subList(1, args.size());
+              List<String> realArgs = args.isEmpty() ? args : args.subList(1, args.size());
               final Project project = CommandLineProcessor.processExternalCommandLine(realArgs, currentDirectory);
               final JFrame frame;
               if (project != null) {
@@ -403,6 +401,11 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
   }
 
   @Override
+  public boolean isEAP() {
+    return ApplicationInfoImpl.getShadowInstance().isEAP();
+  }
+
+  @Override
   public boolean isUnitTestMode() {
     return myTestModeFlag;
   }
@@ -529,12 +532,16 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     }
     myLoaded = true;
 
+    createLocatorFile();
+  }
+
+  private static void createLocatorFile() {
     File locatorFile = new File(PathManager.getSystemPath() + "/" + ApplicationEx.LOCATOR_FILE_NAME);
     try {
       byte[] data = PathManager.getHomePath().getBytes("UTF-8");
       FileUtil.writeToFile(locatorFile, data);
     }
-    catch (Exception e) {
+    catch (IOException e) {
       LOG.warn("can't store a location in '" + locatorFile + "'", e);
     }
   }
@@ -647,6 +654,7 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     try {
       myExceptionalThreadWithReadAccessRunnable = process;
       final boolean[] threadStarted = {false};
+      //noinspection SSBasedInspection
       SwingUtilities.invokeLater(new Runnable() {
         @Override
         public void run() {
@@ -695,15 +703,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     }
 
     return !progress.isCanceled();
-  }
-
-  @Override
-  public boolean isInModalProgressThread() {
-    if (myExceptionalThreadWithReadAccessRunnable == null || !isExceptionalThreadWithReadAccess()) {
-      return false;
-    }
-    ProgressIndicator progressIndicator = ProgressManager.getInstance().getProgressIndicator();
-    return progressIndicator.isModal() && ((ProgressIndicatorEx)progressIndicator).isModalityEntered();
   }
 
   @Override
@@ -793,32 +792,51 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
     exit(force, true, true);
   }
 
+  /*
+   * There are two ways we can get an exit notification.
+   *  1. From user input i.e. ExitAction
+   *  2. From the native system.
+   *  We should not process any quit notifications if we are handling another one
+   *
+   *  Note: there are possible scenarios when we get a quit notification at a moment when another
+   *  quit message is shown. In that case, showing multiple messages sounds contra-intuitive as well
+   */
+  private volatile static boolean exiting = false;
+
   public void exit(final boolean force, final boolean allowListenersToCancel, final boolean restart) {
-    if (!force && getDefaultModalityState() != ModalityState.NON_MODAL) {
-      return;
-    }
 
-    Runnable runnable = new Runnable() {
-      @Override
-      public void run() {
-        if (!confirmExitIfNeeded(force)) {
-          saveAll();
-          return;
-        }
+    if (exiting) return;
 
-        getMessageBus().syncPublisher(AppLifecycleListener.TOPIC).appClosing();
-        myDisposeInProgress = true;
-        if (!doExit(allowListenersToCancel, restart)) {
-          myDisposeInProgress = false;
-        }
+    exiting = true;
+    try {
+      if (!force && getDefaultModalityState() != ModalityState.NON_MODAL) {
+        return;
       }
-    };
 
-    if (!isDispatchThread()) {
-      invokeLater(runnable, ModalityState.NON_MODAL);
-    }
-    else {
-      runnable.run();
+      Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+          if (!confirmExitIfNeeded(force)) {
+            saveAll();
+            return;
+          }
+
+          getMessageBus().syncPublisher(AppLifecycleListener.TOPIC).appClosing();
+          myDisposeInProgress = true;
+          if (!doExit(allowListenersToCancel, restart)) {
+            myDisposeInProgress = false;
+          }
+        }
+      };
+
+      if (!isDispatchThread()) {
+        invokeLater(runnable, ModalityState.NON_MODAL);
+      }
+      else {
+        runnable.run();
+      }
+    } finally {
+      exiting = false;
     }
   }
 
@@ -1246,13 +1264,9 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
               @Override
               public void run() {
                 while (!stopped.get()) {
-                  try {
-                    Thread.sleep(ourDumpThreadsOnLongWriteActionWaiting);
-                    if (!stopped.get()) {
-                      PerformanceWatcher.getInstance().dumpThreads(true);
-                    }
-                  }
-                  catch (InterruptedException ignored) {
+                  TimeoutUtil.sleep(ourDumpThreadsOnLongWriteActionWaiting);
+                  if (!stopped.get()) {
+                    PerformanceWatcher.getInstance().dumpThreads(true);
                   }
                 }
               }
@@ -1487,17 +1501,6 @@ public class ApplicationImpl extends ComponentManagerImpl implements Application
   @Override
   public boolean isRestartCapable() {
     return Restarter.isSupported();
-  }
-
-  public boolean isSaving() {
-    if (getStateStore().isSaving()) return true;
-    Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
-    for (Project openProject : openProjects) {
-      ProjectEx project = (ProjectEx)openProject;
-      if (project.getStateStore().isSaving()) return true;
-    }
-
-    return false;
   }
 
   @Override

@@ -30,7 +30,10 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vcs.AbstractVcs;
 import com.intellij.openapi.vcs.ProjectLevelVcsManager;
+import com.intellij.openapi.vcs.VcsTaskHandler;
+import com.intellij.openapi.vcs.VcsType;
 import com.intellij.openapi.vcs.changes.*;
 import com.intellij.tasks.*;
 import com.intellij.tasks.config.TaskRepositoriesConfigurable;
@@ -42,6 +45,7 @@ import com.intellij.util.Function;
 import com.intellij.util.containers.ConcurrentHashSet;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.Convertor;
+import com.intellij.util.containers.MultiMap;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.util.xmlb.XmlSerializationException;
 import com.intellij.util.xmlb.XmlSerializer;
@@ -160,7 +164,7 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
         if (associatedTask != null && !getActiveTask().equals(associatedTask)) {
           ApplicationManager.getApplication().invokeLater(new Runnable() {
             public void run() {
-              activateTask(associatedTask, true, false);
+              activateTask(associatedTask, true);
             }
           }, myProject.getDisposed());
         }
@@ -205,7 +209,7 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
   public void removeTask(LocalTask task) {
     if (task.isDefault()) return;
     if (myActiveTask.equals(task)) {
-      activateTask(myTasks.get(LocalTaskImpl.DEFAULT_TASK_ID), true, false);
+      activateTask(myTasks.get(LocalTaskImpl.DEFAULT_TASK_ID), true);
     }
     myTasks.remove(task.getId());
     myDispatcher.getMulticaster().taskRemoved(task);
@@ -341,8 +345,9 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
   }
 
   @Override
-  public void activateTask(@NotNull final Task origin, boolean clearContext, boolean createChangelist) {
-    if (origin.equals(getActiveTask())) return;
+  public LocalTask activateTask(@NotNull final Task origin, boolean clearContext) {
+    LocalTask activeTask = getActiveTask();
+    if (origin.equals(activeTask)) return activeTask;
 
     saveActiveTask();
 
@@ -353,7 +358,12 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
 
     final LocalTask task = doActivate(origin, true);
 
-    if (!isVcsEnabled()) return;
+    return restoreVcsContext(task);
+  }
+
+  private LocalTask restoreVcsContext(LocalTask task) {
+    if (!isVcsEnabled()) return task;
+
     List<ChangeListInfo> changeLists = task.getChangeLists();
     if (!changeLists.isEmpty()) {
       ChangeListInfo info = changeLists.get(0);
@@ -364,10 +374,51 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
       }
       myChangeListManager.setDefaultChangeList(changeList);
     }
-    else if (createChangelist) {
-      String name = getChangelistName(origin);
-      String comment = TaskUtil.getChangeListComment(origin);
-      createChangeList(task, name, comment);
+
+    List<BranchInfo> branches = task.getBranches(false);
+    VcsTaskHandler.TaskInfo info = fromBranches(branches);
+
+    VcsTaskHandler[] handlers = VcsTaskHandler.getAllHandlers(myProject);
+    for (VcsTaskHandler handler : handlers) {
+      handler.switchToTask(info);
+    }
+    return task;
+  }
+
+  private static VcsTaskHandler.TaskInfo fromBranches(List<BranchInfo> branches) {
+    MultiMap<String, String> map = new MultiMap<String, String>();
+    for (BranchInfo branch : branches) {
+      map.putValue(branch.name, branch.repository);
+    }
+    return new VcsTaskHandler.TaskInfo(map);
+  }
+
+  public void createBranch(LocalTask task, LocalTask previousActive, String name) {
+    VcsTaskHandler[] handlers = VcsTaskHandler.getAllHandlers(myProject);
+    for (VcsTaskHandler handler : handlers) {
+      VcsTaskHandler.TaskInfo info = handler.getActiveTask();
+      if (previousActive != null) {
+        addBranches(previousActive, info, false);
+      }
+      addBranches(task, info, true);
+      addBranches(task, handler.startNewTask(name), false);
+    }
+  }
+
+  public void mergeBranch(LocalTask task) {
+    VcsTaskHandler.TaskInfo original = fromBranches(task.getBranches(true));
+    VcsTaskHandler.TaskInfo feature = fromBranches(task.getBranches(false));
+
+    VcsTaskHandler[] handlers = VcsTaskHandler.getAllHandlers(myProject);
+    for (VcsTaskHandler handler : handlers) {
+      handler.closeTask(feature, original);
+    }
+  }
+
+  private static void addBranches(LocalTask task, VcsTaskHandler.TaskInfo info, boolean original) {
+    List<BranchInfo> branchInfos = BranchInfo.fromTaskInfo(info, original);
+    for (BranchInfo branchInfo : branchInfos) {
+      task.addBranch(branchInfo);
     }
   }
 
@@ -763,6 +814,18 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
   }
 
   @Override
+  public AbstractVcs getActiveVcs() {
+    AbstractVcs[] vcss = ProjectLevelVcsManager.getInstance(myProject).getAllActiveVcss();
+    if (vcss.length == 0) return null;
+    for (AbstractVcs vcs : vcss) {
+      if (vcs.getType() == VcsType.distributed) {
+        return vcs;
+      }
+    }
+    return vcss[0];
+  }
+
+  @Override
   public boolean isLocallyClosed(final LocalTask localTask) {
     if (isVcsEnabled()) {
       List<ChangeListInfo> lists = localTask.getChangeLists();
@@ -797,7 +860,7 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
     task.addChangelist(changeListInfo);
     addTask(task);
     if (changeList.isDefault()) {
-      activateTask(task, false, false);
+      activateTask(task, false);
     }
   }
 
@@ -824,7 +887,7 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
     createChangeList(task, name, comment);
   }
 
-  public void createChangeList(LocalTask task, String name, @Nullable String comment) {
+  private void createChangeList(LocalTask task, String name, @Nullable String comment) {
     LocalChangeList changeList = myChangeListManager.findChangeList(name);
     if (changeList == null) {
       changeList = myChangeListManager.addChangeList(name, comment);
@@ -847,6 +910,19 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
     return task.getSummary();
   }
 
+  public String suggestBranchName(Task task) {
+    if (task.isIssue() && StringUtil.isNotEmpty(task.getNumber())) {
+      return task.getId().replace(' ', '-');
+    }
+    else {
+      String summary = task.getSummary();
+      List<String> words = StringUtil.getWordsIn(summary);
+      String[] strings = ArrayUtil.toStringArray(words);
+      return StringUtil.join(strings, 0, Math.min(2, strings.length), "-");
+    }
+  }
+
+
   @TestOnly
   public ChangeListAdapter getChangeListListener() {
     return myChangeListListener;
@@ -866,15 +942,23 @@ public class TaskManagerImpl extends TaskManager implements ProjectComponent, Pe
     public int updateInterval = 20;
     public int updateIssuesCount = 100;
 
+    // create task options
     public boolean clearContext = true;
     public boolean createChangelist = true;
+    public boolean createBranch = true;
+
+    // close task options
+    public boolean closeIssue = true;
+    public boolean commitChanges = true;
+    public boolean mergeBranch = true;
+
     public boolean saveContextOnCommit = true;
     public boolean trackContextForNewChangelist = false;
     public boolean markAsInProgress = false;
+
     public String changelistNameFormat = "{id} {summary}";
 
     public boolean searchClosedTasks = false;
-
     @Tag("servers")
     public Element servers = new Element("servers");
   }

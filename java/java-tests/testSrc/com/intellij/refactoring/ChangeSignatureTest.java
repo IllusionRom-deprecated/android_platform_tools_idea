@@ -155,6 +155,13 @@ public class ChangeSignatureTest extends LightRefactoringTestCase {
     }, false);
   }
 
+  public void testParamJavadoc0() throws Exception {
+    doTest(null, new ParameterInfoImpl[] {
+      new ParameterInfoImpl(1, "z", PsiType.INT),
+      new ParameterInfoImpl(0, "y", PsiType.INT)
+    }, false);
+  }
+
   public void testParamJavadoc1() throws Exception {
     doTest(null, new ParameterInfoImpl[]{
       new ParameterInfoImpl(0, "z", PsiType.BOOLEAN)
@@ -414,7 +421,7 @@ public class ChangeSignatureTest extends LightRefactoringTestCase {
                                  method.getName(),
                                  CanonicalTypes.createTypeWrapper(PsiType.VOID), new ParameterInfoImpl[]{
         new ParameterInfoImpl(0, parameters[0].getName(), parameters[0].getType()),
-        new ParameterInfoImpl(-1, "b", PsiType.BOOLEAN, "true")}, null,
+        new ParameterInfoImpl(-1, "b", PsiType.BOOLEAN)}, null,
                                  propagateParametersMethods, null).run();
     @NonNls String after = basePath + "_after.java";
     checkResultByFile(after);

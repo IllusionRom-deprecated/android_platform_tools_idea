@@ -33,13 +33,25 @@ public class GithubHttpAuthDataProvider implements GitHttpAuthDataProvider {
       return null;
     }
 
-    GithubSettings settings = GithubSettings.getInstance();
-    String login = settings.getLogin();
-    if (StringUtil.isEmptyOrSpaces(login)) {
-      return null;
+    GithubAuthData auth = GithubSettings.getInstance().getAuthData();
+    switch (auth.getAuthType()) {
+      case BASIC:
+        GithubAuthData.BasicAuth basicAuth = auth.getBasicAuth();
+        assert basicAuth != null;
+        if (StringUtil.isEmptyOrSpaces(basicAuth.getLogin()) || StringUtil.isEmptyOrSpaces(basicAuth.getPassword())) {
+          return null;
+        }
+        return new AuthData(basicAuth.getLogin(), basicAuth.getPassword());
+      case TOKEN:
+        GithubAuthData.TokenAuth tokenAuth = auth.getTokenAuth();
+        assert tokenAuth != null;
+        if (StringUtil.isEmptyOrSpaces(tokenAuth.getToken())) {
+          return null;
+        }
+        return new AuthData(tokenAuth.getToken(), "x-oauth-basic");
+      default:
+        return null;
     }
-
-    return new AuthData(login, settings.getPassword());
   }
 
 }

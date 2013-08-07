@@ -81,9 +81,6 @@ public class PsiScopesUtil {
       if (scope == maxScope) break;
       prevParent = scope;
       scope = prevParent.getContext();
-      if (scope != null && scope != prevParent.getParent() && !scope.isValid()) {
-        break;
-      }
       processor.handleEvent(JavaScopeProcessorEvent.CHANGE_LEVEL, null);
     }
 
@@ -131,9 +128,7 @@ public class PsiScopesUtil {
     }
     else if (type instanceof PsiDisjunctionType) {
       final PsiType lub = ((PsiDisjunctionType)type).getLeastUpperBound();
-      if (lub != null) {
-        processTypeDeclarations(lub, place, processor);
-      }
+      processTypeDeclarations(lub, place, processor);
     }
     else {
       final JavaResolveResult result = PsiUtil.resolveGenericsClassInType(type);
@@ -222,11 +217,14 @@ public class PsiScopesUtil {
     return true;
   }
 
-  public static void setupAndRunProcessor(MethodsProcessor processor, PsiCallExpression call, boolean dummyImplicitConstructor)
-    throws MethodProcessorSetupFailedException {
+  public static void setupAndRunProcessor(@NotNull MethodsProcessor processor,
+                                          @NotNull PsiCallExpression call,
+                                          boolean dummyImplicitConstructor)
+  throws MethodProcessorSetupFailedException {
     if (call instanceof PsiMethodCallExpression) {
       final PsiMethodCallExpression methodCall = (PsiMethodCallExpression)call;
       final PsiJavaCodeReferenceElement ref = methodCall.getMethodExpression();
+
 
       processor.setArgumentList(methodCall.getArgumentList());
       processor.obtainTypeArguments(methodCall);
@@ -307,12 +305,15 @@ public class PsiScopesUtil {
         final PsiElement referenceName = methodCall.getMethodExpression().getReferenceNameElement();
         final PsiManager manager = call.getManager();
         final PsiElement qualifier = ref.getQualifier();
-
+        if (referenceName == null) {
+          // e.g. "manager.(beginTransaction)"
+          throw new MethodProcessorSetupFailedException("Can't resolve method name for this expression");
+        }
         if (referenceName instanceof PsiIdentifier && qualifier instanceof PsiExpression) {
           PsiType type = ((PsiExpression)qualifier).getType();
           if (type != null && qualifier instanceof PsiReferenceExpression) {
             final PsiElement resolve = ((PsiReferenceExpression)qualifier).resolve();
-            if (resolve instanceof PsiVariable && ((PsiVariable)resolve).hasModifierProperty(PsiModifier.FINAL)) {
+            if (resolve instanceof PsiVariable && ((PsiVariable)resolve).hasModifierProperty(PsiModifier.FINAL) && ((PsiVariable)resolve).hasInitializer()) {
               final PsiExpression initializer = ((PsiVariable)resolve).getInitializer();
               if (initializer instanceof PsiNewExpression) {
                 final PsiAnonymousClass anonymousClass = ((PsiNewExpression)initializer).getAnonymousClass();
@@ -405,9 +406,9 @@ public class PsiScopesUtil {
     return true;
   }
 
-  private static boolean processQualifierResult(JavaResolveResult qualifierResult,
-                                                final MethodsProcessor processor,
-                                                PsiMethodCallExpression methodCall) throws MethodProcessorSetupFailedException {
+  private static boolean processQualifierResult(@NotNull JavaResolveResult qualifierResult,
+                                                @NotNull MethodsProcessor processor,
+                                                @NotNull PsiMethodCallExpression methodCall) throws MethodProcessorSetupFailedException {
     PsiElement resolve = qualifierResult.getElement();
 
     if (resolve == null) {

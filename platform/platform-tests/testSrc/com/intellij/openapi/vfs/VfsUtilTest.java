@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -382,6 +382,16 @@ public class VfsUtilTest extends PlatformLangTestCase {
         }
       }
     }).assertTiming();
+
+    new WriteCommandAction.Simple(getProject()) {
+      @Override
+      protected void run() throws Throwable {
+        for (VirtualFile file : vDir.getChildren()) {
+          file.delete(this);
+        }
+      }
+    }.execute().throwException();
+
   }
 
   public void testFindRootWithDenormalizedPath() {

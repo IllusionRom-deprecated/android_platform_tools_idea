@@ -30,7 +30,10 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.html.HtmlTag;
+import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.impl.source.xml.XmlTokenImpl;
+import com.intellij.psi.templateLanguages.OuterLanguageElement;
+import com.intellij.psi.templateLanguages.TemplateLanguageFileViewProvider;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.xml.*;
@@ -46,8 +49,7 @@ public class XmlGtTypedHandler extends TypedHandlerDelegate {
 
   public Result beforeCharTyped(final char c, final Project project, final Editor editor, final PsiFile editedFile, final FileType fileType) {
     final WebEditorOptions webEditorOptions = WebEditorOptions.getInstance();
-    if (c == '>' && webEditorOptions != null && webEditorOptions.isAutomaticallyInsertClosingTag()
-        && (editedFile.getLanguage() instanceof XMLLanguage || editedFile.getViewProvider().getBaseLanguage() instanceof XMLLanguage)) {
+    if (c == '>' && webEditorOptions != null && webEditorOptions.isAutomaticallyInsertClosingTag() && fileContainsXmlLanguage(editedFile)) {
       PsiDocumentManager.getInstance(project).commitAllDocuments();
 
       PsiFile file = PsiDocumentManager.getInstance(project).getPsiFile(editor.getDocument());
@@ -58,7 +60,19 @@ public class XmlGtTypedHandler extends TypedHandlerDelegate {
 
       if (offset < editor.getDocument().getTextLength()) {
         elementAtCaret = element = provider.findElementAt(offset, XMLLanguage.class);
-        
+
+        if (element == null && offset > 0) {
+          // seems like a template language
+          // <xml_code><caret><outer_element>
+          elementAtCaret = element = provider.findElementAt(offset - 1, XMLLanguage.class);
+        }
+        if (element == null && offset > 0) {
+          // seems like an injection in a template file
+          final PsiElement injectedElement = InjectedLanguageUtil.findInjectedElementNoCommit(file, offset);
+          if (injectedElement != null && injectedElement.getContainingFile() instanceof XmlFile) {
+            elementAtCaret = element = injectedElement;
+          }
+        }
         if (!(element instanceof PsiWhiteSpace)) {
           boolean nonAcceptableDelimiter = true;
 
@@ -112,7 +126,8 @@ public class XmlGtTypedHandler extends TypedHandlerDelegate {
             return Result.CONTINUE; // already seen /
           }
           element = parent.getPrevSibling();
-        } else if (parent instanceof XmlTag && !(element.getPrevSibling() instanceof XmlTag)) {
+        } else if (parent instanceof XmlTag && !(element.getPrevSibling() instanceof XmlTag) &&
+                   !(element.getPrevSibling() instanceof OuterLanguageElement)) {
           element = parent;
         } else if (parent instanceof XmlAttributeValue) {
           element = parent;
@@ -134,7 +149,7 @@ public class XmlGtTypedHandler extends TypedHandlerDelegate {
         element = element.getParent().getParent();
       }
 
-      while(element instanceof PsiWhiteSpace) element = element.getPrevSibling();
+      while(element instanceof PsiWhiteSpace || element instanceof OuterLanguageElement) element = element.getPrevSibling();
       if (element instanceof XmlDocument) {   // hack for closing tags in RHTML
         element = element.getLastChild();
       }
@@ -161,7 +176,7 @@ public class XmlGtTypedHandler extends TypedHandlerDelegate {
         name = name.substring(0, offset - elementAtCaret.getTextOffset());
       }
       if (tag instanceof HtmlTag && HtmlUtil.isSingleHtmlTag(name)) return Result.CONTINUE;
-      if ("".equals(name)) return Result.CONTINUE;
+      if (name.isEmpty()) return Result.CONTINUE;
 
       int tagOffset = tag.getTextRange().getStartOffset();
 
@@ -255,5 +270,17 @@ public class XmlGtTypedHandler extends TypedHandlerDelegate {
       return cdataReformatRange != null ? Result.STOP : Result.CONTINUE;
     }
     return Result.CONTINUE;
+  }
+
+  private static boolean fileContainsXmlLanguage(PsiFile editedFile) {
+    if (editedFile.getLanguage() instanceof XMLLanguage) {
+      return true;
+    }
+    final FileViewProvider provider = editedFile.getViewProvider();
+    if (provider.getBaseLanguage() instanceof XMLLanguage) {
+      return true;
+    }
+    return provider instanceof TemplateLanguageFileViewProvider &&
+           ((TemplateLanguageFileViewProvider)provider).getTemplateDataLanguage() instanceof XMLLanguage;
   }
 }

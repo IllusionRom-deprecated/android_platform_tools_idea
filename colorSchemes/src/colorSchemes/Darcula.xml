@@ -519,6 +519,7 @@
     </option>
     <option name="FOLDED_TEXT_ATTRIBUTES">
       <value>
+        <option name="FOREGROUND" value="8c8c8c" />
         <option name="BACKGROUND" value="3a3a3a" />
       </value>
     </option>
@@ -934,6 +935,7 @@
     <option name="MATCHED_BRACE_ATTRIBUTES">
       <value>
         <option name="FOREGROUND" value="ff8647" />
+        <option name="BACKGROUND" value="3b514d" />
       </value>
     </option>
     <option name="MESSAGE_ARGUMENT">
