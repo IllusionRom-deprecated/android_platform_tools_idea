@@ -12,7 +12,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.containers.ContainerUtilRt;
 import com.intellij.util.containers.Stack;
 import org.gradle.tooling.model.GradleProject;
-import org.gradle.tooling.model.GradleScript;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -172,27 +171,6 @@ public class GradleUtil {
    */
   @NotNull
   public static String getConfigPath(@NotNull GradleProject subProject, @NotNull String rootProjectPath) {
-    try {
-      GradleScript script = subProject.getBuildScript();
-      if (script != null) {
-        File file = script.getSourceFile();
-        if (file != null) {
-          if (file.isFile()) {
-            // The file points to 'build.gradle' at the moment but we keep it's parent dir path instead.
-            file = file.getParentFile();
-          }
-          return ExternalSystemApiUtil.toCanonicalPath(file.getCanonicalPath());
-        }
-      }
-    }
-    catch (Exception e) {
-      // As said by gradle team: 'One thing I'm interested in is whether you have any thoughts about how the tooling API should
-      // deal with missing details from the model - for example, when asking for details about the build scripts when using
-      // a version of Gradle that does not supply that information. Currently, you'll get a `UnsupportedOperationException`
-      // when you call the `getBuildScript()` method'.
-      //
-      // So, just ignore it and assume that the user didn't define any custom build file name.
-    }
     File rootProjectParent = new File(rootProjectPath).getParentFile();
     StringBuilder buffer = new StringBuilder(FileUtil.toCanonicalPath(rootProjectParent.getAbsolutePath()));
     Stack<String> stack = ContainerUtilRt.newStack();

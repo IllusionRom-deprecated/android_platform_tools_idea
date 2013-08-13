@@ -25,7 +25,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Allows to customize {@link ExternalSystemIdeNotificationManager external system notifications} shown to end-user by the ide.
- * 
+ *
  * @author Denis Zhdanov
  * @since 8/5/13 8:52 AM
  */
@@ -33,13 +33,13 @@ public interface ExternalSystemNotificationExtension {
 
   ExtensionPointName<ExternalSystemNotificationExtension> EP_NAME
     = ExtensionPointName.create("com.intellij.externalSystemNotificationExtension");
-  
+
   @NotNull
   ProjectSystemId getTargetExternalSystemId();
 
   /**
    * Allows to customize external system processing error.
-   * 
+   *
    * @param project  target ide project
    * @param error    error occurred during external system processing
    * @param hint     hint for a use-case during processing of which given error occurs
@@ -47,7 +47,7 @@ public interface ExternalSystemNotificationExtension {
    */
   @Nullable
   CustomizationResult customize(@NotNull Project project, @NotNull Throwable error, @Nullable UsageHint hint);
-  
+
   enum UsageHint {
     PROJECT_REFRESH
   }

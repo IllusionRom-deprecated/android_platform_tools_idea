@@ -378,7 +378,9 @@ public class ApplicationInfoImpl extends ApplicationInfoEx implements JDOMExtern
     @NonNls StringBuilder buffer = new StringBuilder();
     buffer.append(getVersionName());
     buffer.append(" ");
-    if (getMajorVersion() != null && !isEAP() && !isBetaOrRC()) {
+    // Android Studio: Show version numbers even though we are on EAP
+    // if (getMajorVersion() != null && !isEAP() && !isBetaOrRC()) {
+    if (getMajorVersion() != null) {
       buffer.append(getMajorVersion());
 
       if (getMinorVersion() != null && getMinorVersion().length() > 0){

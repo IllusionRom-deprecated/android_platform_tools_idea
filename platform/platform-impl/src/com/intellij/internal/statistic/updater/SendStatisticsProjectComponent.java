@@ -71,18 +71,7 @@ public class SendStatisticsProjectComponent implements ProjectComponent {
       StatisticsNotificationManager.showNotification(statisticsService, myProject);
     }
     else if (StatisticsUploadAssistant.isSendAllowed() && StatisticsUploadAssistant.isTimeToSend()) {
-      StatisticsService serviceToUse = null;
-      StatisticsServiceEP[] extensions = StatisticsService.EP_NAME.getExtensions();
-      if (extensions.length > 1) {
-        LOG.warn(String.format("More than one stats service detected (%s). Falling back to the built-in one", Arrays.toString(extensions)));
-      }
-      else if (extensions.length == 1) {
-        serviceToUse = extensions[0].getInstance();
-      }
-      if (serviceToUse == null) {
-        serviceToUse = statisticsService;
-      }
-      runWithDelay(serviceToUse);
+      runWithDelay(statisticsService);
     }
   }
 

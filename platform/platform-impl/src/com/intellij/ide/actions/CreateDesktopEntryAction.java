@@ -198,6 +198,10 @@ public class CreateDesktopEntryAction extends DumbAwareAction {
     execPath = binPath + '/' + productName.toLowerCase() + ".sh";
     if (new File(execPath).canExecute()) return execPath;
 
+    final String scriptName = ApplicationNamesInfo.getInstance().getScriptName();
+    String scriptPath = binPath + '/' + scriptName + ".sh";
+    if (new File(scriptPath).canExecute()) return scriptPath;
+
     return null;
   }
 
