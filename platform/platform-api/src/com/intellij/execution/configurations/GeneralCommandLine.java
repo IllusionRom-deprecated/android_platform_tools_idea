@@ -235,11 +235,6 @@ public class GeneralCommandLine implements UserDataHolder {
       setupEnvironment(builder.environment());
       builder.directory(myWorkDirectory);
       builder.redirectErrorStream(myRedirectErrorStream);
-
-      LOG.info("Command: " + getPreparedCommandLine(Platform.current()));
-      LOG.info("Working directory: " + myWorkDirectory);
-      LOG.info("Environment: " + builder.environment());
-
       return builder.start();
     }
     catch (IOException e) {
@@ -261,7 +256,7 @@ public class GeneralCommandLine implements UserDataHolder {
     }
   }
 
-  void setupEnvironment(final Map<String, String> environment) {
+  private void setupEnvironment(final Map<String, String> environment) {
     environment.clear();
 
     if (myPassParentEnvironment) {
