@@ -148,7 +148,7 @@ public class ExternalProjectPathField extends ComponentWithBrowseButton<External
   @NotNull
   private static Tree buildRegisteredProjectsTree(@NotNull Project project, @NotNull ProjectSystemId externalSystemId) {
     ExternalSystemTasksTreeModel model = new ExternalSystemTasksTreeModel(externalSystemId);
-    ExternalSystemTasksTree result = new ExternalSystemTasksTree(model, ContainerUtilRt.<String, Boolean>newHashMap());
+    ExternalSystemTasksTree result = new ExternalSystemTasksTree(model, ContainerUtilRt.<String, Boolean>newHashMap(), project, externalSystemId);
     
     ExternalSystemManager<?, ?, ?, ?, ?> manager = ExternalSystemApiUtil.getManager(externalSystemId);
     assert manager != null;
@@ -193,6 +193,7 @@ public class ExternalProjectPathField extends ComponentWithBrowseButton<External
       @Override
       public void consume(Editor editor) {
         collapseIfPossible(editor, externalSystemId, project);
+        editor.getSettings().setShowIntentionBulb(false);
       }
     });
     result.setBorder(UIUtil.getTextFieldBorder());

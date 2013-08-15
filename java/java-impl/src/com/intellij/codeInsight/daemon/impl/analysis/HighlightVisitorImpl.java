@@ -36,7 +36,6 @@ import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
 import com.intellij.psi.controlFlow.ControlFlowUtil;
 import com.intellij.psi.impl.source.javadoc.PsiDocMethodOrFieldRef;
-import com.intellij.psi.impl.source.jsp.jspJava.JspClass;
 import com.intellij.psi.impl.source.resolve.JavaResolveUtil;
 import com.intellij.psi.impl.source.tree.injected.InjectedLanguageUtil;
 import com.intellij.psi.impl.source.tree.java.PsiReferenceExpressionImpl;
@@ -326,7 +325,7 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
                   }
                   if (!myHolder.hasErrorResults()) {
                     final PsiClass samClass = resolveResult.getElement();
-                    if (!PsiUtil.isAccessible(samClass, expression, null)) {
+                    if (!PsiUtil.isAccessible(myFile.getProject(), samClass, expression, null)) {
                       myHolder.add(HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(expression)
                                      .descriptionAndTooltip(HighlightUtil.buildProblemWithAccessDescription(expression, resolveResult)).create());
                     }
@@ -362,7 +361,7 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
   @Override
   public void visitClass(PsiClass aClass) {
     super.visitClass(aClass);
-    if (aClass instanceof JspClass) return;
+    if (aClass instanceof PsiSyntheticClass) return;
     if (!myHolder.hasErrorResults()) myHolder.add(GenericsHighlightUtil.checkInterfaceMultipleInheritance(aClass));
     if (!myHolder.hasErrorResults()) myHolder.add(HighlightClassUtil.checkDuplicateTopLevelClass(aClass));
     if (!myHolder.hasErrorResults()) myHolder.add(GenericsHighlightUtil.checkEnumMustNotBeLocal(aClass));
@@ -815,7 +814,7 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
             if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkMethodIncompatibleReturnType(methodSignature, superMethodSignatures, true));
             if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkMethodIncompatibleThrows(methodSignature, superMethodSignatures, true, method.getContainingClass()));
             if (!method.hasModifierProperty(PsiModifier.STATIC)) {
-              if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkMethodWeakerPrivileges(methodSignature, superMethodSignatures, true));
+              if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkMethodWeakerPrivileges(methodSignature, superMethodSignatures, true, myFile));
               if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkMethodOverridesFinal(methodSignature, superMethodSignatures));
             }
           }
@@ -840,7 +839,7 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
         if (!myHolder.hasErrorResults()) {
           myHolder.add(HighlightClassUtil.checkClassDoesNotCallSuperConstructorOrHandleExceptions(aClass, myRefCountHolder, myResolveHelper));
         }
-        if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkOverrideEquivalentInheritedMethods(aClass));
+        if (!myHolder.hasErrorResults()) myHolder.add(HighlightMethodUtil.checkOverrideEquivalentInheritedMethods(aClass, myFile));
         if (!myHolder.hasErrorResults()) myHolder.add(GenericsHighlightUtil.checkOverrideEquivalentMethods(aClass));
         if (!myHolder.hasErrorResults()) myHolder.add(HighlightClassUtil.checkCyclicInheritance(aClass));
       }
@@ -1186,7 +1185,7 @@ public class HighlightVisitorImpl extends JavaElementVisitor implements Highligh
       if (!myHolder.hasErrorResults()) {
         final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(functionalInterfaceType);
         final PsiClass psiClass = resolveResult.getElement();
-        if (psiClass != null && !PsiUtil.isAccessible(psiClass, expression, null)) {
+        if (psiClass != null && !PsiUtil.isAccessible(myFile.getProject(), psiClass, expression, null)) {
           myHolder.add(HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(expression)
                          .descriptionAndTooltip(HighlightUtil.buildProblemWithAccessDescription(expression, resolveResult)).create());
         }

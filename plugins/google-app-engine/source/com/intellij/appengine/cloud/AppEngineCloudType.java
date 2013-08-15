@@ -22,7 +22,6 @@ import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.options.UnnamedConfigurable;
 import com.intellij.openapi.project.Project;
 import com.intellij.packaging.artifacts.Artifact;
-import com.intellij.packaging.artifacts.ArtifactPointerManager;
 import com.intellij.remoteServer.ServerType;
 import com.intellij.remoteServer.configuration.deployment.*;
 import com.intellij.remoteServer.runtime.Deployment;
@@ -38,7 +37,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -83,7 +81,7 @@ public class AppEngineCloudType extends ServerType<AppEngineServerConfiguration>
 
   @NotNull
   @Override
-  public DeploymentConfigurator createDeployer(Project project) {
+  public DeploymentConfigurator createDeploymentConfigurator(Project project) {
     return new AppEngineDeploymentConfigurator(project);
   }
 
@@ -134,12 +132,7 @@ public class AppEngineCloudType extends ServerType<AppEngineServerConfiguration>
     @Override
     public List<DeploymentSource> getAvailableDeploymentSources() {
       List<Artifact> artifacts = AppEngineUtil.collectWebArtifacts(myProject, true);
-      List<DeploymentSource> sources = new ArrayList<DeploymentSource>();
-      ArtifactPointerManager pointerManager = ArtifactPointerManager.getInstance(myProject);
-      for (Artifact artifact : artifacts) {
-        sources.add(DeploymentSourceUtil.getInstance().createArtifactDeploymentSource(pointerManager.createPointer(artifact)));
-      }
-      return sources;
+      return DeploymentSourceUtil.getInstance().createArtifactDeploymentSources(myProject, artifacts);
     }
 
     @NotNull
@@ -165,10 +158,6 @@ public class AppEngineCloudType extends ServerType<AppEngineServerConfiguration>
     public void connect(@NotNull final ConnectionCallback<DummyDeploymentConfiguration> callback) {
       callback.connected(new AppEngineRuntimeInstance(myConfiguration));
     }
-
-    @Override
-    public void disconnect() {
-    }
   }
 
   private static class AppEngineRuntimeInstance extends ServerRuntimeInstance<DummyDeploymentConfiguration> {
@@ -183,7 +172,7 @@ public class AppEngineCloudType extends ServerType<AppEngineServerConfiguration>
       Artifact artifact = ((ArtifactDeploymentSource)task.getSource()).getArtifact();
       if (artifact == null) return;
 
-      AppEngineUploader uploader = AppEngineUploader.createUploader(task.getProject(), artifact, myConfiguration, callback);
+      AppEngineUploader uploader = AppEngineUploader.createUploader(task.getProject(), artifact, myConfiguration, callback, task.getLoggingHandler());
       if (uploader != null) {
         uploader.startUploading();
       }
@@ -192,6 +181,10 @@ public class AppEngineCloudType extends ServerType<AppEngineServerConfiguration>
     @Override
     public void computeDeployments(@NotNull ComputeDeploymentsCallback deployments) {
       deployments.succeeded(ContainerUtil.<Deployment>emptyList());
+    }
+
+    @Override
+    public void disconnect() {
     }
   }
 }
