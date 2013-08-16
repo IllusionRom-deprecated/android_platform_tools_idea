@@ -16,7 +16,6 @@
 package com.intellij.openapi.roots.ui.configuration;
 
 import com.intellij.compiler.actions.ArtifactAwareProjectSettingsService;
-import com.intellij.ide.actions.ShowStructureSettingsAction;
 import com.intellij.ide.projectView.impl.ModuleGroup;
 import com.intellij.ide.util.projectWizard.JdkChooserPanel;
 import com.intellij.openapi.module.Module;
@@ -66,7 +65,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openLibrary(@NotNull final Library library) {
-    warnIfGradleProject();
     final ProjectStructureConfigurable config = ProjectStructureConfigurable.getInstance(myProject);
     ShowSettingsUtil.getInstance().editConfigurable(myProject, config, new Runnable() {
       @Override
@@ -83,7 +81,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openModuleSettings(final Module module) {
-    warnIfGradleProject();
     ModulesConfigurator.showDialog(myProject, module.getName(), null);
   }
 
@@ -94,7 +91,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openModuleLibrarySettings(final Module module) {
-    warnIfGradleProject();
     ModulesConfigurator.showDialog(myProject, module.getName(), ClasspathEditor.NAME);
   }
 
@@ -105,7 +101,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openContentEntriesSettings(final Module module) {
-    warnIfGradleProject();
     ModulesConfigurator.showDialog(myProject, module.getName(), ContentEntriesEditor.NAME);
   }
 
@@ -116,7 +111,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openModuleDependenciesSettings(@NotNull final Module module, @Nullable final OrderEntry orderEntry) {
-    warnIfGradleProject();
     ShowSettingsUtil.getInstance().editConfigurable(myProject, ProjectStructureConfigurable.getInstance(myProject), new Runnable() {
       @Override
       public void run() {
@@ -132,7 +126,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openLibraryOrSdkSettings(@NotNull final OrderEntry orderEntry) {
-    warnIfGradleProject();
     final ProjectStructureConfigurable config = ProjectStructureConfigurable.getInstance(myProject);
     ShowSettingsUtil.getInstance().editConfigurable(myProject, config, new Runnable() {
       @Override
@@ -173,14 +166,6 @@ public class IdeaProjectSettingsService extends ProjectSettingsService implement
 
   @Override
   public void openArtifactSettings(@Nullable Artifact artifact) {
-    warnIfGradleProject();
     ModulesConfigurator.showArtifactSettings(myProject, artifact);
-  }
-
-  // TEMPORARY HACK!! REMOVE ME ASAP!
-  private void warnIfGradleProject() {
-    if (ShowStructureSettingsAction.isGradleProject(myProject)) {
-      ShowStructureSettingsAction.showDisabledProjectStructureDialogMessage();
-    }
   }
 }
