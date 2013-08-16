@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * show corresponding message to the end-user.
  * <p/>
  * Thread-safe.
- *
+ * 
  * @author Denis Zhdanov
  * @since 3/21/12 4:04 PM
  */
@@ -65,7 +65,7 @@ public class ExternalSystemIdeNotificationManager {
         ShowSettingsUtil.getInstance().editConfigurable(project, configurable);
       }
     };
-
+    
     for (ExternalSystemNotificationExtension extension : ExternalSystemNotificationExtension.EP_NAME.getExtensions()) {
       if (!externalSystemId.equals(extension.getTargetExternalSystemId())) {
         continue;
@@ -113,12 +113,12 @@ public class ExternalSystemIdeNotificationManager {
         }
 
         Notification notification = group.createNotification(title, message, type, listener);
-        applyNotification(notification, project);
+        applyNotification(notification, project); 
       }
     });
-
+    
   }
-
+  
   private void applyNotification(@NotNull final Notification notification, @NotNull final Project project) {
     final Notification oldNotification = myNotification.get();
     if (oldNotification != null && myNotification.compareAndSet(oldNotification, null)) {

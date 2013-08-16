@@ -17,16 +17,15 @@ package com.intellij.openapi.externalSystem.service.project
 
 import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.externalSystem.model.DataNode
-import com.intellij.openapi.externalSystem.model.project.ExternalSystemSourceType
 import com.intellij.openapi.externalSystem.model.project.ProjectData
 import com.intellij.openapi.externalSystem.test.AbstractExternalSystemTest
-import com.intellij.openapi.externalSystem.test.ExternalProjectBuilder
 import com.intellij.openapi.externalSystem.test.ExternalSystemTestUtil
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.roots.LibraryOrderEntry
 import com.intellij.openapi.roots.ModuleSourceOrderEntry
-import com.intellij.openapi.roots.OrderEntry;
+import com.intellij.openapi.roots.OrderEntry
 
+import static com.intellij.openapi.externalSystem.model.project.ExternalSystemSourceType.*
 /**
  * @author Denis Zhdanov
  * @since 8/8/13 5:17 PM
@@ -60,35 +59,27 @@ public class ExternalProjectServiceTest extends AbstractExternalSystemTest {
 
   void 'test changes in a project layout (content roots) could be detected on Refresh'() {
 
-    String rootPath = ExternalSystemApiUtil.toCanonicalPath("/project1");
+    String rootPath = ExternalSystemApiUtil.toCanonicalPath(project.basePath);
 
-    DataNode<ProjectData> projectNodeInitial = buildExternalProjectInfo {
-      project {
-        module('module') {
-          contentRoot(rootPath) {
-            folder(type: ExternalSystemSourceType.TEST, path: rootPath + '/src/test/resources')
-            folder(type: ExternalSystemSourceType.TEST, path: rootPath + '/src/test/java')
-            folder(type: ExternalSystemSourceType.TEST, path: rootPath + '/src/test/groovy')
-            folder(type: ExternalSystemSourceType.SOURCE, path: rootPath + '/src/main/resources')
-            folder(type: ExternalSystemSourceType.SOURCE, path: rootPath + '/src/main/java')
-            folder(type: ExternalSystemSourceType.SOURCE, path: rootPath + '/src/main/groovy')
-            folder(type: ExternalSystemSourceType.EXCLUDED, path: rootPath + '/.gradle')
-            folder(type: ExternalSystemSourceType.EXCLUDED, path: rootPath + '/build')
-          } } }
-    }
+    def contentRoots = [
+      (TEST): ['src/test/resources', '/src/test/java', 'src/test/groovy'],
+      (SOURCE): ['src/main/resources', 'src/main/java', 'src/main/groovy'],
+      (EXCLUDED): ['.gradle', 'build']
+    ]
 
-    DataNode<ProjectData> projectNodeRefreshed = buildExternalProjectInfo {
-      project {
-        module('module') {
-          contentRoot(rootPath) {
-            folder(type: ExternalSystemSourceType.TEST, path: rootPath + '/src/test/resources')
-            folder(type: ExternalSystemSourceType.TEST, path: rootPath + '/src/test/java')
-            folder(type: ExternalSystemSourceType.SOURCE, path: rootPath + '/src/main/resources')
-            folder(type: ExternalSystemSourceType.SOURCE, path: rootPath + '/src/main/java')
-            folder(type: ExternalSystemSourceType.EXCLUDED, path: rootPath + '/.gradle')
-            folder(type: ExternalSystemSourceType.EXCLUDED, path: rootPath + '/build')
-          } } }
-    }
+    def projectRootBuilder = {
+      buildExternalProjectInfo {
+        project {
+          module {
+            contentRoot(rootPath) {
+              contentRoots.each { key, values -> values.each { folder(type: key, path: "$rootPath/$it") } }
+            } } } } }
+
+    DataNode<ProjectData> projectNodeInitial = projectRootBuilder()
+
+    contentRoots[(SOURCE)].remove(0)
+    contentRoots[(TEST)].remove(0)
+    DataNode<ProjectData> projectNodeRefreshed = projectRootBuilder()
 
     applyProjectState([projectNodeInitial, projectNodeRefreshed])
 
