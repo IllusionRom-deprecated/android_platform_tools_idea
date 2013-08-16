@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jetbrains.plugins.github;
+package org.jetbrains.plugins.github.util;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Ref;
@@ -26,6 +28,7 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ThrowableConsumer;
 import com.intellij.util.ThrowableConvertor;
+import com.intellij.util.ThrowableRunnable;
 import git4idea.GitUtil;
 import git4idea.config.GitVcsApplicationSettings;
 import git4idea.config.GitVersion;
@@ -37,8 +40,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.api.GithubApiUtil;
 import org.jetbrains.plugins.github.api.GithubUserDetailed;
+import org.jetbrains.plugins.github.exceptions.GithubAuthenticationCanceledException;
+import org.jetbrains.plugins.github.exceptions.GithubAuthenticationException;
 import org.jetbrains.plugins.github.ui.GithubBasicLoginDialog;
 import org.jetbrains.plugins.github.ui.GithubLoginDialog;
+import org.jetbrains.plugins.github.util.*;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,9 +75,6 @@ public class GithubUtil {
     }
     catch (GithubAuthenticationException e) {
       auth = getValidAuthData(project, indicator);
-      if (auth == null) {
-        throw new GithubAuthenticationCanceledException("Can't get valid credentials");
-      }
       task.consume(auth);
       return auth;
     }
@@ -96,9 +99,6 @@ public class GithubUtil {
     }
     catch (GithubAuthenticationException e) {
       auth = getValidAuthData(project, indicator);
-      if (auth == null) {
-        throw new GithubAuthenticationCanceledException("Can't get valid credentials");
-      }
       return task.convert(auth);
     }
     catch (IOException e) {
@@ -126,9 +126,6 @@ public class GithubUtil {
     }
     catch (GithubAuthenticationException e) {
       auth = getValidBasicAuthDataForHost(project, indicator, host);
-      if (auth == null) {
-        throw new GithubAuthenticationCanceledException("Can't get valid credentials");
-      }
       return task.convert(auth);
     }
     catch (IOException e) {
@@ -157,8 +154,9 @@ public class GithubUtil {
   /**
    * @return null if user canceled login dialog. Valid GithubAuthData otherwise.
    */
-  @Nullable
-  public static GithubAuthData getValidAuthData(@Nullable Project project, @NotNull ProgressIndicator indicator) {
+  @NotNull
+  public static GithubAuthData getValidAuthData(@Nullable Project project, @NotNull ProgressIndicator indicator)
+    throws GithubAuthenticationCanceledException {
     final GithubLoginDialog dialog = new GithubLoginDialog(project);
     ApplicationManager.getApplication().invokeAndWait(new Runnable() {
       @Override
@@ -167,7 +165,7 @@ public class GithubUtil {
       }
     }, indicator.getModalityState());
     if (!dialog.isOK()) {
-      return null;
+      throw new GithubAuthenticationCanceledException("Can't get valid credentials");
     }
     return dialog.getAuthData();
   }
@@ -175,10 +173,10 @@ public class GithubUtil {
   /**
    * @return null if user canceled login dialog. Valid GithubAuthData otherwise.
    */
-  @Nullable
+  @NotNull
   public static GithubAuthData getValidBasicAuthDataForHost(@Nullable Project project,
-                                                            @NotNull ProgressIndicator indicator,
-                                                            @NotNull String host) {
+                                                            @NotNull ProgressIndicator indicator, @NotNull String host)
+    throws GithubAuthenticationCanceledException {
     final GithubLoginDialog dialog = new GithubBasicLoginDialog(project);
     dialog.lockHost(host);
     ApplicationManager.getApplication().invokeAndWait(new Runnable() {
@@ -188,13 +186,14 @@ public class GithubUtil {
       }
     }, indicator.getModalityState());
     if (!dialog.isOK()) {
-      return null;
+      throw new GithubAuthenticationCanceledException("Can't get valid credentials");
     }
     return dialog.getAuthData();
   }
 
-  @Nullable
-  public static GithubAuthData getValidAuthDataFromConfig(@Nullable Project project, @NotNull ProgressIndicator indicator) {
+  @NotNull
+  public static GithubAuthData getValidAuthDataFromConfig(@Nullable Project project, @NotNull ProgressIndicator indicator)
+    throws IOException {
     GithubAuthData auth = GithubSettings.getInstance().getAuthData();
     try {
       checkAuthData(auth);
@@ -202,10 +201,6 @@ public class GithubUtil {
     }
     catch (GithubAuthenticationException e) {
       return getValidAuthData(project, indicator);
-    }
-    catch (IOException e) {
-      LOG.info("Connection error", e);
-      return null;
     }
   }
 
@@ -240,6 +235,34 @@ public class GithubUtil {
   @NotNull
   private static GithubUserDetailed testConnection(@NotNull GithubAuthData auth) throws IOException {
     return GithubApiUtil.getCurrentUserDetailed(auth);
+  }
+
+  public static <T, E extends Throwable> T computeValueInModal(@NotNull Project project,
+                                                               @NotNull String caption,
+                                                               @NotNull final ThrowableConvertor<ProgressIndicator, T, E> task) throws E {
+    final Ref<T> dataRef = new Ref<T>();
+    final Ref<E> exceptionRef = new Ref<E>();
+    ProgressManager.getInstance().run(new Task.Modal(project, caption, true) {
+      public void run(@NotNull ProgressIndicator indicator) {
+        try {
+          dataRef.set(task.convert(indicator));
+        }
+        catch (Error e) {
+          throw e;
+        }
+        catch (RuntimeException e) {
+          throw e;
+        }
+        catch (Throwable e) {
+          //noinspection unchecked
+          exceptionRef.set((E)e);
+        }
+      }
+    });
+    if (!exceptionRef.isNull()) {
+      throw exceptionRef.get();
+    }
+    return dataRef.get();
   }
 
   /*
@@ -343,5 +366,4 @@ public class GithubUtil {
     }
     return manager.getRepositoryForFile(project.getBaseDir());
   }
-
 }

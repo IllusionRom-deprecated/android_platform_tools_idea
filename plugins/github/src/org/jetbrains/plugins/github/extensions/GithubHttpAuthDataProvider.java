@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jetbrains.plugins.github;
+package org.jetbrains.plugins.github.extensions;
 
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.util.AuthData;
 import git4idea.jgit.GitHttpAuthDataProvider;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.github.util.GithubAuthData;
+import org.jetbrains.plugins.github.util.GithubSettings;
+import org.jetbrains.plugins.github.util.GithubUrlUtil;
 
 /**
  * @author Kirill Likhodedov

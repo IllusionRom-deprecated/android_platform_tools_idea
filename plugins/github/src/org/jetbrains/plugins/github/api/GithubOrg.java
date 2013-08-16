@@ -15,25 +15,20 @@
  */
 package org.jetbrains.plugins.github.api;
 
-import java.io.IOException;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * @author Aleksey Pivovarov
  */
-public class JsonException extends IOException {
-  public JsonException() {
-    super();
+public class GithubOrg {
+  @NotNull String myLogin;
+
+  public GithubOrg(@NotNull String login) {
+    myLogin = login;
   }
 
-  public JsonException(String message) {
-    super(message);
-  }
-
-  public JsonException(String message, Throwable cause) {
-    super(message, cause);
-  }
-
-  public JsonException(Throwable cause) {
-    super(cause);
+  @NotNull
+  public String getLogin() {
+    return myLogin;
   }
 }
