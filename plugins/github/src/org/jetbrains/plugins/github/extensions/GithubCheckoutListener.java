@@ -1,4 +1,4 @@
-package org.jetbrains.plugins.github;
+package org.jetbrains.plugins.github.extensions;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupManager;
@@ -11,6 +11,8 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.api.GithubFullPath;
 import org.jetbrains.plugins.github.tasks.GithubRepository;
 import org.jetbrains.plugins.github.tasks.GithubRepositoryType;
+import org.jetbrains.plugins.github.util.GithubUrlUtil;
+import org.jetbrains.plugins.github.util.GithubUtil;
 
 import java.io.File;
 import java.util.ArrayList;
