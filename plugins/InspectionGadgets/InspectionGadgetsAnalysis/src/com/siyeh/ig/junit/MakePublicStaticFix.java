@@ -3,7 +3,6 @@ package com.siyeh.ig.junit;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiModifier;
 import com.intellij.psi.util.PsiUtil;
@@ -40,5 +39,11 @@ class MakePublicStaticFix extends InspectionGadgetsFix {
   @Override
   public String getName() {
     return myName;
+  }
+
+  @NotNull
+  @Override
+  public String getFamilyName() {
+    return "Make public/static";
   }
 }
