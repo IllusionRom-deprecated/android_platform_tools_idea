@@ -67,6 +67,11 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
     myDeploymentConfigurator = deploymentConfigurator;
   }
 
+  @NotNull
+  public ServerType<S> getServerType() {
+    return myServerType;
+  }
+
   public String getServerName() {
     return myServerName;
   }
@@ -79,7 +84,7 @@ public class DeployToServerRunConfiguration<S extends ServerConfiguration, D ext
   @NotNull
   @Override
   public SettingsEditor<DeployToServerRunConfiguration> getConfigurationEditor() {
-    return new DeployToServerSettingsEditor(myServerType, myDeploymentConfigurator);
+    return new DeployToServerSettingsEditor(myServerType, myDeploymentConfigurator, getProject());
   }
 
   @Nullable

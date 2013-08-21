@@ -1,6 +1,7 @@
 package com.intellij.tasks.jira.jql.codeinsight;
 
 import com.intellij.codeInsight.completion.*;
+import com.intellij.codeInsight.completion.util.ParenthesesInsertHandler;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Condition;
@@ -78,16 +79,16 @@ public class JqlCompletionContributor extends CompletionContributor {
 
   // Patterns:
 
-  public static final PsiElementPattern.Capture<PsiElement> AFTER_CLAUSE_WITH_HISTORY_PREDICATE =
+  private static final PsiElementPattern.Capture<PsiElement> AFTER_CLAUSE_WITH_HISTORY_PREDICATE =
     psiElement().and(rightAfterElement(JqlClauseWithHistoryPredicates.class));
 
   private static final PsiElementPattern.Capture<PsiElement> AFTER_ANY_CLAUSE =
     psiElement().and(rightAfterElement(JqlTerminalClause.class));
 
-  public static final PsiElementPattern.Capture<PsiElement> AFTER_ORDER_KEYWORD =
+  private static final PsiElementPattern.Capture<PsiElement> AFTER_ORDER_KEYWORD =
     psiElement().afterLeaf(psiElement(JqlTokenTypes.ORDER_KEYWORD));
 
-  public static final PsiElementPattern.Capture<PsiElement> AFTER_FIELD_IN_CLAUSE =
+  private static final PsiElementPattern.Capture<PsiElement> AFTER_FIELD_IN_CLAUSE =
     psiElement().and(rightAfterElement(
       psiElement(JqlIdentifier.class).
         andNot(psiElement().inside(JqlFunctionCall.class)).
@@ -103,6 +104,8 @@ public class JqlCompletionContributor extends CompletionContributor {
       psiElement().withElementType(JqlTokenTypes.AND_OPERATORS),
       psiElement().withElementType(JqlTokenTypes.OR_OPERATORS),
       psiElement().withElementType(JqlTokenTypes.NOT_OPERATORS).
+        andNot(psiElement().inside(JqlTerminalClause.class)),
+      psiElement().withElementType(JqlTokenTypes.LPAR).
         andNot(psiElement().inside(JqlTerminalClause.class))
     )));
 
@@ -259,8 +262,9 @@ public class JqlCompletionContributor extends CompletionContributor {
                                   @NotNull CompletionResultSet result) {
       JqlFieldType operandType;
       boolean listFunctionExpected;
-      PsiElement pos = parameters.getPosition();
-      JqlHistoryPredicate predicate = PsiTreeUtil.getParentOfType(pos, JqlHistoryPredicate.class);
+      PsiElement curElem = parameters.getPosition();
+      PsiElement origElem = parameters.getOriginalPosition();
+      JqlHistoryPredicate predicate = PsiTreeUtil.getParentOfType(curElem, JqlHistoryPredicate.class);
       if (predicate != null) {
         listFunctionExpected = false;
         JqlHistoryPredicate.Type predicateType = predicate.getType();
@@ -276,15 +280,16 @@ public class JqlCompletionContributor extends CompletionContributor {
             break;
           // from, to
           default:
-            operandType = findTypeOfField(pos);
+            operandType = findTypeOfField(curElem);
         }
       }
       else {
-        operandType = findTypeOfField(pos);
-        listFunctionExpected = insideClauseWithListOperator(pos);
+        operandType = findTypeOfField(curElem);
+        listFunctionExpected = insideClauseWithListOperator(curElem);
       }
       for (String functionName : JqlStandardFunction.allOfType(operandType, listFunctionExpected)) {
-        result.addElement(LookupElementBuilder.create(functionName + "()"));
+        result.addElement(LookupElementBuilder.create(functionName)
+          .withInsertHandler(ParenthesesInsertHandler.NO_PARAMETERS));
       }
     }
 
@@ -301,15 +306,7 @@ public class JqlCompletionContributor extends CompletionContributor {
       if (clause == null || clause.getType() == null) {
         return false;
       }
-      switch (clause.getType()) {
-        case IN:
-        case NOT_IN:
-        case WAS_IN:
-        case WAS_NOT_IN:
-          return true;
-        default:
-          return false;
-      }
+      return clause.getType().isListOperator();
     }
   }
 
