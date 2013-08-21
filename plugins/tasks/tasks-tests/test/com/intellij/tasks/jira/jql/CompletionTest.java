@@ -1,17 +1,16 @@
 package com.intellij.tasks.jira.jql;
 
 import com.intellij.tasks.jira.jql.codeinsight.JqlFieldType;
-import com.intellij.tasks.jira.jql.codeinsight.JqlStandardField;
 import com.intellij.tasks.jira.jql.codeinsight.JqlStandardFunction;
 import com.intellij.testFramework.IdeaTestCase;
 import com.intellij.testFramework.fixtures.CodeInsightFixtureTestCase;
 import com.intellij.util.ArrayUtil;
-import com.intellij.util.Function;
 import com.intellij.util.containers.ContainerUtil;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+
+import static com.intellij.tasks.jira.jql.codeinsight.JqlStandardField.*;
+import static com.intellij.tasks.jira.jql.codeinsight.JqlStandardFunction.ALL_FUNCTION_NAMES;
 
 /**
  * @author Mikhail Golubev
@@ -39,28 +38,16 @@ public class CompletionTest extends CodeInsightFixtureTestCase {
   }
 
   private void checkCompletionVariants(List<String> initial, String... others) {
-    List<String> variants = new ArrayList<String>(initial);
-    ContainerUtil.addAll(variants, others);
-    myFixture.testCompletionVariants(getTestFilePath(), ArrayUtil.toStringArray(variants));
+    myFixture.testCompletionVariants(getTestFilePath(),
+                                     ArrayUtil.toStringArray(ContainerUtil.concat(true, initial, others)));
   }
 
   private void checkCompletionVariants(String... variants) {
     checkCompletionVariants(ContainerUtil.<String>emptyList(), variants);
   }
 
-  private static List<String> parenthesize(Collection<String> names) {
-    return ContainerUtil.map2List(names, new Function<String, String>() {
-      @Override
-      public String fun(String s) {
-        return s + "()";
-      }
-    });
-  }
-
-  private static final List<String> PARENTHESIZED_FUNCTION_NAMES = parenthesize(JqlStandardFunction.ALL_FUNCTION_NAMES);
-
   public void testBeginningOfLine() throws Exception {
-    checkCompletionVariants(JqlStandardField.ALL_FIELDS_NAMES, "not");
+    checkCompletionVariants(ALL_FIELD_NAMES, "not");
   }
 
   public void testAfterClause() throws Exception {
@@ -98,44 +85,47 @@ public class CompletionTest extends CodeInsightFixtureTestCase {
   }
 
   public void testFunctionType1() throws Exception {
-    checkCompletionVariants("membersOf()");
+    checkCompletionVariants("membersOf");
   }
 
   public void testFunctionType2() throws Exception {
-    checkCompletionVariants("currentUser()");
+    checkCompletionVariants("currentUser");
   }
 
   public void testFunctionType3() throws Exception {
-    checkCompletionVariants("currentUser()");
+    checkCompletionVariants("currentUser");
   }
 
   public void testFunctionType4() throws Exception {
-    checkCompletionVariants(parenthesize(JqlStandardFunction.allOfType(JqlFieldType.DATE, false)));
+    checkCompletionVariants(JqlStandardFunction.allOfType(JqlFieldType.DATE, false));
   }
 
   public void testFunctionType5() throws Exception {
-    checkCompletionVariants(parenthesize(JqlStandardFunction.allOfType(JqlFieldType.DATE, false)));
+    checkCompletionVariants(JqlStandardFunction.allOfType(JqlFieldType.DATE, false));
   }
 
-  /**
-   * "not |" -> "not not |", "not field |"
-   */
+  public void testAfterParenthesisInSubClause() throws Exception {
+    checkCompletionVariants(ALL_FIELD_NAMES, "not");
+  }
+
+  public void testFunctionArguments() throws Exception {
+    // only literals accepted so we can't assume anything
+    checkCompletionVariants(ContainerUtil.<String>emptyList());
+  }
+
   public void testAfterNotKeywordInNotClause() throws Exception {
-    checkCompletionVariants(JqlStandardField.ALL_FIELDS_NAMES, "not");
+    checkCompletionVariants(ALL_FIELD_NAMES, "not");
   }
 
   public void testAfterOrderKeyword() throws Exception {
     checkCompletionVariants("by");
   }
 
-  /**
-   * "foo was |" -> "foo was func()", "foo was not |", "foo was in |"
-   */
   public void testAfterWasKeyword() throws Exception {
-    checkCompletionVariants(PARENTHESIZED_FUNCTION_NAMES, "not", "in");
+    checkCompletionVariants(ALL_FUNCTION_NAMES, "not", "in");
   }
 
   public void testInList() throws Exception {
-    checkCompletionVariants(PARENTHESIZED_FUNCTION_NAMES);
+    checkCompletionVariants(ALL_FUNCTION_NAMES);
   }
 }

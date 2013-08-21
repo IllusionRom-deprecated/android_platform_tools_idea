@@ -18,6 +18,9 @@ import icons.TasksIcons;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.plugins.github.api.GithubApiUtil;
+import org.jetbrains.plugins.github.exceptions.GithubAuthenticationException;
+import org.jetbrains.plugins.github.exceptions.GithubJsonException;
+import org.jetbrains.plugins.github.exceptions.GithubStatusCodeException;
 import org.jetbrains.plugins.github.util.GithubAuthData;
 import org.jetbrains.plugins.github.util.GithubUtil;
 import org.jetbrains.plugins.github.api.GithubIssue;
@@ -81,7 +84,18 @@ public class GithubRepository extends BaseRepositoryImpl {
 
   @Override
   public Task[] getIssues(@Nullable String query, int max, long since) throws Exception {
-    return getIssues(query);
+    try {
+      return getIssues(query);
+    }
+    catch (GithubAuthenticationException e) {
+      throw new Exception(e.getMessage(), e);
+    }
+    catch (GithubStatusCodeException e) {
+      throw new Exception(e.getMessage(), e);
+    }
+    catch (GithubJsonException e) {
+      throw new Exception("Bad response format", e);
+    }
   }
 
   @NotNull
@@ -269,7 +283,7 @@ public class GithubRepository extends BaseRepositoryImpl {
   }
 
   private GithubAuthData getAuthData() {
-      return GithubAuthData.createTokenAuth(getUrl(), getToken());
+      return GithubAuthData.createTokenAuth(getUrl(), getToken(), isUseProxy());
   }
 
   @Override
@@ -287,6 +301,6 @@ public class GithubRepository extends BaseRepositoryImpl {
 
   @Override
   protected int getFeatures() {
-    return BASIC_HTTP_AUTHORIZATION;
+    return super.getFeatures() | BASIC_HTTP_AUTHORIZATION;
   }
 }

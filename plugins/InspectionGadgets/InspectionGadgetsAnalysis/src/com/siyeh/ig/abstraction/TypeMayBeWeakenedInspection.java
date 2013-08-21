@@ -128,6 +128,12 @@ public class TypeMayBeWeakenedInspection extends BaseInspection {
       return InspectionGadgetsBundle.message("type.may.be.weakened.quickfix", fqClassName);
     }
 
+    @NotNull
+    @Override
+    public String getFamilyName() {
+      return "Weaken type";
+    }
+
     @Override
     protected void doFix(Project project, ProblemDescriptor descriptor) {
       final PsiElement element = descriptor.getPsiElement();
@@ -201,6 +207,9 @@ public class TypeMayBeWeakenedInspection extends BaseInspection {
         final PsiElement declarationScope = parameter.getDeclarationScope();
         if (declarationScope instanceof PsiCatchSection) {
           // do not weaken catch block parameters
+          return;
+        } else if (declarationScope instanceof PsiLambdaExpression && parameter.getTypeElement() == null) {
+          //no need to check inferred lambda params
           return;
         }
         else if (declarationScope instanceof PsiMethod) {

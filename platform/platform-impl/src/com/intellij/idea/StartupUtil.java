@@ -105,6 +105,7 @@ public class StartupUtil {
     loadSystemLibraries(log);
 
     if (!Main.isHeadless()) {
+      AppUIUtil.patchSystem();
       AppUIUtil.updateWindowIcon(JOptionPane.getRootFrame());
       AppUIUtil.registerBundledFonts();
     }
@@ -275,7 +276,7 @@ public class StartupUtil {
                    DateFormatUtilRt.formatBuildDate(appInfo.getBuildDate()) + ")");
     log.info("OS: " + SystemInfoRt.OS_NAME + " (" + SystemInfoRt.OS_VERSION + ")");
     log.info("JRE: " + System.getProperty("java.runtime.version", "-") + " (" + System.getProperty("java.vendor", "-") + ")");
-    log.info("JVM: " + System.getProperty("java.vm.version", "-") + " (" + System.getProperty("java.vm.vendor", "-") + ")");
+    log.info("JVM: " + System.getProperty("java.vm.version", "-") + " (" + System.getProperty("java.vm.name", "-") + ")");
 
     List<String> arguments = ManagementFactory.getRuntimeMXBean().getInputArguments();
     if (arguments != null) {

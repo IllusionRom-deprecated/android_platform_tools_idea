@@ -653,18 +653,21 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
         myFoldingAlarm.cancelAllRequests();
         cancelHeavyAlarm();
       }
-      CommandProcessor.getInstance().executeCommand(myProject, new Runnable() {
-        @Override
-        public void run() {
-          document.setInBulkUpdate(true);
-          try {
-            document.deleteString(0, document.getTextLength());
+      final int documentTextLength = document.getTextLength();
+      if (documentTextLength > 0) {
+        CommandProcessor.getInstance().executeCommand(myProject, new Runnable() {
+          @Override
+          public void run() {
+            document.setInBulkUpdate(true);
+            try {
+              document.deleteString(0, documentTextLength);
+            }
+            finally {
+              document.setInBulkUpdate(false);
+            }
           }
-          finally {
-            document.setInBulkUpdate(false);
-          }
-        }
-      }, null, DocCommandGroupId.noneGroupId(document));
+        }, null, DocCommandGroupId.noneGroupId(document));
+      }
     }
 
 
@@ -1164,7 +1167,11 @@ public class ConsoleViewImpl extends JPanel implements ConsoleView, ObservableCo
 
     @Override
     public void update(AnActionEvent e) {
-      final boolean enabled = e.getData(LangDataKeys.CONSOLE_VIEW) != null;
+      boolean enabled = e.getData(LangDataKeys.CONSOLE_VIEW) != null;
+      Editor editor = e.getData(PlatformDataKeys.EDITOR);
+      if (editor != null && editor.getDocument().getTextLength() == 0) {
+        enabled = false;
+      }
       e.getPresentation().setEnabled(enabled);
     }
 
