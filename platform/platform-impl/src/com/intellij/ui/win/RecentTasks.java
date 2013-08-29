@@ -16,6 +16,7 @@
 package com.intellij.ui.win;
 
 import com.intellij.idea.StartupUtil;
+import com.intellij.util.lang.UrlClassLoader;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,7 +30,7 @@ public class RecentTasks {
     new WeakReference<Thread>(Thread.currentThread());
 
   static {
-    System.loadLibrary("jumpListBridge");
+    UrlClassLoader.loadPlatformLibrary("jumpListBridge");
   }
 
   private synchronized static void init() {
@@ -54,7 +55,12 @@ public class RecentTasks {
     clearNative();
   }
 
+  /**
+   * Use #clearNative method instead of passing empty array of tasks.
+   * @param tasks
+   */
   public synchronized static void addTasks(final Task[] tasks) {
+    if (tasks.length == 0) return;
     init();
     checkThread();
     addTasksNativeForCategory("Recent", tasks);

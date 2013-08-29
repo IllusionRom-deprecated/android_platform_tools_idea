@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2009 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,5 +75,29 @@ public class TestFrameworksImpl extends TestFrameworks {
       }
     }
     return null;
+  }
+  
+  @Override
+  @Nullable
+  public PsiMethod findTearDownMethod(final PsiClass psiClass) {
+    final TestFramework[] testFrameworks = Extensions.getExtensions(TestFramework.EXTENSION_NAME);
+    for (TestFramework framework : testFrameworks) {
+      if (framework.isTestClass(psiClass)) {
+        final PsiMethod setUpMethod = (PsiMethod)framework.findTearDownMethod(psiClass);
+        if (setUpMethod != null) {
+          return setUpMethod;
+        }
+      }
+    }
+    return null;
+  }
+
+  @Override
+  protected boolean hasConfigMethods(PsiClass psiClass) {
+    final TestFramework[] testFrameworks = Extensions.getExtensions(TestFramework.EXTENSION_NAME);
+    for (TestFramework framework : testFrameworks) {
+      if (framework.findSetUpMethod(psiClass) != null || framework.findTearDownMethod(psiClass) != null) return true;
+    }
+    return false;
   }
 }

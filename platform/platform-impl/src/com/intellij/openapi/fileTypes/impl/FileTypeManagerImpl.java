@@ -359,16 +359,12 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
     // currently there are 6 of them and restoration does not happen very often so just iteration is enough
     if (type == PlainTextFileType.INSTANCE && !fileTypeName.equals(type.getName())) {
       for (FileType fileType: getRegisteredFileTypes()) {
-        if (fileType.equals(fileType.getName())) {
+        if (fileTypeName.equals(fileType.getName())) {
           return fileType;
         }
       }
     }
     return type;
-  }
-
-  private static class FileTypeDetectorHolder {
-    private static final FileTypeDetector[] FILE_TYPE_DETECTORS = Extensions.getExtensions(FileTypeDetector.EP_NAME);
   }
 
   private static final AtomicInteger DETECTED_COUNT = new AtomicInteger();
@@ -403,8 +399,9 @@ public class FileTypeManagerImpl extends FileTypeManagerEx implements NamedJDOME
             else {
               text = null;
             }
+
             FileType detected = null;
-            for (FileTypeDetector detector : FileTypeDetectorHolder.FILE_TYPE_DETECTORS) {
+            for (FileTypeDetector detector : Extensions.getExtensions(FileTypeDetector.EP_NAME)) {
               detected = detector.detect(file, byteSequence, text);
               if (detected != null) break;
             }
