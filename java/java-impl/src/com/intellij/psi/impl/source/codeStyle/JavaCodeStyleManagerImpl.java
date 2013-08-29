@@ -38,7 +38,7 @@ import com.intellij.psi.util.TypeConversionUtil;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
-import com.siyeh.ig.psiutils.FileTypeUtils;
+import com.intellij.psi.util.FileTypeUtils;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -752,7 +752,7 @@ public class JavaCodeStyleManagerImpl extends JavaCodeStyleManager {
     int pLength = prefix.length();
     if (pLength > 0 && name.startsWith(prefix) && name.length() > pLength &&
         // check it's not just a long camel word that happens to begin with the specified prefix
-        (!Character.isJavaIdentifierPart(prefix.charAt(pLength - 1)) || Character.isUpperCase(name.charAt(pLength)))) {
+        (!Character.isLetter(prefix.charAt(pLength - 1)) || Character.isUpperCase(name.charAt(pLength)))) {
       name = name.substring(pLength);
       doDecapitalize = true;
     }

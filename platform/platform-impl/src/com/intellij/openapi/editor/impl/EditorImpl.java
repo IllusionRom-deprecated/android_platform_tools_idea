@@ -152,6 +152,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
   @NotNull private final EditorComponentImpl myEditorComponent;
   @NotNull private final EditorGutterComponentImpl myGutterComponent;
   private final TraceableDisposable myTraceableDisposable = new TraceableDisposable(new Throwable());
+  private volatile boolean hasTabs; // optimisation flag: when editor contains no tabs it is dramatically easier to calculate positions
 
   static {
     ComplementaryFontsRegistry.getFontAbleToDisplay(' ', 0, 0, UIManager.getFont("Label.font").getFamily()); // load costly font info
@@ -518,6 +519,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
         }
       });
     }
+    updateHasTabsFlag(document.getCharsSequence());
   }
 
   public static boolean isPresentationMode(Project project) {
@@ -1693,6 +1695,16 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
     Point caretLocation = visualPositionToXY(getCaretModel().getVisualPosition());
     int scrollOffset = caretLocation.y - myCaretUpdateVShift;
     getScrollingModel().scrollVertically(scrollOffset);
+    updateHasTabsFlag(e.getNewFragment());
+  }
+
+  private void updateHasTabsFlag(CharSequence newChars) {
+    if (!hasTabs) {
+      hasTabs = StringUtil.contains(newChars, 0, newChars.length(), '\t');
+    }
+  }
+  public boolean hasTabs() {
+    return hasTabs;
   }
 
   public boolean isScrollToCaret() {
@@ -1930,7 +1942,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
   @Override
   public void setHeaderComponent(JComponent header) {
     myHeaderPanel.removeAll();
-    header = header == null ? getUserData(PERMANENT_HEADER) : header;
+    header = header == null ? getPermanentHeaderComponent() : header;
     if (header != null) {
       myHeaderPanel.add(header);
     }
@@ -1940,13 +1952,23 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
 
   @Override
   public boolean hasHeaderComponent() {
-    return myHeaderPanel.getComponentCount() > 0;
+    JComponent header = getHeaderComponent();
+    return header != null && header != getPermanentHeaderComponent();
+  }
+
+  @Nullable
+  public JComponent getPermanentHeaderComponent() {
+    return getUserData(PERMANENT_HEADER);
+  }
+
+  public void setPermanentHeaderComponent(@Nullable JComponent component) {
+    putUserData(PERMANENT_HEADER, component);
   }
 
   @Override
   @Nullable
   public JComponent getHeaderComponent() {
-    if (hasHeaderComponent()) {
+    if (myHeaderPanel.getComponentCount() > 0) {
       return (JComponent)myHeaderPanel.getComponent(0);
     }
     return null;
@@ -2464,7 +2486,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
     // there then.
     VisualPosition selectionStartPosition = getSelectionModel().getSelectionStartPosition();
     VisualPosition selectionEndPosition = getSelectionModel().getSelectionEndPosition();
-    if (selectionStartPosition == null || selectionEndPosition == null || selectionStartPosition.equals(selectionEndPosition)) {
+    if (selectionStartPosition.equals(selectionEndPosition)) {
       return;
     }
 
@@ -2525,7 +2547,7 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
     // there then.
     VisualPosition selectionStartPosition = getSelectionModel().getSelectionStartPosition();
     VisualPosition selectionEndPosition = getSelectionModel().getSelectionEndPosition();
-    if (selectionStartPosition == null || selectionEndPosition == null || selectionStartPosition.equals(selectionEndPosition)) {
+    if (selectionStartPosition.equals(selectionEndPosition)) {
       return;
     }
 
@@ -3968,8 +3990,9 @@ public final class EditorImpl extends UserDataHolderBase implements EditorEx, Hi
 
     int x = myGutterComponent.convertX(e.getX());
 
-    if (x >= myGutterComponent.getLineNumberAreaOffset() &&
-        x < myGutterComponent.getLineNumberAreaOffset() + myGutterComponent.getLineNumberAreaWidth()) {
+    int lineNumberAreaOffset = EditorGutterComponentImpl.getLineNumberAreaOffset();
+    if (x >= lineNumberAreaOffset &&
+        x < lineNumberAreaOffset + myGutterComponent.getLineNumberAreaWidth()) {
       return EditorMouseEventArea.LINE_NUMBERS_AREA;
     }
 

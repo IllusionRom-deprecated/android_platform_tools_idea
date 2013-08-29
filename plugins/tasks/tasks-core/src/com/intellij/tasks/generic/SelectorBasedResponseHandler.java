@@ -1,5 +1,6 @@
 package com.intellij.tasks.generic;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileTypes.FileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.text.StringUtil;
@@ -24,6 +25,7 @@ import java.util.List;
  * @author Mikhail Golubev
  */
 public abstract class SelectorBasedResponseHandler extends ResponseHandler {
+  private static final Logger LOG = Logger.getInstance(SelectorBasedResponseHandler.class);
 
   // Supported selector names
   @NonNls protected static final String TASKS = "tasks";
@@ -81,8 +83,6 @@ public abstract class SelectorBasedResponseHandler extends ResponseHandler {
     ));
   }
 
-  public abstract FileType getSelectorFileType();
-
   @Tag("selectors")
   @Property(surroundWithTag = false)
   @AbstractCollection(surroundWithTag = false)
@@ -112,11 +112,11 @@ public abstract class SelectorBasedResponseHandler extends ResponseHandler {
     return s.getPath();
   }
 
+  @NotNull
   @Override
-  public JComponent getConfigurationComponent(Project project) {
-    HighlightedSelectorsTable table = new HighlightedSelectorsTable(getSelectorFileType(),
-                                                                    project,
-                                                                    getSelectors());
+  public JComponent getConfigurationComponent(@NotNull Project project) {
+    FileType fileType = getResponseType().getSelectorFileType();
+    HighlightedSelectorsTable table = new HighlightedSelectorsTable(fileType, project, getSelectors());
     return new JBScrollPane(table);
   }
 
@@ -158,13 +158,14 @@ public abstract class SelectorBasedResponseHandler extends ResponseHandler {
 
   @NotNull
   @Override
-  public final Task[] parseIssues(String response, int max) throws Exception {
+  public final Task[] parseIssues(@NotNull String response, int max) throws Exception {
     if (StringUtil.isEmpty(getSelectorPath(TASKS)) ||
         StringUtil.isEmpty(getSelectorPath(ID)) ||
         StringUtil.isEmpty(getSelectorPath(SUMMARY))) {
       throw new Exception("Selectors 'tasks', 'id' and 'summary' are mandatory");
     }
     List<Object> tasks = selectTasksList(response, max);
+    LOG.debug(String.format("Total %d tasks extracted from response", tasks.size()));
     List<Task> result = new ArrayList<Task>(tasks.size());
     for (Object context : tasks) {
       String id = selectString(getSelector(ID), context);
@@ -232,7 +233,7 @@ public abstract class SelectorBasedResponseHandler extends ResponseHandler {
 
   @Nullable
   @Override
-  public final Task parseIssue(String response) throws Exception {
+  public final Task parseIssue(@NotNull String response) throws Exception {
     if (StringUtil.isEmpty(getSelectorPath(SINGLE_TASK_ID)) ||
         StringUtil.isEmpty(getSelectorPath(SINGLE_TASK_SUMMARY))) {
       throw new Exception("Selectors 'singleTask-id' and 'singleTask-summary' are mandatory");

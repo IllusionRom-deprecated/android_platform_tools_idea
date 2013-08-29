@@ -18,10 +18,11 @@ package com.intellij.xdebugger.frame;
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors;
 import com.intellij.openapi.editor.colors.EditorColorsManager;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
-import com.intellij.ui.SimpleColoredText;
+import com.intellij.ui.ColoredTextContainer;
 import com.intellij.ui.SimpleTextAttributes;
+import org.jetbrains.annotations.NotNull;
 
-public class PrimitiveXValuePresenter implements XValuePresenter {
+public class PrimitiveXValuePresenter extends XValuePresenter {
   public static final XValuePresenter KEYWORD = new PrimitiveXValuePresenter(DefaultLanguageHighlighterColors.KEYWORD);
   public static final XValuePresenter NUMBER = new PrimitiveXValuePresenter(DefaultLanguageHighlighterColors.NUMBER);
 
@@ -32,7 +33,7 @@ public class PrimitiveXValuePresenter implements XValuePresenter {
   }
 
   @Override
-  public void append(String value, SimpleColoredText text, boolean changed) {
+  public void append(@NotNull String value, @NotNull ColoredTextContainer text, boolean changed) {
     text.append(value, SimpleTextAttributes.fromTextAttributes(EditorColorsManager.getInstance().getGlobalScheme().getAttributes(textAttributesKey)));
   }
 }
