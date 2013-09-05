@@ -571,6 +571,7 @@
       <reference ref="AddAllToFavorites"/>
       <separator/>
       <reference ref="RunContextPopupGroup"/>
+      <separator/>
       <reference ref="VersionControlsGroup"/>
       <separator/>
       <reference ref="ExternalToolsGroup"/>
@@ -720,10 +721,6 @@
     </group>
 
     <group id="XDebugger.Inspect.Tree.Popup">
-      <reference ref="XDebugger.ValueGroup"/>
-    </group>
-
-    <group id="XDebugger.Value.Hint.Tree.Popup">
       <reference ref="XDebugger.ValueGroup"/>
       <reference ref="XDebugger.AddToWatches"/>
     </group>
