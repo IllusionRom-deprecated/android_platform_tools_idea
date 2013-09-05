@@ -15,10 +15,13 @@
  */
 package com.intellij.xdebugger.frame;
 
-import com.intellij.chromeConnector.debugger.frame.XGroupingValuePresenter;
 import org.jetbrains.annotations.NotNull;
 
-public abstract class XGroupingValue extends XValue {
+public abstract class XGroupingValue extends XNamedValue {
+  protected XGroupingValue(@NotNull String name) {
+    super(name);
+  }
+
   @Override
   public final void computePresentation(@NotNull XValueNode node, @NotNull XValuePlace place) {
     node.setPresentation(null, null, XGroupingValuePresenter.INSTANCE, true);
