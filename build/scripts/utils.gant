@@ -222,7 +222,8 @@ binding.setVariable("copyAndPatchFiles", { Closure files, String target, Map arg
 
 binding.setVariable("wireBuildDate", { String buildNumber, String appInfoFile ->
   ant.tstamp()
-  patchFiles([appInfoFile], ["BUILD_NUMBER": buildNumber, "BUILD_DATE": DSTAMP])
+  patchFiles([appInfoFile], ["BUILD_NUMBER": buildNumber, "BUILD_DATE": DSTAMP,
+          "PACKAGE_CODE": buildNumber.substring(0, buildNumber.indexOf('-'))])
 })
 
 binding.setVariable("commonJvmArgs", {
@@ -375,6 +376,9 @@ binding.setVariable("layoutMacApp", { String path, String ch, Map args ->
     replacefilter(token: "@@bundle_name@@", value: fullName)
     replacefilter(token: "@@bundle_identifier@@", value: args.bundleIdentifier)
     replacefilter(token: "@@year@@", value: "$todayYear")
+    replacefilter(token: "@@company_name@@", value: args.companyName)
+    replacefilter(token: "@@min_year@@", value: "2013")
+    replacefilter(token: "@@max_year@@", value: "$todayYear")
     replacefilter(token: "@@version@@", value: version)
     replacefilter(token: "@@vmoptions@@", value: vmOptions)
     replacefilter(token: "@@idea_properties@@", value: coreProperties)
@@ -398,8 +402,8 @@ binding.setVariable("layoutMacApp", { String path, String ch, Map args ->
 
 binding.setVariable("winScripts", { String target, String home, String name, Map args ->
   String fullName = args.fullName != null ? args.fullName : p("component.names.fullname")
-  String product_uc = args.product_uc != null ? args.product_uc : p("component.names.product").toUpperCase()
-  String vm_options = args.vm_options != null ? args.vm_options : "${p("component.names.product").toLowerCase()}.exe"
+  String product_uc = args.product_uc != null ? args.product_uc : p("component.names.product").toUpperCase().replace(" ", "_")
+  String vm_options = args.vm_options != null ? args.vm_options : "${p("component.names.product").toLowerCase().replace(" ", "-")}.exe"
   if (vm_options.endsWith(".exe")) {
     vm_options = vm_options.replace(".exe", "%BITS%.exe")
   }
@@ -472,12 +476,17 @@ binding.setVariable("unixScripts", { String target, String home, String name, Ma
   ant.fixcrlf(srcdir: "$target/bin", includes: "*.sh", eol: "unix")
 })
 
-binding.setVariable("winVMOptions", { String target, String system_selector, String name, String name64 = null ->
-  def options = isEap() && system_selector != null ? vmOptions32yjp(system_selector) : vmOptions32()
+binding.setVariable("winVMOptions", { String target, Map args, String name, String name64 = null ->
+  def options = vmOptions32()
+  options = options.replace(" -XX:+UseCodeCacheFlushing", "")
+  options += " -Didea.platform.prefix=" + args.platform_prefix
+  options += " -Didea.paths.selector="  + args.system_selector
   ant.echo(file: "$target/bin/${name}.vmoptions", message: options.replace(' ', '\n'))
 
   if (name64 != null) {
-    options = isEap() && system_selector != null ? vmOptions64yjp(system_selector) : vmOptions64()
+    options = vmOptions64()
+    options += " -Didea.platform.prefix=" + args.platform_prefix
+    options += " -Didea.paths.selector="  + args.system_selector
     ant.echo(file: "$target/bin/${name64}.vmoptions", message: options.replace(' ', '\n'))
   }
 
@@ -653,14 +662,14 @@ private String submapToXml(Map properties, List keys) {
   return buff.toString()
 }
 
-binding.setVariable("buildWinZip", { String zipPath, List paths ->
+binding.setVariable("buildWinZip", { String zipRoot, String zipPath, List paths ->
   projectBuilder.stage(".win.zip")
 
   fixIdeaPropertiesEol(paths, "dos")
 
   ant.zip(zipfile: zipPath) {
     paths.each {
-      fileset(dir: it)
+      zipfileset(dir: it, prefix: zipRoot)
     }
   }
 
@@ -777,3 +786,12 @@ binding.setVariable("buildWinLauncher", { String ch, String inputPath, String ou
     launcherPropertiesTempFile.delete()
   }
 })
+
+binding.setVariable("layoutUpdater", { String target, String jarName = "updater.jar" ->
+  layout(target) {
+    jar(jarName) {
+      module("updater")
+    }
+  }
+})
+

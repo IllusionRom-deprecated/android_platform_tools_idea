@@ -64,7 +64,7 @@ target(compile: "Compile project") {
 }
 
 private String appInfoFile() {
-  return "${projectBuilder.moduleOutput(findModule("community-resources"))}/idea/IdeaApplicationInfo.xml"
+  return "${projectBuilder.moduleOutput(findModule("adt-branding"))}/idea/AndroidStudioApplicationInfo.xml"
 }
 
 target('default': 'The default target') {
@@ -76,9 +76,16 @@ target('default': 'The default target') {
   zipSources(home, paths.artifacts)
 
   layoutAll([buildNumber: "AI-$snapshot".replaceAll("SNAPSHOT", p("buildNumber")),
-             system_selector: "IdeaIC${p("component.version.major")}",
+             system_selector: "AndroidStudioPreview",
+             platform_prefix: "AndroidStudio",
+             icns: "${projectBuilder.moduleOutput(findModule("adt-branding"))}/artwork/AndroidStudio.icns",
+             ide_jvm_args: "-Didea.platform.prefix=AndroidStudio",
              tools_jar: true],
             home, null, paths, true)
+
+  // Generate updater.jar from the updater module (patch updater)
+  projectBuilder.stage("Generating updater in $out")
+  layoutUpdater(out)
 }
 
 target('build-dist-jars' : 'Target to build jars from locally compiled classes') {
@@ -94,6 +101,8 @@ target('build-dist-jars' : 'Target to build jars from locally compiled classes')
 
 def layoutAll(Map args, String home, String out, Paths _paths = null, buildJps = false) {
   Paths paths = _paths != null ? _paths : new Paths(out)
+
+  args.companyName = p("component.company.name")
 
   wireBuildDate(args.buildNumber, appInfoFile())
   ant.echo(message: args.buildNumber, file: "$paths.distAll/build.txt")
@@ -125,19 +134,27 @@ def layoutAll(Map args, String home, String out, Paths _paths = null, buildJps =
   layoutMac(args, home, paths)
   layoutUnix(args, home, paths)
 
-  buildWinZip("$paths.artifacts/idea${args.buildNumber}.win.zip", [paths.distAll, paths.distWin])
+  def winAppRoot = "android-studio"
+  def macAppRoot = "Android Studio.app"
+  def linTarRoot = "android-studio"
 
-  def macAppRoot = isEap() ? "${p("component.version.codename")}-${args.buildNumber}.app" : "IntelliJ IDEA ${p("component.version.major")} CE.app"
+  androidBuildNumber = p("buildNumber")
 
-  String macZip = "$paths.artifacts/idea${args.buildNumber}.mac.zip"
+  def winZip = "$paths.artifacts/android-studio-${androidBuildNumber}.win.zip"
+  def macZip = "$paths.artifacts/android-studio-${androidBuildNumber}.mac.zip"
+  def linTar = "$paths.artifacts/android-studio-${androidBuildNumber}.tar"
+
+  buildWinZip(winAppRoot, winZip, [paths.distAll, paths.distWin])
+  buildTarGz(linTarRoot, linTar, [paths.distAll, paths.distUnix])
   buildMacZip(macAppRoot, macZip, [paths.distAll], paths.distMac)
-  notifyArtifactBuilt(macZip)
-
-  buildTarGz("idea-${args.buildNumber}", "$paths.artifacts/idea${args.buildNumber}.tar", [paths.distAll, paths.distUnix])
 }
 
-private layoutWin(Map args, String home, Paths paths) {
+private layoutWin(Map _args, String home, Paths paths) {
   String target = paths.distWin
+
+  Map args = new HashMap(_args)
+  args.product_uc = "ANDROID_STUDIO"
+  args.vm_options = "studio.exe"
 
   layout(target) {
     dir("bin") {
@@ -145,22 +162,32 @@ private layoutWin(Map args, String home, Paths paths) {
     }
   }
 
-  ant.copy(file: "$home/platform/icons/src/idea_CE.ico", tofile: "$target/bin/idea.ico")
+  ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/androidstudio.ico", tofile: "$target/bin/idea.ico")
 
-  winScripts(target, home, "idea.bat", args)
-  winVMOptions(target, null, "idea.exe", "idea64.exe")
-  List resourcePaths = ["$home/community-resources/src", "$home/platform/icons/src"]
-  buildWinLauncher(home, "$home/bin/WinLauncher/WinLauncher.exe", "$target/bin/idea.exe", appInfoFile(),
-                   "$home/build/conf/ideaCE-launcher.properties", null, resourcePaths)
-  buildWinLauncher(home, "$home/bin/WinLauncher/WinLauncher64.exe", "$target/bin/idea64.exe", appInfoFile(),
-                   "$home/build/conf/ideaCE64-launcher.properties", null, resourcePaths)
+  // The 0.1 launcher. We need to keep it around, as 0.1 clients link to it from Start Menu
+  // ant.copy(file: "$home/../google/WinLauncher2/out/Release/WinLauncher2.exe", tofile: "$target/studio.exe")
+
+  // The 0.1.1 win launcher.
+  ant.copy(  file: "$home/../adt/idea/native/WinLauncher/out/Release-Win32/studio.exe",
+           tofile: "$target/bin/studio.exe")
+  ant.copy(  file: "$home/../adt/idea/native/WinLauncher/out/Release-Win32/studio.exe.manifest",
+           tofile: "$target/bin/studio.exe.manifest")
+  ant.copy(  file: "$home/../adt/idea/native/WinLauncher/out/Release-x64/studio64.exe",
+           tofile: "$target/bin/studio64.exe")
+  ant.copy(  file: "$home/../adt/idea/native/WinLauncher/out/Release-x64/studio64.exe.manifest",
+           tofile: "$target/bin/studio64.exe.manifest")
+
+  winScripts(target, home, "studio.bat", args)
+  winVMOptions(target, args, "studio.exe", "studio64.exe")
 }
 
 private layoutMac(Map _args, String home, Paths paths) {
   String target = paths.distMac
 
   Map args = new HashMap(_args)
-  args.bundleIdentifier = "com.jetbrains.intellij.ce"
+  args.bundleIdentifier = "com.google.android.studio"
+  args.executable = "studio"
+  args.help_id = "AI"
   args.doc_types = """
       <dict>
         <key>CFBundleTypeExtensions</key>
@@ -180,8 +207,12 @@ private layoutMac(Map _args, String home, Paths paths) {
   layoutMacApp(target, home, args)
 }
 
-private layoutUnix(Map args, String home, Paths paths) {
+private layoutUnix(Map _args, String home, Paths paths) {
   String target = paths.distUnix
+
+  Map args = new HashMap(_args)
+  args.product_uc = "STUDIO"
+  args.vm_options = "studio"
 
   layout(target) {
     dir("bin") {
@@ -189,9 +220,9 @@ private layoutUnix(Map args, String home, Paths paths) {
     }
   }
 
-  ant.copy(file: "$home/platform/icons/src/icon_CE_128.png", tofile: "$target/bin/idea.png")
+  ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/icon_AS.png", tofile: "$target/bin/idea.png")
 
-  unixScripts(target, home, "idea.sh", args)
-  unixVMOptions(target, "idea")
+  unixScripts(target, home, "studio.sh", args)
+  unixVMOptions(target, "studio")
   unixReadme(target, home, args)
 }
