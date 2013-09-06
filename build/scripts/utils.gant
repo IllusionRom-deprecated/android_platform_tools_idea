@@ -165,7 +165,10 @@ projectBuilder.compressJars = false
 
 binding.setVariable("notifyArtifactBuilt", { String artifactPath ->
   if (!artifactPath.startsWith(home)) {
-    projectBuilder.error("Artifact path $artifactPath should start with $home")
+    // AndroidStudio: make this to be just an info as the out folder is typically
+    // not in the home folder
+    projectBuilder.info("Artifact path $artifactPath should start with $home")
+    return
   }
   def relativePath = artifactPath.substring(home.length())
   if (relativePath.startsWith("/")) {
