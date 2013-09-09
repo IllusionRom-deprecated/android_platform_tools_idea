@@ -19,6 +19,7 @@ import static org.jetbrains.jps.idea.IdeaProjectLoader.guessHome
 includeTargets << new File("${guessHome(this)}/build/scripts/utils.gant")
 
 requireProperty("out", "$home/out")
+requireProperty("buildNumber", "SNAPSHOT")
 
 class Paths {
   final sandbox
@@ -74,7 +75,7 @@ target('default': 'The default target') {
 
   zipSources(home, paths.artifacts)
 
-  layoutAll([buildNumber: "IC-$snapshot",
+  layoutAll([buildNumber: "AI-$snapshot".replaceAll("SNAPSHOT", p("buildNumber")),
              system_selector: "IdeaIC${p("component.version.major")}",
              tools_jar: true],
             home, null, paths, true)
@@ -85,7 +86,7 @@ target('build-dist-jars' : 'Target to build jars from locally compiled classes')
   // load ApplicationInfo.xml properties
   ant.xmlproperty(file: appInfoFile(), collapseAttributes: "true")
 
-  layoutAll([buildNumber: "IC-$snapshot",
+  layoutAll([buildNumber: "AI-$snapshot".replaceAll("SNAPSHOT", p("buildNumber")),
              system_selector: "IdeaIC${p("component.version.major")}",
              tools_jar: true],
              home, null, paths)

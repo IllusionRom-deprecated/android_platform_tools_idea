@@ -11,6 +11,14 @@
 
   <property name="tmp.dir" value="${out.dir}/tmp"/>
 
+  <!--
+    Sets the build number. Defaults to SNAPSHOT.
+    To override, use command line arg "buildNumber": e.g. -DbuildNumber=777
+  -->
+  <condition property="buildId" value="${buildNumber}" else="SNAPSHOT">
+    <isset property="buildNumber" />
+  </condition>
+
   <target name="cleanup">
     <delete dir="${out.dir}" failonerror="false"/>
   </target>
@@ -26,6 +34,7 @@
       <java failonerror="true" jar="${project.home}/lib/ant/lib/ant-launcher.jar" fork="true">
         <jvmarg line="-Xmx768m -XX:MaxPermSize=152m"/>
         <jvmarg value="-Dout=${out.dir}" />
+        <jvmarg value="-DbuildNumber=${buildId}" />
 
         <arg line="&quot;-Dgant.script=@{script}&quot;"/>
         <arg line="&quot;-Dteamcity.build.tempDir=${tmp.dir}&quot;"/>
