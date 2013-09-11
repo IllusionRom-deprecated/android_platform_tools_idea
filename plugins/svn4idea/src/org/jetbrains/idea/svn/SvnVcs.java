@@ -131,6 +131,8 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
 
   private static final Logger LOG = wrapLogger(Logger.getInstance("org.jetbrains.idea.svn.SvnVcs"));
   @NonNls public static final String VCS_NAME = "svn";
+  public static final String VCS_DISPLAY_NAME = "Subversion";
+
   private static final VcsKey ourKey = createKey(VCS_NAME);
   public static final Topic<Runnable> WC_CONVERTED = new Topic<Runnable>("WC_CONVERTED", Runnable.class);
   private final Map<String, Map<String, Pair<SVNPropertyValue, Trinity<Long, Long, Long>>>> myPropertyCache =
@@ -357,8 +359,14 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     });
   }
 
-  public void checkCommandLineVersion() {
-    myChecker.checkExecutableAndNotifyIfNeeded();
+  public boolean checkCommandLineVersion() {
+    boolean isValid = true;
+
+    if (!isProject16() && (SvnConfiguration.UseAcceleration.commandLine.equals(myConfiguration.myUseAcceleration) || isProject18())) {
+      isValid = myChecker.checkExecutableAndNotifyIfNeeded();
+    }
+
+    return isValid;
   }
 
   public void invokeRefreshSvnRoots() {
@@ -489,9 +497,8 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     if (SvnConfiguration.UseAcceleration.javaHL.equals(accelerationType)) {
       CheckJavaHL.runtimeCheck(myProject);
     }
-    else if (SvnConfiguration.UseAcceleration.commandLine.equals(accelerationType) &&
-             !ApplicationManager.getApplication().isHeadlessEnvironment()) {
-      myChecker.checkExecutableAndNotifyIfNeeded();
+    else if (!ApplicationManager.getApplication().isHeadlessEnvironment()) {
+      checkCommandLineVersion();
     }
 
     cmdClientFactory = new CmdClientFactory(this);
@@ -776,7 +783,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   @Override
   public String getDisplayName() {
     LOG.debug("getDisplayName");
-    return "Subversion";
+    return VCS_DISPLAY_NAME;
   }
 
   @Override
@@ -885,7 +892,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   public boolean fileExistsInVcs(FilePath path) {
     File file = path.getIOFile();
     try {
-      SVNStatus status = createStatusClient().doStatus(file, false);
+      SVNStatus status = getFactory(file).createStatusClient().doStatus(file, false);
       if (status != null) {
         if (svnStatusIs(status, SVNStatusType.STATUS_ADDED)) {
           return status.isCopied();
@@ -896,7 +903,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
       }
     }
     catch (SVNException e) {
-      //
+      LOG.info(e);
     }
     return false;
   }
@@ -996,7 +1003,10 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
         SVNErrorCode.UNVERSIONED_RESOURCE.equals(errorCode) ||
         SVNErrorCode.WC_NOT_WORKING_COPY.equals(errorCode) ||
         // thrown when getting info from repository for non-existent item - like HEAD revision for deleted file
-        SVNErrorCode.ILLEGAL_TARGET.equals(errorCode)) {
+        SVNErrorCode.ILLEGAL_TARGET.equals(errorCode) ||
+        // do not log working copy format vs client version inconsistencies as errors
+        SVNErrorCode.WC_UNSUPPORTED_FORMAT.equals(errorCode) ||
+        SVNErrorCode.WC_UPGRADE_REQUIRED.equals(errorCode)) {
       LOG.debug(e);
     }
     else {
@@ -1330,7 +1340,21 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
     return myCheckoutProvider;
   }
 
+  public boolean isProject18() {
+    return WorkingCopyFormat.ONE_DOT_EIGHT.equals(getProjectRootFormat());
+  }
+
+  public boolean isProject16() {
+    return WorkingCopyFormat.ONE_DOT_SIX.equals(getProjectRootFormat());
+  }
+
+  private WorkingCopyFormat getProjectRootFormat() {
+    return getWorkingCopyFormat(new File(getProject().getBaseDir().getPath()));
+  }
+
   /**
+   * Detects appropriate client factory based on project root directory working copy format.
+   *
    * Try to avoid usages of this method (for now) as it could not correctly for all cases
    * detect svn 1.8 working copy format to guarantee command line client.
    *
@@ -1341,20 +1365,23 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
    */
   @NotNull
   public ClientFactory getFactory() {
-    // check working copy format of project directory
-    WorkingCopyFormat format = getWorkingCopyFormat(new File(getProject().getBaseDir().getPath()));
-
-    return WorkingCopyFormat.ONE_DOT_EIGHT.equals(format) ? cmdClientFactory : getFactoryFromSettings();
+    return getFactory(getProjectRootFormat(), false);
   }
 
   @NotNull
   public ClientFactory getFactory(@NotNull File file) {
-    WorkingCopyFormat format = getWorkingCopyFormat(file);
+    return getFactory(getWorkingCopyFormat(file), true);
+  }
 
+  @NotNull
+  private ClientFactory getFactory(@NotNull WorkingCopyFormat format, boolean useProjectRootForUnknown) {
     boolean is18 = WorkingCopyFormat.ONE_DOT_EIGHT.equals(format);
+    boolean is16 = WorkingCopyFormat.ONE_DOT_SIX.equals(format);
     boolean isUnknown = WorkingCopyFormat.UNKNOWN.equals(format);
 
-    return is18 ? cmdClientFactory : (isUnknown ? getFactory() : getFactoryFromSettings());
+    return is18
+           ? cmdClientFactory
+           : (is16 ? svnKitClientFactory : (useProjectRootForUnknown && isUnknown ? getFactory() : getFactoryFromSettings()));
   }
 
   @NotNull
@@ -1363,7 +1390,7 @@ public class SvnVcs extends AbstractVcs<CommittedChangeList> {
   }
 
   @NotNull
-  private ClientFactory getFactoryFromSettings() {
+  public ClientFactory getFactoryFromSettings() {
     return myConfiguration.myUseAcceleration.equals(SvnConfiguration.UseAcceleration.commandLine) ? cmdClientFactory : svnKitClientFactory;
   }
 }

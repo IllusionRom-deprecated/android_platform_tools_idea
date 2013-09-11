@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.jetbrains.plugins.groovy.console;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.JavaParameters;
 import com.intellij.execution.console.ConsoleHistoryController;
-import com.intellij.execution.console.LanguageConsoleImpl;
 import com.intellij.execution.console.LanguageConsoleViewImpl;
 import com.intellij.execution.process.OSProcessHandler;
 import com.intellij.execution.runners.AbstractConsoleRunnerWithHistory;
@@ -26,6 +25,9 @@ import com.intellij.execution.runners.ConsoleExecuteActionHandler;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.compiler.CompileContext;
+import com.intellij.openapi.compiler.CompileStatusNotification;
+import com.intellij.openapi.compiler.CompilerManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
@@ -43,8 +45,8 @@ import com.intellij.openapi.ui.popup.PopupStep;
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep;
 import com.intellij.openapi.util.Key;
 import com.intellij.util.PlatformIcons;
+import icons.JetgroovyIcons;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.plugins.groovy.GroovyFileType;
 import org.jetbrains.plugins.groovy.lang.psi.impl.GroovyFileImpl;
 import org.jetbrains.plugins.groovy.util.GroovyUtils;
 
@@ -87,6 +89,23 @@ public class GroovyShellAction extends DumbAwareAction {
     final Project project = e.getData(PlatformDataKeys.PROJECT);
     assert project != null;
 
+    CompilerManager.getInstance(project).make(new CompileStatusNotification() {
+      @Override
+      public void finished(boolean aborted, int errors, int warnings, CompileContext compileContext) {
+        if (aborted) return;
+
+        final Project project = compileContext.getProject();
+
+        if (errors == 0 ||
+            Messages.showYesNoDialog(project, "Compilation failed with errors. Do you want to run Groovy shell anyway?", "Groovy Shell",
+                                     JetgroovyIcons.Groovy.Groovy_32x32) == Messages.YES) {
+          runGroovyShell(project);
+        }
+      }
+    });
+  }
+
+  private void runGroovyShell(Project project) {
     List<Module> modules = new ArrayList<Module>();
     final Map<Module, String> versions = new HashMap<Module, String>();
 
@@ -99,7 +118,7 @@ public class GroovyShellAction extends DumbAwareAction {
     }
 
     if (modules.size() == 1) {
-      runShell(modules.get(0));
+      doRun(modules.get(0));
       return;
     }
 
@@ -126,7 +145,7 @@ public class GroovyShellAction extends DumbAwareAction {
         @Override
         public PopupStep onChosen(Module selectedValue, boolean finalChoice) {
           PropertiesComponent.getInstance(selectedValue.getProject()).setValue(GROOVY_SHELL_LAST_MODULE, selectedValue.getName());
-          runShell(selectedValue);
+          doRun(selectedValue);
           return null;
         }
       };
@@ -140,7 +159,7 @@ public class GroovyShellAction extends DumbAwareAction {
     JBPopupFactory.getInstance().createListPopup(step).showCenteredInCurrentWindow(project);
   }
 
-  private static void runShell(final Module module) {
+  private void doRun(final Module module) {
     final GroovyShellRunner shellRunner = GroovyShellRunner.getAppropriateRunner(module);
     if (shellRunner == null) return;
 
@@ -207,7 +226,7 @@ public class GroovyShellAction extends DumbAwareAction {
 
   private static class GroovyConsoleView extends LanguageConsoleViewImpl {
     protected GroovyConsoleView(final Project project) {
-      super(new LanguageConsoleImpl(project, "Groovy Console", GroovyFileType.GROOVY_LANGUAGE));
+      super(new GroovyShellConsoleImpl(project, "Groovy Console"));
     }
   }
 }

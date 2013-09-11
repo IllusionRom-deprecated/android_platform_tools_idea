@@ -117,14 +117,14 @@ public class StandardInstructionVisitor extends InstructionVisitor {
       DfaVariableValue var = (DfaVariableValue) dfaDest;
       final PsiVariable psiVariable = var.getPsiVariable();
       if (DfaPsiUtil.getElementNullability(var.getVariableType(), psiVariable) == Nullness.NOT_NULL) {
-        if (!memState.applyNotNull(dfaSource)) {
+        if (!memState.checkNotNullable(dfaSource)) {
           onAssigningToNotNullableVariable(instruction);
         }
       }
       if (!(psiVariable instanceof PsiField) || !psiVariable.hasModifierProperty(PsiModifier.VOLATILE)) {
         memState.setVarValue(var, dfaSource);
       }
-    } else if (dfaDest instanceof DfaNotNullValue && !memState.applyNotNull(dfaSource)) {
+    } else if (dfaDest instanceof DfaTypeValue && ((DfaTypeValue)dfaDest).isNotNull() && !memState.checkNotNullable(dfaSource)) {
       onAssigningToNotNullableVariable(instruction);
     }
 
@@ -151,12 +151,12 @@ public class StandardInstructionVisitor extends InstructionVisitor {
   @Override
   public DfaInstructionState[] visitFieldReference(FieldReferenceInstruction instruction, DataFlowRunner runner, DfaMemoryState memState) {
     final DfaValue qualifier = memState.pop();
-    if (instruction.getExpression().isPhysical() && !memState.applyNotNull(qualifier)) {
+    if (!memState.checkNotNullable(qualifier)) {
       onInstructionProducesNPE(instruction);
 
       if (qualifier instanceof DfaVariableValue) {
-        final DfaNotNullValue.Factory factory = runner.getFactory().getNotNullFactory();
-        memState.setVarValue((DfaVariableValue)qualifier, factory.create(((DfaVariableValue)qualifier).getVariableType()));
+        memState.setVarValue((DfaVariableValue)qualifier, runner.getFactory()
+          .createTypeValue(((DfaVariableValue)qualifier).getVariableType(), Nullness.NOT_NULL));
       }
     }
 
@@ -169,7 +169,7 @@ public class StandardInstructionVisitor extends InstructionVisitor {
       DfaValue dfaValue = instruction.getValue();
       if (dfaValue instanceof DfaVariableValue) {
         DfaConstValue constValue = memState.getConstantValue((DfaVariableValue)dfaValue);
-        myPossibleVariableValues.putValue(instruction, constValue != null ? constValue : ANY_VALUE);
+        myPossibleVariableValues.putValue(instruction, constValue != null && (constValue.getValue() == null || constValue.getValue() instanceof Boolean) ? constValue : ANY_VALUE);
       }
     }
     return super.visitPush(instruction, runner, memState);
@@ -194,7 +194,7 @@ public class StandardInstructionVisitor extends InstructionVisitor {
     final DfaValueFactory factory = runner.getFactory();
     DfaValue dfaExpr = factory.createValue(instruction.getCasted());
     if (dfaExpr != null) {
-      DfaTypeValue dfaType = factory.getTypeFactory().create(instruction.getCastTo());
+      DfaTypeValue dfaType = factory.getTypeFactory().createTypeValue(instruction.getCastTo());
       DfaRelationValue dfaInstanceof = factory.getRelationFactory().createRelation(dfaExpr, dfaType, JavaTokenType.INSTANCEOF_KEYWORD, false);
       if (dfaInstanceof != null && !memState.applyInstanceofOrNull(dfaInstanceof)) {
         onInstructionProducesCCE(instruction);
@@ -214,15 +214,15 @@ public class StandardInstructionVisitor extends InstructionVisitor {
   public DfaInstructionState[] visitMethodCall(MethodCallInstruction instruction, DataFlowRunner runner, DfaMemoryState memState) {
     final PsiExpression[] args = instruction.getArgs();
     Map<PsiExpression, Nullness> map = myParametersNullability.get(instruction);
-    final DfaNotNullValue.Factory factory = runner.getFactory().getNotNullFactory();
     for (int i = 0; i < args.length; i++) {
       final DfaValue arg = memState.pop();
       PsiExpression expr = args[(args.length - i - 1)];
       if (map.get(expr) == Nullness.NOT_NULL) {
-        if (!memState.applyNotNull(arg)) {
+        if (!memState.checkNotNullable(arg)) {
           onPassingNullParameter(expr);
           if (arg instanceof DfaVariableValue) {
-            memState.setVarValue((DfaVariableValue)arg, factory.create(((DfaVariableValue)arg).getVariableType()));
+            memState.setVarValue((DfaVariableValue)arg, runner.getFactory()
+              .createTypeValue(((DfaVariableValue)arg).getVariableType(), Nullness.NOT_NULL));
           }
         }
       }
@@ -233,10 +233,11 @@ public class StandardInstructionVisitor extends InstructionVisitor {
 
     @NotNull final DfaValue qualifier = memState.pop();
     try {
-      if (!memState.applyNotNull(qualifier)) {
+      if (!memState.checkNotNullable(qualifier)) {
         onInstructionProducesNPE(instruction);
         if (qualifier instanceof DfaVariableValue) {
-          memState.setVarValue((DfaVariableValue)qualifier, factory.create(((DfaVariableValue)qualifier).getVariableType()));
+          memState.setVarValue((DfaVariableValue)qualifier, runner.getFactory().createTypeValue(
+            ((DfaVariableValue)qualifier).getVariableType(), Nullness.NOT_NULL));
         }
       }
 
@@ -266,7 +267,7 @@ public class StandardInstructionVisitor extends InstructionVisitor {
 
     if (methodType == MethodCallInstruction.MethodType.BOXING) {
       DfaValue boxed = factory.getBoxedFactory().createBoxed(qualifierValue);
-      return boxed == null ? factory.getNotNullFactory().create(type) : boxed;
+      return boxed == null ? factory.createTypeValue(type, Nullness.NOT_NULL) : boxed;
     }
 
     if (methodType == MethodCallInstruction.MethodType.CAST) {
@@ -277,7 +278,7 @@ public class StandardInstructionVisitor extends InstructionVisitor {
     }
 
     if (type != null && (type instanceof PsiClassType || type.getArrayDimensions() > 0)) {
-      return factory.createTypeValueWithNullability(type, myReturnTypeNullability.get(instruction));
+      return factory.createTypeValue(type, myReturnTypeNullability.get(instruction));
     }
     return DfaUnknownValue.getInstance();
   }
@@ -393,17 +394,12 @@ public class StandardInstructionVisitor extends InstructionVisitor {
   }
 
   private void handleInstanceof(InstanceofInstruction instruction, DfaValue dfaRight, DfaValue dfaLeft) {
-    if ((dfaLeft instanceof DfaTypeValue || dfaLeft instanceof DfaNotNullValue) && dfaRight instanceof DfaTypeValue) {
-      final PsiType leftType;
-      if (dfaLeft instanceof DfaNotNullValue) {
-        leftType = ((DfaNotNullValue)dfaLeft).getType();
-      }
-      else {
-        leftType = ((DfaTypeValue)dfaLeft).getType();
+    if (dfaLeft instanceof DfaTypeValue && dfaRight instanceof DfaTypeValue) {
+      if (!((DfaTypeValue)dfaLeft).isNotNull()) {
         myCanBeNullInInstanceof.add(instruction);
       }
 
-      if (((DfaTypeValue)dfaRight).getType().isAssignableFrom(leftType)) {
+      if (((DfaTypeValue)dfaRight).getType().isAssignableFrom(((DfaTypeValue)dfaLeft).getType())) {
         return;
       }
     }
