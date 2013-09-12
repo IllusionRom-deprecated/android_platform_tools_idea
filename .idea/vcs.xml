@@ -4,6 +4,7 @@
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../adt/idea" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../base" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../studio/cloud" vcs="Git" />
   </component>
 </project>
 

@@ -244,6 +244,7 @@ def layoutFull(String home, String targetDirectory, String patchedDescriptorDir 
 
 public def layoutCommunityPlugins(String home) {
   layoutAndroid()
+  layoutCloud()
 
   dir("plugins") {
     def simplePlugins = ["commander", "copyright", "properties", "java-i18n", "hg4idea", "github", "ui-designer-core"] //, "tasks-time-tracking"]
@@ -669,6 +670,19 @@ def layoutAndroid() {
     layoutPlugin("android-designer") {
       jar("android-designer.jar") {
         module("android-designer")
+      }
+    }
+  }
+}
+
+def layoutCloud() {
+  dir("plugins") {
+    layoutPlugin("google-cloud-tools") {
+      jar("google-cloud-tools.jar") {
+        module("google-cloud-tools")
+      }
+      dir("sdktemplates") {
+        fileset(dir: "$home/../studio/cloud/resources/sdktemplates")
       }
     }
   }
