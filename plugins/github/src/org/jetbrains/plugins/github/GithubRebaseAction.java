@@ -23,7 +23,6 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ThrowableConvertor;
 import git4idea.GitPlatformFacade;
@@ -175,7 +174,12 @@ public class GithubRebaseAction extends DumbAwareAction {
 
     LOG.info("Adding GitHub parent as a remote host");
     indicator.setText("Adding GitHub parent as a remote host...");
-    return addParentAsUpstreamRemote(project, root, parentRepoUrl, gitRepository);
+
+    if (GithubUtil.addGithubRemote(project, gitRepository, "upstream", parentRepoUrl)) {
+      return parentRepoUrl;
+    } else {
+      return null;
+    }
   }
 
   @Nullable
@@ -211,37 +215,10 @@ public class GithubRebaseAction extends DumbAwareAction {
     }
   }
 
-  @Nullable
-  private static String addParentAsUpstreamRemote(@NotNull Project project,
-                                                  @NotNull VirtualFile root,
-                                                  @NotNull String parentRepoUrl,
-                                                  @NotNull GitRepository gitRepository) {
-    final GitSimpleHandler handler = new GitSimpleHandler(project, root, GitCommand.REMOTE);
-    handler.setSilent(true);
-
-    try {
-      handler.addParameters("add", "upstream", parentRepoUrl);
-      handler.run();
-      if (handler.getExitCode() != 0) {
-        GithubNotifications
-          .showError(project, CANNOT_PERFORM_GITHUB_REBASE, "Failed to add GitHub remote: '" + parentRepoUrl + "'. " + handler.getStderr());
-        return null;
-      }
-      // catch newly added remote
-      gitRepository.update();
-
-      return parentRepoUrl;
-    }
-    catch (VcsException e) {
-      GithubNotifications.showError(project, CANNOT_PERFORM_GITHUB_REBASE, e);
-      return null;
-    }
-  }
-
   private static boolean fetchParent(@NotNull final Project project,
                                      @NotNull final GitRepository repository,
                                      @NotNull final ProgressIndicator indicator) {
-    GitFetchResult result = new GitFetcher(project, indicator, false).fetch(repository.getRoot(), "upstream");
+    GitFetchResult result = new GitFetcher(project, indicator, false).fetch(repository.getRoot(), "upstream", null);
     if (!result.isSuccess()) {
       GitFetcher.displayFetchResult(project, result, null, result.getErrors());
       return false;

@@ -24,6 +24,7 @@
  */
 package com.intellij.codeInspection.dataFlow.value;
 
+import com.intellij.codeInspection.dataFlow.Nullness;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiKeyword;
@@ -48,11 +49,11 @@ public class DfaTypeValue extends DfaValue {
     }
 
     @NotNull
-    public DfaTypeValue create(@NotNull PsiType type, boolean nullable) {
+    public DfaTypeValue createTypeValue(@NotNull PsiType type, Nullness nullable) {
       type = TypeConversionUtil.erasure(type);
       mySharedInstance.myType = type;
       mySharedInstance.myCanonicalText = StringUtil.notNullize(type.getCanonicalText(), PsiKeyword.NULL);
-      mySharedInstance.myIsNullable = nullable;
+      mySharedInstance.myNullness = nullable;
 
       String id = mySharedInstance.toString();
       ArrayList<DfaTypeValue> conditions = myStringToObject.get(id);
@@ -70,23 +71,23 @@ public class DfaTypeValue extends DfaValue {
       return result;
     }
 
-    public DfaTypeValue create(@NotNull PsiType type) {
-      return create(type, false);
+    public DfaTypeValue createTypeValue(@NotNull PsiType type) {
+      return createTypeValue(type, Nullness.UNKNOWN);
     }
   }
 
   private PsiType myType;
   private String myCanonicalText;
-  private boolean myIsNullable;
+  private Nullness myNullness;
 
   private DfaTypeValue(DfaValueFactory factory) {
     super(factory);
   }
 
-  private DfaTypeValue(PsiType type, boolean isNullable, DfaValueFactory factory, String canonicalText) {
+  private DfaTypeValue(PsiType type, Nullness nullness, DfaValueFactory factory, String canonicalText) {
     super(factory);
     myType = type;
-    myIsNullable = isNullable;
+    myNullness = nullness;
     myCanonicalText = canonicalText;
   }
 
@@ -95,16 +96,20 @@ public class DfaTypeValue extends DfaValue {
   }
 
   public boolean isNullable() {
-    return myIsNullable;
+    return myNullness == Nullness.NULLABLE;
+  }
+
+  public boolean isNotNull() {
+    return myNullness == Nullness.NOT_NULL;
   }
 
   @NonNls
   public String toString() {
-    return myCanonicalText + ", nullable=" + myIsNullable;
+    return myCanonicalText + ", nullable=" + myNullness;
   }
 
   private boolean hardEquals(DfaTypeValue aType) {
-    return Comparing.equal(myCanonicalText, aType.myCanonicalText) && myIsNullable == aType.myIsNullable;
+    return Comparing.equal(myCanonicalText, aType.myCanonicalText) && myNullness == aType.myNullness;
   }
 
   public boolean isAssignableFrom(DfaTypeValue dfaType) {

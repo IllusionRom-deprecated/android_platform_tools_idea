@@ -23,14 +23,15 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Pair;
-import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.ThrowableConsumer;
 import com.intellij.util.ThrowableConvertor;
-import com.intellij.util.ThrowableRunnable;
 import com.intellij.util.containers.Convertor;
 import git4idea.GitUtil;
+import git4idea.commands.GitCommand;
+import git4idea.commands.GitSimpleHandler;
 import git4idea.config.GitVcsApplicationSettings;
 import git4idea.config.GitVersion;
 import git4idea.i18n.GitBundle;
@@ -49,6 +50,7 @@ import org.jetbrains.plugins.github.util.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Various utility methods for the GutHub plugin.
@@ -140,7 +142,7 @@ public class GithubUtil {
   private static boolean checkSSLCertificate(IOException e, final String host, ProgressIndicator indicator) {
     final GithubSslSupport sslSupport = GithubSslSupport.getInstance();
     if (GithubSslSupport.isCertificateException(e)) {
-      final Ref<Boolean> result = new Ref<Boolean>();
+      final AtomicReference<Boolean> result = new AtomicReference<Boolean>();
       ApplicationManager.getApplication().invokeAndWait(new Runnable() {
         @Override
         public void run() {
@@ -241,8 +243,8 @@ public class GithubUtil {
   public static <T, E extends Throwable> T computeValueInModal(@NotNull Project project,
                                                                @NotNull String caption,
                                                                @NotNull final ThrowableConvertor<ProgressIndicator, T, E> task) throws E {
-    final Ref<T> dataRef = new Ref<T>();
-    final Ref<E> exceptionRef = new Ref<E>();
+    final AtomicReference<T> dataRef = new AtomicReference<T>();
+    final AtomicReference<E> exceptionRef = new AtomicReference<E>();
     ProgressManager.getInstance().run(new Task.Modal(project, caption, true) {
       public void run(@NotNull ProgressIndicator indicator) {
         try {
@@ -260,7 +262,7 @@ public class GithubUtil {
         }
       }
     });
-    if (!exceptionRef.isNull()) {
+    if (exceptionRef.get() != null) {
       throw exceptionRef.get();
     }
     return dataRef.get();
@@ -269,7 +271,7 @@ public class GithubUtil {
   public static <T> T computeValueInModal(@NotNull Project project,
                                           @NotNull String caption,
                                           @NotNull final Convertor<ProgressIndicator, T> task) {
-    final Ref<T> dataRef = new Ref<T>();
+    final AtomicReference<T> dataRef = new AtomicReference<T>();
     ProgressManager.getInstance().run(new Task.Modal(project, caption, true) {
       public void run(@NotNull ProgressIndicator indicator) {
         dataRef.set(task.convert(indicator));
@@ -378,5 +380,29 @@ public class GithubUtil {
       }
     }
     return manager.getRepositoryForFile(project.getBaseDir());
+  }
+
+  public static boolean addGithubRemote(@NotNull Project project,
+                                        @NotNull GitRepository repository,
+                                        @NotNull String remote,
+                                        @NotNull String url) {
+    final GitSimpleHandler handler = new GitSimpleHandler(project, repository.getRoot(), GitCommand.REMOTE);
+    handler.setSilent(true);
+
+    try {
+      handler.addParameters("add", remote, url);
+      handler.run();
+      if (handler.getExitCode() != 0) {
+        GithubNotifications.showError(project, "Can't add remote", "Failed to add GitHub remote: '" + url + "'. " + handler.getStderr());
+        return false;
+      }
+      // catch newly added remote
+      repository.update();
+      return true;
+    }
+    catch (VcsException e) {
+      GithubNotifications.showError(project, "Can't add remote", e);
+      return false;
+    }
   }
 }
