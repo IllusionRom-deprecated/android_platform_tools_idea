@@ -59,4 +59,32 @@ public abstract class XValue extends XValueContainer {
   public void computeSourcePosition(@NotNull XNavigatable navigatable) {
     navigatable.setSourcePosition(null);
   }
+
+  /**
+   * Return {@code true} from this method and override {@link #computeSourcePosition(XNavigatable)} if navigation to the source
+   * is supported for the value
+   * @return {@code true} if navigation to the value's source is supported
+   */
+  public boolean canNavigateToSource() {
+    // should be false, but cannot be due to compatibility reasons
+    return true;
+  }
+
+  /**
+   * Return {@code true} from this method and override {@link #computeTypeSourcePosition(XNavigatable)} if navigation to the value's type
+   * is supported for the value
+   * @return {@code true} if navigation to the value's type is supported
+   */
+  public boolean canNavigateToTypeSource() {
+    return false;
+  }
+
+  /**
+   * Start computing source position of the value's type and call {@link XNavigatable#setSourcePosition(com.intellij.xdebugger.XSourcePosition)}
+   * when computation is finished.
+   * Note that this method is called from the Event Dispatch thread so it should return quickly.
+   */
+  public void computeTypeSourcePosition(@NotNull XNavigatable navigatable) {
+    navigatable.setSourcePosition(null);
+  }
 }

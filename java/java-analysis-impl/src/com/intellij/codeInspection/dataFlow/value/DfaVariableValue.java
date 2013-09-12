@@ -24,6 +24,7 @@
  */
 package com.intellij.codeInspection.dataFlow.value;
 
+import com.intellij.codeInsight.NullableNotNullManager;
 import com.intellij.codeInspection.dataFlow.DfaPsiUtil;
 import com.intellij.codeInspection.dataFlow.Nullness;
 import com.intellij.psi.*;
@@ -96,6 +97,7 @@ public class DfaVariableValue extends DfaValue {
   @Nullable private DfaVariableValue myQualifier;
   private boolean myIsNegated;
   private Nullness myInherentNullability;
+  private DfaTypeValue myTypeValue;
 
   private DfaVariableValue(PsiVariable variable, PsiType varType, boolean isNegated, DfaValueFactory factory, @Nullable DfaVariableValue qualifier, PsiMethod accessMethod) {
     super(factory);
@@ -104,12 +106,18 @@ public class DfaVariableValue extends DfaValue {
     myQualifier = qualifier;
     myVarType = varType;
     myAccessMethod = accessMethod;
+    myTypeValue = varType == null ? null : myFactory.getTypeFactory().createTypeValue(varType, Nullness.UNKNOWN);
   }
 
   private DfaVariableValue(DfaValueFactory factory) {
     super(factory);
     myVariable = null;
     myIsNegated = false;
+  }
+
+  @Nullable
+  public DfaTypeValue getTypeValue() {
+    return myTypeValue;
   }
 
   @Nullable
@@ -174,13 +182,28 @@ public class DfaVariableValue extends DfaValue {
       return nullability;
     }
 
-    if (var != null) {
-      if (DfaPsiUtil.isNullableInitialized(var, true)) {
-        return Nullness.NULLABLE;
+    if (var != null && DfaPsiUtil.isFinalField(var)) {
+      List<PsiExpression> initializers = DfaPsiUtil.findAllConstructorInitializers((PsiField)var);
+      if (initializers.isEmpty()) {
+        return Nullness.UNKNOWN;
       }
-      if (DfaPsiUtil.isNullableInitialized(var, false)) {
-        return Nullness.NOT_NULL;
+
+      for (PsiExpression expression : initializers) {
+        if (!(expression instanceof PsiReferenceExpression)) {
+          return Nullness.UNKNOWN;
+        }
+        PsiElement target = ((PsiReferenceExpression)expression).resolve();
+        if (!(target instanceof PsiParameter)) {
+          return Nullness.UNKNOWN;
+        }
+        if (NullableNotNullManager.isNullable((PsiParameter)target)) {
+          return Nullness.NULLABLE;
+        }
+        if (!NullableNotNullManager.isNotNull((PsiParameter)target)) {
+          return Nullness.NOT_NULL;
+        }
       }
+      return Nullness.NOT_NULL;
     }
 
     return Nullness.UNKNOWN;

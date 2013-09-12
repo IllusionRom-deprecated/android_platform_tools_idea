@@ -34,7 +34,9 @@ import org.gradle.tooling.model.idea.BasicIdeaProject;
 import org.gradle.tooling.model.idea.IdeaProject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.plugins.gradle.settings.DistributionType;
 import org.jetbrains.plugins.gradle.settings.GradleExecutionSettings;
+import org.jetbrains.plugins.gradle.util.GradleConstants;
 
 import java.io.File;
 import java.io.IOException;
@@ -133,17 +135,28 @@ public class GradleExecutionHelper {
 
   public <T> T execute(@NotNull String projectPath, @Nullable GradleExecutionSettings settings, @NotNull Function<ProjectConnection, T> f) {
 
+    final String projectDir;
+    final File projectPathFile = new File(projectPath);
+    if (projectPathFile.isFile() && projectPath.endsWith(GradleConstants.EXTENSION)
+        && projectPathFile.getParent() != null) {
+      projectDir = projectPathFile.getParent();
+    } else {
+      projectDir = projectPath;
+    }
+
+    // This is a workaround to get right base dir in case of 'PROJECT' setting used in case custom wrapper property file location
+    // see org.gradle.wrapper.PathAssembler#getBaseDir for details
     String userDir = null;
-    try {
-      // This is a workaround to get right base dir in case of 'PROJECT' setting used
-      // see org.gradle.wrapper.PathAssembler#getBaseDir for details
-      userDir = System.getProperty("user.dir");
-      System.setProperty("user.dir", projectPath);
+    if(settings != null && settings.getDistributionType() == DistributionType.WRAPPED) {
+      try {
+        userDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", projectDir);
+      }
+      catch (Exception e) {
+        // ignore
+      }
     }
-    catch (Exception e) {
-      // ignore
-    }
-    ProjectConnection connection = getConnection(projectPath, settings);
+    ProjectConnection connection = getConnection(projectDir, settings);
     try {
       return f.fun(connection);
     }

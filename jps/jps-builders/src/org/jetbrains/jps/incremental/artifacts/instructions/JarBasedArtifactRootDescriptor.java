@@ -50,27 +50,34 @@ public class JarBasedArtifactRootDescriptor extends ArtifactRootDescriptor {
   }
 
   public void processEntries(EntryProcessor processor) throws IOException {
+    if (!myRoot.isFile()) return;
+
     String prefix = StringUtil.trimStart(myPathInJar, "/");
     if (!StringUtil.endsWithChar(prefix, '/')) prefix += "/";
     if (prefix.equals("/")) {
       prefix = "";
     }
 
-    ZipFile zipFile = new ZipFile(myRoot);
     try {
-      final Enumeration<? extends ZipEntry> entries = zipFile.entries();
+      ZipFile zipFile = new ZipFile(myRoot);
+      try {
+        final Enumeration<? extends ZipEntry> entries = zipFile.entries();
 
-      while (entries.hasMoreElements()) {
-        ZipEntry entry = entries.nextElement();
-        final String name = entry.getName();
-        if (name.startsWith(prefix)) {
-          String relativePath = name.substring(prefix.length());
-          processor.process(entry.isDirectory() ? null : zipFile.getInputStream(entry), relativePath, entry);
+        while (entries.hasMoreElements()) {
+          ZipEntry entry = entries.nextElement();
+          final String name = entry.getName();
+          if (name.startsWith(prefix)) {
+            String relativePath = name.substring(prefix.length());
+            processor.process(entry.isDirectory() ? null : zipFile.getInputStream(entry), relativePath, entry);
+          }
         }
       }
+      finally {
+        zipFile.close();
+      }
     }
-    finally {
-      zipFile.close();
+    catch (IOException e) {
+      throw new IOException("Error occurred during processing zip file " + myRoot + ": " + e.getMessage(), e);
     }
   }
 
