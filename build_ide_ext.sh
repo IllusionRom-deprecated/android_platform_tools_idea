@@ -62,5 +62,5 @@ echo
 $ANT "-Dout=$OUT" "-DbuildNumber=$BNUM" $TARGET
 
 echo "## Copying android-studio destination files"
-cp -rfv $OUT/sandbox/artifacts/android-studio* $DEST/
+cp -rfv $OUT/artifacts/android-studio* $DEST/
 cp -rfv $OUT/updater.jar $DEST/android-studio-updater.jar
