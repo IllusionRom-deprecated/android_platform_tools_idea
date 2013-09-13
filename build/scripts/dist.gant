@@ -21,6 +21,11 @@ includeTargets << new File("${guessHome(this)}/build/scripts/utils.gant")
 requireProperty("out", "$home/out")
 requireProperty("buildNumber", "SNAPSHOT")
 
+// "out" has to be canonical, otherwise the ant build fails
+// with mysterious errors
+out = new File(out).getCanonicalPath()
+setProperty("out", out)
+
 class Paths {
   final sandbox
   final distWin
