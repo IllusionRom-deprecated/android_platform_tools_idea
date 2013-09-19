@@ -157,7 +157,7 @@ public class PsiUtil {
   public static boolean isApplicable(@Nullable PsiType[] argumentTypes,
                                      PsiMethod method,
                                      PsiSubstitutor substitutor,
-                                     GroovyPsiElement place,
+                                     PsiElement place,
                                      final boolean eraseParameterTypes) {
     return isApplicableConcrete(argumentTypes, method, substitutor, place, eraseParameterTypes) !=
            GrClosureSignatureUtil.ApplicabilityResult.inapplicable;
@@ -166,7 +166,7 @@ public class PsiUtil {
   public static GrClosureSignatureUtil.ApplicabilityResult isApplicableConcrete(@Nullable PsiType[] argumentTypes,
                                                                                 PsiMethod method,
                                                                                 PsiSubstitutor substitutor,
-                                                                                GroovyPsiElement place,
+                                                                                PsiElement place,
                                                                                 final boolean eraseParameterTypes) {
     if (argumentTypes == null) return GrClosureSignatureUtil.ApplicabilityResult.canBeApplicable;
 
@@ -348,7 +348,7 @@ public class PsiUtil {
     return JavaPsiFacade.getInstance(resolved.getProject()).findClass(CommonClassNames.JAVA_LANG_CLASS, scope);
   }
 
-  public static boolean isValidReferenceName(String text) {
+  public static boolean isValidReferenceName(@NotNull String text) {
     final GroovyLexer lexer = new GroovyLexer();
     lexer.start(text);
     return TokenSets.REFERENCE_NAMES_WITHOUT_NUMBERS.contains(lexer.getTokenType()) && lexer.getTokenEnd() == text.length();

@@ -16,11 +16,13 @@
 package org.jetbrains.plugins.groovy.refactoring.introduce;
 
 import com.intellij.codeInsight.highlighting.HighlightManager;
+import com.intellij.diagnostic.LogMessageEx;
 import com.intellij.lang.LanguageRefactoringSupport;
 import com.intellij.lang.refactoring.RefactoringSupportProvider;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
@@ -78,6 +80,8 @@ import static org.jetbrains.plugins.groovy.lang.psi.util.PsiUtil.skipParentheses
  * @author Maxim.Medvedev
  */
 public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSettings, Scope extends PsiElement> implements RefactoringActionHandler {
+  private static final Logger LOG = Logger.getInstance(GrIntroduceHandlerBase.class);
+
   public static final Function<GrExpression, String> GR_EXPRESSION_RENDERER = new Function<GrExpression, String>() {
     @Override
     public String fun(@NotNull GrExpression expr) {
@@ -429,32 +433,37 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
                       @NotNull final Editor editor,
                       @NotNull PsiFile file,
                       int startOffset,
-                      int endOffset) {
-    PsiDocumentManager.getInstance(project).commitAllDocuments();
-    if (!(file instanceof GroovyFileBase)) {
-      throw new GrRefactoringError(GroovyRefactoringBundle.message("only.in.groovy.files"));
-    }
-    if (!CommonRefactoringUtil.checkReadOnlyStatus(project, file)) {
-      throw new GrRefactoringError(RefactoringBundle.message("readonly.occurences.found"));
-    }
+                      int endOffset) throws GrRefactoringError {
+    try {
+      PsiDocumentManager.getInstance(project).commitAllDocuments();
+      if (!(file instanceof GroovyFileBase)) {
+        throw new GrRefactoringError(GroovyRefactoringBundle.message("only.in.groovy.files"));
+      }
+      if (!CommonRefactoringUtil.checkReadOnlyStatus(project, file)) {
+        throw new GrRefactoringError(RefactoringBundle.message("readonly.occurences.found"));
+      }
 
-    GrExpression selectedExpr = findExpression(file, startOffset, endOffset);
-    final GrVariable variable = findVariable(file, startOffset, endOffset);
-    final StringPartInfo stringPart = StringPartInfo.findStringPart(file, startOffset, endOffset);
-    if (variable != null) {
-      checkVariable(variable);
-    }
-    else if (selectedExpr != null) {
-      checkExpression(selectedExpr);
-    }
-    else if (stringPart != null) {
-      checkStringLiteral(stringPart);
-    }
-    else {
-      throw new GrRefactoringError(null);
-    }
+      GrExpression selectedExpr = findExpression(file, startOffset, endOffset);
+      final GrVariable variable = findVariable(file, startOffset, endOffset);
+      final StringPartInfo stringPart = StringPartInfo.findStringPart(file, startOffset, endOffset);
+      if (variable != null) {
+        checkVariable(variable);
+      }
+      else if (selectedExpr != null) {
+        checkExpression(selectedExpr);
+      }
+      else if (stringPart != null) {
+        checkStringLiteral(stringPart);
+      }
+      else {
+        throw new GrRefactoringError(null);
+      }
 
-    getContextAndInvoke(project, editor, selectedExpr, variable, stringPart);
+      getContextAndInvoke(project, editor, selectedExpr, variable, stringPart);
+    }
+    catch (GrRefactoringError e) {
+      CommonRefactoringUtil.showErrorHint(project, editor, RefactoringBundle.getCannotRefactorMessage(e.getMessage()), getRefactoringName(), getHelpID());
+    }
   }
 
   public static RangeMarker createRange(Document document, StringPartInfo part) {
@@ -621,6 +630,22 @@ public abstract class GrIntroduceHandlerBase<Settings extends GrIntroduceSetting
     }
     return candidate;
   }
+
+  public static void assertStatement(PsiElement anchor, PsiElement[] occurrences, PsiElement scope) {
+    if (!(anchor instanceof GrStatement)) {
+      StringBuilder error = new StringBuilder("scope:");
+      error.append(scope.getText());
+      error.append("\n---------------------------------------\n\n");
+      error.append("occurrences: ");
+      for (PsiElement occurrence : occurrences) {
+        error.append(occurrence.getText());
+        error.append("\n------------------\n");
+      }
+
+      LogMessageEx.error(LOG, "cannot find anchor for variable", error.toString());
+    }
+  }
+
 
   @Nullable
   private static PsiElement findContainingStatement(@Nullable PsiElement candidate) {

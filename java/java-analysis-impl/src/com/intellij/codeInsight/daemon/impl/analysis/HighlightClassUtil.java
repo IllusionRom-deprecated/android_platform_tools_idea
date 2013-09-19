@@ -259,7 +259,9 @@ public class HighlightClassUtil {
     if (virtualFile != null && !aClass.getName().equals(virtualFile.getNameWithoutExtension())) {
       String message = JavaErrorMessages.message("public.class.should.be.named.after.file", aClass.getName());
       TextRange range = HighlightNamesUtil.getClassDeclarationTextRange(aClass);
-      errorResult = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(range).descriptionAndTooltip(message).create();
+      errorResult = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).
+        range(aClass, range.getStartOffset(), range.getEndOffset()).
+        descriptionAndTooltip(message).create();
       QuickFixAction.registerQuickFixAction(errorResult,
                                             QUICK_FIX_FACTORY.createModifierListFix(psiModifierList, PsiModifier.PUBLIC, false, false));
       PsiClass[] classes = file.getClasses();
@@ -374,38 +376,42 @@ public class HighlightClassUtil {
   private static HighlightInfo checkStaticClassDeclarationInInnerClass(PsiKeyword keyword) {
     // keyword points to 'class' or 'interface' or 'enum'
     if (new PsiMatcherImpl(keyword)
-      .parent(PsiMatchers.hasClass(PsiClass.class))
-      .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, true))
-      .parent(PsiMatchers.hasClass(PsiClass.class))
-      .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, false))
-      .parent(PsiMatchers.hasClass(PsiClass.class, PsiDeclarationStatement.class, PsiNewExpression.class, PsiEnumConstant.class))
-      .getElement() == null) {
+          .parent(PsiMatchers.hasClass(PsiClass.class))
+          .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, true))
+          .parent(PsiMatchers.hasClass(PsiClass.class))
+          .dot(JavaMatchers.hasModifier(PsiModifier.STATIC, false))
+          .parent(PsiMatchers.hasClass(PsiClass.class, PsiDeclarationStatement.class, PsiNewExpression.class, PsiEnumConstant.class))
+          .getElement() == null) {
       return null;
     }
+
     PsiClass aClass = (PsiClass)keyword.getParent();
-    if (PsiUtilCore.hasErrorElementChild(aClass) || aClass.getQualifiedName() == null && !aClass.isInterface()) return null;
+    if (PsiUtilCore.hasErrorElementChild(aClass)) {
+      return null;
+    }
+
     // highlight 'static' keyword if any, or class or interface if not
     PsiElement context = null;
     PsiModifierList modifierList = aClass.getModifierList();
-    PsiElement[] children = modifierList.getChildren();
-    for (PsiElement element : children) {
-      if (Comparing.equal(element.getText(), PsiModifier.STATIC)) {
-        context = element;
-        break;
+    if (modifierList != null) {
+      for (PsiElement element : modifierList.getChildren()) {
+        if (Comparing.equal(element.getText(), PsiModifier.STATIC)) {
+          context = element;
+          break;
+        }
       }
     }
-    TextRange range = context == null ? null : context.getTextRange();
-    if (range == null) {
-      range = HighlightNamesUtil.getClassDeclarationTextRange(aClass);
-    }
+    TextRange range = context != null ? context.getTextRange() : HighlightNamesUtil.getClassDeclarationTextRange(aClass);
     String message = JavaErrorMessages.message("static.declaration.in.inner.class");
-    HighlightInfo errorResult = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(range).descriptionAndTooltip(message).create();
+    HighlightInfo info = HighlightInfo.newHighlightInfo(HighlightInfoType.ERROR).range(range).descriptionAndTooltip(message).create();
     if (context != keyword) {
-      QuickFixAction.registerQuickFixAction(errorResult, QUICK_FIX_FACTORY.createModifierListFix(aClass, PsiModifier.STATIC, false, false));
+      QuickFixAction.registerQuickFixAction(info, QUICK_FIX_FACTORY.createModifierListFix(aClass, PsiModifier.STATIC, false, false));
     }
-    QuickFixAction.registerQuickFixAction(errorResult,
-                                          QUICK_FIX_FACTORY.createModifierListFix(aClass.getContainingClass(), PsiModifier.STATIC, true, false));
-    return errorResult;
+    PsiClass containingClass = aClass.getContainingClass();
+    if (containingClass != null) {
+      QuickFixAction.registerQuickFixAction(info, QUICK_FIX_FACTORY.createModifierListFix(containingClass, PsiModifier.STATIC, true, false));
+    }
+    return info;
   }
 
   @Nullable

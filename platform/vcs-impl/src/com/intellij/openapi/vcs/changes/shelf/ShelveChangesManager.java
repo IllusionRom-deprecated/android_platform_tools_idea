@@ -31,7 +31,6 @@ import com.intellij.openapi.diff.impl.patch.*;
 import com.intellij.openapi.diff.impl.patch.apply.ApplyFilePatchBase;
 import com.intellij.openapi.diff.impl.patch.formove.CustomBinaryPatchApplier;
 import com.intellij.openapi.diff.impl.patch.formove.PatchApplier;
-import com.intellij.openapi.options.StreamProvider;
 import com.intellij.openapi.progress.AsynchronousExecution;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
@@ -86,11 +85,11 @@ public class ShelveChangesManager extends AbstractProjectComponent implements JD
   public ShelveChangesManager(final Project project, final MessageBus bus) {
     super(project);
     myBus = bus;
-    if (!project.isDefault()) {
-      myFileProcessor = new CompoundShelfFileProcessor("shelf");
+    if (project.isDefault()) {
+      myFileProcessor = new CompoundShelfFileProcessor(null, PathManager.getConfigPath() + File.separator + "shelf");
     }
     else {
-      myFileProcessor = new CompoundShelfFileProcessor(new StreamProvider[]{}, PathManager.getConfigPath() + File.separator + "shelf");
+      myFileProcessor = new CompoundShelfFileProcessor("shelf");
     }
   }
 

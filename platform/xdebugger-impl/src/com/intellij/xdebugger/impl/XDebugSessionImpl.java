@@ -91,7 +91,7 @@ public class XDebugSessionImpl implements XDebugSession {
   private XSourcePosition myCurrentPosition;
   private final AtomicBoolean myPaused = new AtomicBoolean();
   private MyDependentBreakpointListener myDependentBreakpointListener;
-  private XValueMarkers<?,?> myValueMarkers;
+  private XValueMarkers<?, ?> myValueMarkers;
   private final String mySessionName;
   private XDebugSessionTab mySessionTab;
   private XDebugSessionData mySessionData;
@@ -159,7 +159,7 @@ public class XDebugSessionImpl implements XDebugSession {
   public void setAutoInitBreakpoints(boolean value) {
     autoInitBreakpoints = value;
   }
-  
+
   public List<AnAction> getRestartActions() {
     return myRestartActions;
   }
@@ -302,13 +302,14 @@ public class XDebugSessionImpl implements XDebugSession {
 
   public void showSessionTab() {
     RunContentDescriptor descriptor = getRunContentDescriptor();
-    ExecutionManager.getInstance(getProject()).getContentManager().showRunContent(DefaultDebugExecutor.getDebugExecutorInstance(), descriptor);
+    ExecutionManager.getInstance(getProject()).getContentManager()
+      .showRunContent(DefaultDebugExecutor.getDebugExecutorInstance(), descriptor);
   }
 
   public XValueMarkers<?, ?> getValueMarkers() {
     ApplicationManager.getApplication().assertIsDispatchThread();
     if (myValueMarkers == null) {
-      XValueMarkerProvider<?,?> provider = myDebugProcess.createValueMarkerProvider();
+      XValueMarkerProvider<?, ?> provider = myDebugProcess.createValueMarkerProvider();
       if (provider != null) {
         myValueMarkers = XValueMarkers.createValueMarkers(provider);
       }
@@ -566,7 +567,7 @@ public class XDebugSessionImpl implements XDebugSession {
       return null;
     }
     if (myActiveNonLineBreakpoint != null) {
-      return ((XBreakpointBase<?,?,?>)myActiveNonLineBreakpoint).createGutterIconRenderer();
+      return ((XBreakpointBase<?, ?, ?>)myActiveNonLineBreakpoint).createGutterIconRenderer();
     }
     if (myCurrentExecutionStack != null) {
       return myCurrentExecutionStack.getExecutionLineIconRenderer();

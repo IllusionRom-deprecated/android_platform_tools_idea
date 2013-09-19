@@ -15,7 +15,7 @@
  */
 package com.intellij.codeInsight.daemon;
 
-import com.intellij.ExtensionPoints;
+import com.intellij.ToolExtensionPoints;
 import com.intellij.codeInsight.daemon.impl.HighlightInfo;
 import com.intellij.codeInspection.LocalInspectionTool;
 import com.intellij.codeInspection.accessStaticViaInstance.AccessStaticViaInstance;
@@ -119,7 +119,7 @@ public class LightAdvHighlightingTest extends LightDaemonAnalyzerTestCase {
   public void testAssignToFinal() { doTest(false, false); }
   public void testUnhandledExceptionsInSuperclass() { doTest(false, false); }
   public void testNoUnhandledExceptionsMultipleInheritance() { doTest(false, false); }
-  public void testAssignmentCompatible () { doTest(false, false); }
+  public void testAssignmentCompatible () { setLanguageLevel(LanguageLevel.JDK_1_5); doTest(false, false); }
   public void testMustBeBoolean() { doTest(false, false); }
 
   public void testNumericLiterals() { doTest(false, false); }
@@ -218,7 +218,7 @@ public class LightAdvHighlightingTest extends LightDaemonAnalyzerTestCase {
   }
 
   public void testUnusedNonPrivateMembers2() {
-    ExtensionPoint<EntryPoint> point = Extensions.getRootArea().getExtensionPoint(ExtensionPoints.DEAD_CODE_TOOL);
+    ExtensionPoint<EntryPoint> point = Extensions.getRootArea().getExtensionPoint(ToolExtensionPoints.DEAD_CODE_TOOL);
     EntryPoint extension = new EntryPoint() {
       @NotNull
       @Override
@@ -383,5 +383,10 @@ public class LightAdvHighlightingTest extends LightDaemonAnalyzerTestCase {
 
   public void testStaticMethodCalls() {
     doTestFile(BASE_PATH + "/" + getTestName(false) + ".java").checkSymbolNames().test();
+  }
+  public void testInsane() throws IOException {
+    configureFromFileText("x.java", "class X { \nxxxx\n }");
+    List<HighlightInfo> infos = highlightErrors();
+    assertTrue(infos.size() != 0);
   }
 }

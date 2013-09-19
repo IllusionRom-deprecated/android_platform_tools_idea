@@ -21,6 +21,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.util.ui.GraphicsUtil;
 import com.intellij.util.ui.UIUtil;
 import gnu.trove.TIntIntHashMap;
 import org.intellij.lang.annotations.JdkConstants;
@@ -386,8 +387,8 @@ public class SimpleColoredComponent extends JComponent implements Accessible, Co
         font = font.deriveFont(attributes.getFontStyle(), isSmaller ? UIUtil.getFontSize(UIUtil.FontSize.SMALL) : baseSize);
       }
       wasSmaller = isSmaller;
-      final FontMetrics metrics = getFontMetrics(font);
-      result += metrics.stringWidth(myFragments.get(i));
+      final String text = myFragments.get(i);
+      result += isOracleRetina ? GraphicsUtil.stringWidth(text, font) : getFontMetrics(font).stringWidth(text);
 
       final int fixedWidth = myFixedWidths.get(i);
       if (fixedWidth > 0 && result < fixedWidth) {
@@ -429,8 +430,8 @@ public class SimpleColoredComponent extends JComponent implements Accessible, Co
       }
       wasSmaller = isSmaller;
 
-      final FontMetrics metrics = getFontMetrics(font);
-      final int curWidth = metrics.stringWidth(myFragments.get(i));
+      final String text = myFragments.get(i);
+      final int curWidth = isOracleRetina ? GraphicsUtil.stringWidth(text, font) : getFontMetrics(font).stringWidth(text);
       if (x >= curX && x < curX + curWidth) {
         return i;
       }
@@ -623,7 +624,7 @@ public class SimpleColoredComponent extends JComponent implements Accessible, Co
       final FontMetrics metrics = g.getFontMetrics(font);
 
       final String fragment = myFragments.get(i);
-      final int fragmentWidth = metrics.stringWidth(fragment);
+      final int fragmentWidth = isOracleRetina ? GraphicsUtil.stringWidth(fragment, font) : metrics.stringWidth(fragment);
 
       final Color bgColor = attributes.getBgColor();
       if ((attributes.isOpaque() || isOpaque()) && bgColor != null) {

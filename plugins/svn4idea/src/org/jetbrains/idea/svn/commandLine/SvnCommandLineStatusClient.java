@@ -20,9 +20,11 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Getter;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.openapi.vcs.VcsException;
 import com.intellij.openapi.vfs.CharsetToolkit;
 import com.intellij.util.containers.Convertor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.idea.svn.SvnUtil;
 import org.jetbrains.idea.svn.SvnVcs;
 import org.jetbrains.idea.svn.portable.PortableStatus;
@@ -31,6 +33,7 @@ import org.jetbrains.idea.svn.portable.SvnStatusClientI;
 import org.tmatesoft.svn.core.*;
 import org.tmatesoft.svn.core.internal.util.SVNPathUtil;
 import org.tmatesoft.svn.core.wc.*;
+import org.tmatesoft.svn.core.wc2.SvnTarget;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -39,9 +42,7 @@ import javax.xml.parsers.SAXParserFactory;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created with IntelliJ IDEA.
@@ -104,23 +105,19 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
     base = SvnBindUtil.correctUpToExistingParent(base);
 
     final SVNInfo infoBase = myInfoClient.doInfo(base, revision);
+    List<String> parameters = new ArrayList<String>();
 
-    final SvnSimpleCommand command = SvnCommandFactory.createSimpleCommand(myProject, base, SvnCommandName.st);
-    putParameters(path, depth, remote, reportAll, includeIgnored, changeLists, command);
+    putParameters(parameters, path, depth, remote, reportAll, includeIgnored, changeLists);
 
-    parseResult(path, revision, handler, base, infoBase, command, execute(command, base));
-    return 0;
-  }
-
-  private String execute(SvnSimpleCommand command, File base) throws SVNException {
-    String result = CommandUtil.runSimple(command, SvnVcs.getInstance(myProject), base, null).getOutput();
-
-    if (StringUtil.isEmptyOrSpaces(result)) {
-      throw new SVNException(SVNErrorMessage.create(SVNErrorCode.FS_GENERAL, "Status request returned nothing for command: " +
-                                                                             command.myCommandLine.getCommandLineString()));
+    SvnCommand command;
+    try {
+      command = CommandUtil.execute(SvnVcs.getInstance(myProject), SvnTarget.fromFile(path), SvnCommandName.st, parameters, null);
     }
-
-    return result;
+    catch (VcsException e) {
+      throw new SVNException(SVNErrorMessage.create(SVNErrorCode.IO_ERROR, e), e);
+    }
+    parseResult(path, revision, handler, base, infoBase, command);
+    return 0;
   }
 
   private void parseResult(final File path,
@@ -128,10 +125,12 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
                            ISVNStatusHandler handler,
                            File base,
                            SVNInfo infoBase,
-                           SvnSimpleCommand command, String result) throws SVNException {
+                           SvnCommand command) throws SVNException {
+    String result = command.getOutput();
 
-    if (StringUtil.isEmpty(result)) {
-      return;
+    if (StringUtil.isEmptyOrSpaces(result)) {
+      throw new SVNException(SVNErrorMessage.create(SVNErrorCode.FS_GENERAL, "Status request returned nothing for command: " +
+                                                                             command.myCommandLine.getCommandLineString()));
     }
 
     try {
@@ -177,33 +176,21 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
     }
   }
 
-  private void putParameters(@NotNull File path, SVNDepth depth,
-                             boolean remote,
-                             boolean reportAll,
-                             boolean includeIgnored,
-                             Collection changeLists,
-                             SvnSimpleCommand command) {
-    command.addParameters(path.getAbsolutePath());
-    if (depth != null) {
-      command.addParameters("--depth", depth.getName());
-    }
-    if (remote) {
-      command.addParameters("-u");
-    }
-    if (reportAll) {
-      command.addParameters("-v");
-    }
-    if (includeIgnored) {
-      command.addParameters("--no-ignore");
-    }
-    // no way in interface to ignore externals
-    /*if (! collectParentExternals) {
-      command.addParameters("--ignore-externals");
-    }*/
-
-    //--changelist (--cl) ARG
-    changelistsToCommand(changeLists, command);
-    command.addParameters("--xml");
+  private static void putParameters(@NotNull List<String> parameters,
+                                    @NotNull File path,
+                                    @Nullable SVNDepth depth,
+                                    boolean remote,
+                                    boolean reportAll,
+                                    boolean includeIgnored,
+                                    @Nullable Collection changeLists) {
+    CommandUtil.put(parameters, path);
+    CommandUtil.put(parameters, depth);
+    CommandUtil.put(parameters, remote, "-u");
+    CommandUtil.put(parameters, reportAll, "--verbose");
+    CommandUtil.put(parameters, includeIgnored, "--no-ignore");
+    // TODO: Fix this check - update corresponding parameters in SvnStatusClientI
+    CommandUtil.putChangeLists(parameters, changeLists);
+    parameters.add("--xml");
   }
 
   public SvnStatusHandler createStatusHandler(final SVNRevision revision,
@@ -283,15 +270,6 @@ public class SvnCommandLineStatusClient implements SvnStatusClientI {
         changelistName[0] = newList;
       }
     };
-  }
-
-  public static void changelistsToCommand(Collection changeLists, SvnSimpleCommand command) {
-    if (changeLists != null) {
-      for (Object o : changeLists) {
-        final String name = (String) o;
-        command.addParameters("--cl", name);
-      }
-    }
   }
 
   @Override

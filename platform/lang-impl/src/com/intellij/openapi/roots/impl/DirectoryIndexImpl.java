@@ -890,7 +890,7 @@ public class DirectoryIndexImpl extends DirectoryIndex {
         for (SourceFolder sourceFolder : sourceFolders) {
           VirtualFile dir = sourceFolder.getFile();
           if (dir instanceof NewVirtualFile && contentRoot instanceof NewVirtualFile) {
-            int rootTypeId = getRootTypeId(sourceFolder.getRootType());
+            int rootTypeId = getRootTypeId(sourceFolder);
             fillMapWithModuleSource(module, (NewVirtualFile)contentRoot, (NewVirtualFile)dir, sourceFolder.getPackagePrefix(),
                                     (NewVirtualFile)dir, rootTypeId, progress, interned);
           }
@@ -898,7 +898,8 @@ public class DirectoryIndexImpl extends DirectoryIndex {
       }
     }
 
-    private int getRootTypeId(JpsModuleSourceRootType<?> rootType) {
+    private int getRootTypeId(@NotNull SourceFolder sourceFolder) {
+      JpsModuleSourceRootType<?> rootType = sourceFolder.getRootType();
       if (myRootTypeId.containsKey(rootType)) {
         return myRootTypeId.get(rootType);
       }
@@ -1478,6 +1479,10 @@ public class DirectoryIndexImpl extends DirectoryIndex {
                                                          "; equalsToParent:"+ (myFile.getParent() == null ? "" : myFile.getParent().getPath()).equals(root.getPath()) +
                                                          "; equalsToRoot:"+ myFile.equals(root) +
                                                          "; equalsToRootPath:"+ myFile.getPath().equals(root.getPath()) +
-                                                         "; my contentRoot: "+info.getContentRoot()+"; my sourceRoot: "+info.getSourceRoot()+"; my classRoot: "+info.getLibraryClassRoot();
+                                                         "; my contentRoot: "+info.getContentRoot()+
+                                                         "; my sourceRoot: "+info.getSourceRoot()+
+                                                         "; my classRoot: "+info.getLibraryClassRoot() +
+                                                         "; path is substring: "+FileUtil.isAncestor(root.getPath(), myFile.getPath(), false)
+      ;
   }
 }
