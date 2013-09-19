@@ -8,6 +8,7 @@ import com.intellij.openapi.externalSystem.model.Key;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
 import com.intellij.openapi.externalSystem.model.project.ExternalSystemSourceType;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
+import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.service.project.ProjectStructureHelper;
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
@@ -105,11 +106,13 @@ public class ModuleDataService implements ProjectDataService<ModuleData, Module>
         final Module created = moduleManager.newModule(data.getModuleFilePath(), data.getModuleTypeId());
 
         // Ensure that the dependencies are clear (used to be not clear when manually removing the module and importing it via gradle)
-        ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(created);
+        final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(created);
         final ModifiableRootModel moduleRootModel = moduleRootManager.getModifiableModel();
         moduleRootModel.inheritSdk();
         created.setOption(ExternalSystemConstants.EXTERNAL_SYSTEM_ID_KEY, data.getOwner().toString());
         created.setOption(ExternalSystemConstants.LINKED_PROJECT_PATH_KEY, data.getLinkedExternalProjectPath());
+        final ProjectData projectData = module.getData(ProjectKeys.PROJECT);
+        created.setOption(ExternalSystemConstants.ROOT_PROJECT_PATH_KEY, projectData != null ? projectData.getLinkedExternalProjectPath() : "");
 
         RootPolicy<Object> visitor = new RootPolicy<Object>() {
           @Override
@@ -151,6 +154,8 @@ public class ModuleDataService implements ProjectDataService<ModuleData, Module>
       else {
         module.setOption(ExternalSystemConstants.EXTERNAL_SYSTEM_ID_KEY, moduleData.getOwner().toString());
         module.setOption(ExternalSystemConstants.LINKED_PROJECT_PATH_KEY, moduleData.getLinkedExternalProjectPath());
+        final ProjectData projectData = node.getData(ProjectKeys.PROJECT);
+        module.setOption(ExternalSystemConstants.ROOT_PROJECT_PATH_KEY, projectData != null ? projectData.getLinkedExternalProjectPath() : "");
       }
     }
     return result;
@@ -234,6 +239,7 @@ public class ModuleDataService implements ProjectDataService<ModuleData, Module>
   public static void unlinkModuleFromExternalSystem(@NotNull Module module) {
     module.clearOption(ExternalSystemConstants.EXTERNAL_SYSTEM_ID_KEY);
     module.clearOption(ExternalSystemConstants.LINKED_PROJECT_PATH_KEY);
+    module.clearOption(ExternalSystemConstants.ROOT_PROJECT_PATH_KEY);
   }
   
   private class ImportModulesTask implements Runnable {

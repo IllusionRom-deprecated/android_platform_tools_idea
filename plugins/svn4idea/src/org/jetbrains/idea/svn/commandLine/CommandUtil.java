@@ -1,15 +1,19 @@
 package org.jetbrains.idea.svn.commandLine;
 
+import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vcs.VcsException;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.util.ArrayUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.idea.svn.SvnApplicationSettings;
+import org.jetbrains.idea.svn.RootUrlInfo;
 import org.jetbrains.idea.svn.SvnVcs;
-import org.jetbrains.idea.svn.api.FileStatusResultParser;
 import org.jetbrains.idea.svn.checkin.IdeaSvnkitBasedAuthenticationCallback;
-import org.tmatesoft.svn.core.*;
+import org.tmatesoft.svn.core.SVNDepth;
+import org.tmatesoft.svn.core.SVNException;
+import org.tmatesoft.svn.core.SVNURL;
 import org.tmatesoft.svn.core.wc.SVNDiffOptions;
 import org.tmatesoft.svn.core.wc.SVNInfo;
 import org.tmatesoft.svn.core.wc.SVNRevision;
@@ -21,60 +25,14 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
 import java.io.File;
 import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
  * @author Konstantin Kolosovsky.
  */
 public class CommandUtil {
-  public static SvnLineCommand runSimple(@NotNull SvnCommandName name,
-                                         @NotNull SvnVcs vcs,
-                                         @Nullable File base,
-                                         @Nullable SVNURL url,
-                                         List<String> parameters)
-    throws SVNException {
-    String exe = resolveExePath();
-    base = resolveBaseDirectory(base, exe);
-    url = resolveRepositoryUrl(vcs, url);
 
-    try {
-      return SvnLineCommand
-        .runWithAuthenticationAttempt(exe, base, url, name, new SvnCommitRunner.CommandListener(null),
-                                      new IdeaSvnkitBasedAuthenticationCallback(vcs), ArrayUtil.toStringArray(parameters));
-    }
-    catch (SvnBindException e) {
-      throw new SVNException(SVNErrorMessage.create(SVNErrorCode.IO_ERROR, e), e);
-    }
-  }
-
-  @Nullable
-  private static SVNURL resolveRepositoryUrl(@NotNull SvnVcs vcs, @Nullable SVNURL url) {
-    if (url == null) {
-      // TODO: or take it from RootUrlInfo
-      SVNInfo info = vcs.getInfo(vcs.getProject().getBaseDir());
-
-      url = info != null ? info.getURL() : null;
-    }
-    return url;
-  }
-
-  @NotNull
-  private static File resolveBaseDirectory(@Nullable File base, @NotNull String defaultBase) {
-    return base == null ? new File(defaultBase) : base;
-  }
-
-  @NotNull
-  private static String resolveExePath() {
-    return SvnApplicationSettings.getInstance().getCommandLinePath();
-  }
-
-  public static SvnLineCommand runSimple(@NotNull SvnSimpleCommand command, @NotNull SvnVcs vcs, @Nullable File base, @Nullable SVNURL url)
-    throws SVNException {
-    // empty command name passed, as command name is already in command.getParameters()
-    return runSimple(SvnCommandName.empty, vcs, base, url, new ArrayList<String>(Arrays.asList(command.getParameters())));
-  }
+  private static final Logger LOG = Logger.getInstance("org.jetbrains.idea.svn.commandLine.CommandUtil");
 
   /**
    * Puts given value to parameters if condition is satisfied
@@ -90,7 +48,15 @@ public class CommandUtil {
   }
 
   public static void put(@NotNull List<String> parameters, @NotNull File path) {
-    parameters.add(path.getAbsolutePath());
+    put(parameters, path.getAbsolutePath(), SVNRevision.UNDEFINED);
+  }
+
+  public static void put(@NotNull List<String> parameters, @NotNull File path, boolean usePegRevision) {
+    if (usePegRevision) {
+      put(parameters, path);
+    } else {
+      parameters.add(path.getAbsolutePath());
+    }
   }
 
   public static void put(@NotNull List<String> parameters, @NotNull File path, @Nullable SVNRevision pegRevision) {
@@ -100,9 +66,18 @@ public class CommandUtil {
   public static void put(@NotNull List<String> parameters, @NotNull String path, @Nullable SVNRevision pegRevision) {
     StringBuilder builder = new StringBuilder(path);
 
-    if (pegRevision != null && !SVNRevision.UNDEFINED.equals(pegRevision) && !SVNRevision.WORKING.equals(pegRevision) &&
-        pegRevision.isValid() && pegRevision.getNumber() != 0) {
+    boolean hasAtSymbol = path.contains("@");
+    boolean hasPegRevision = pegRevision != null &&
+                             !SVNRevision.UNDEFINED.equals(pegRevision) &&
+                             !SVNRevision.WORKING.equals(pegRevision) &&
+                             pegRevision.isValid() &&
+                             pegRevision.getNumber() != 0;
+
+    if (hasPegRevision || hasAtSymbol) {
+      // add '@' to correctly handle paths that contain '@' symbol
       builder.append("@");
+    }
+    if (hasPegRevision) {
       builder.append(pegRevision);
     }
 
@@ -111,6 +86,14 @@ public class CommandUtil {
 
   public static void put(@NotNull List<String> parameters, @NotNull SvnTarget target) {
     put(parameters, target.getPathOrUrlString(), target.getPegRevision());
+  }
+
+  public static void put(@NotNull List<String> parameters, @NotNull SvnTarget target, boolean usePegRevision) {
+    if (usePegRevision) {
+      put(parameters, target);
+    } else {
+      parameters.add(target.getPathOrUrlString());
+    }
   }
 
   public static void put(@NotNull List<String> parameters, @NotNull File... paths) {
@@ -156,6 +139,15 @@ public class CommandUtil {
     }
   }
 
+  public static void putChangeLists(@NotNull List<String> parameters, @Nullable Iterable<String> changeLists) {
+    if (changeLists != null) {
+      for (String changeList : changeLists) {
+        parameters.add("--cl");
+        parameters.add(changeList);
+      }
+    }
+  }
+
   public static <T> T parse(@NotNull String data, @NotNull Class<T> type) throws JAXBException {
     JAXBContext context = JAXBContext.newInstance(type);
     Unmarshaller unmarshaller = context.createUnmarshaller();
@@ -164,42 +156,73 @@ public class CommandUtil {
   }
 
   /**
-   * Utility method for running commands changing certain file status information.
+   * Utility method for running commands.
    * // TODO: Should be replaced with non-static analogue.
    *
    * @param vcs
+   * @param target
    * @param name
    * @param parameters
-   * @param parser
+   * @param listener
    * @throws VcsException
    */
   public static SvnCommand execute(@NotNull SvnVcs vcs,
+                                   @NotNull SvnTarget target,
                                    @NotNull SvnCommandName name,
                                    @NotNull List<String> parameters,
-                                   @Nullable FileStatusResultParser parser,
-                                   @Nullable LineCommandListener listener)
-  throws VcsException {
-    String exe = resolveExePath();
-    File base = resolveBaseDirectory(null, exe);
-    SVNURL url = resolveRepositoryUrl(vcs, null);
+                                   @Nullable LineCommandListener listener) throws VcsException {
+    SVNURL repositoryUrl = resolveRepositoryUrl(vcs, name, target);
+    File workingDirectory = resolveWorkingDirectory(vcs, target);
+    IdeaSvnkitBasedAuthenticationCallback callback = new IdeaSvnkitBasedAuthenticationCallback(vcs);
 
-    SvnLineCommand command = SvnLineCommand.runWithAuthenticationAttempt(
-      exe, base, url, name, listener != null ? listener : new SvnCommitRunner.CommandListener(null),
-      new IdeaSvnkitBasedAuthenticationCallback(vcs),
-      ArrayUtil.toStringArray(parameters));
-
-    if (parser != null) {
-      parser.parse(command.getOutput());
-    }
-
-    return command;
+    return SvnLineCommand.runWithAuthenticationAttempt(workingDirectory, repositoryUrl, name,
+                                                       listener != null ? listener : new SvnCommitRunner.CommandListener(null), callback,
+                                                       ArrayUtil.toStringArray(parameters));
   }
 
-  public static SvnCommand execute(@NotNull SvnVcs vcs,
-                                   @NotNull SvnCommandName name,
-                                   @NotNull List<String> parameters,
-                                   @Nullable FileStatusResultParser parser) throws VcsException {
-    return execute(vcs, name, parameters, parser, null);
+  private static SVNURL resolveRepositoryUrl(@NotNull SvnVcs vcs, @NotNull SvnCommandName name, @NotNull SvnTarget target) {
+    RootUrlInfo rootInfo = target.isFile()
+                           ? vcs.getSvnFileUrlMapping().getWcRootForFilePath(target.getFile())
+                           : vcs.getSvnFileUrlMapping().getWcRootForUrl(target.getURL().toDecodedString());
+    SVNURL repositoryUrl = rootInfo != null ? rootInfo.getRepositoryUrlUrl() : null;
+
+    // resolve repository url using "svn info" command except the case when that command is executing right now.
+    if (repositoryUrl == null && !SvnCommandName.info.equals(name)) {
+      SVNInfo info = getInfo(vcs, target);
+
+      repositoryUrl = info != null ? info.getRepositoryRootURL() : null;
+    }
+
+    return repositoryUrl;
+  }
+
+  @NotNull
+  private static File resolveWorkingDirectory(@NotNull SvnVcs vcs, @NotNull SvnTarget target) {
+    File workingDirectory = target.isFile() ? target.getFile() : null;
+    // TODO: Do we really need search existing parent - or just take parent directory if target is file???
+    workingDirectory = SvnBindUtil.correctUpToExistingParent(workingDirectory);
+
+    if (workingDirectory == null) {
+      workingDirectory =
+        !vcs.getProject().isDefault() ? VfsUtilCore.virtualToIoFile(vcs.getProject().getBaseDir()) : new File(PathManager.getHomePath());
+    }
+
+    return workingDirectory;
+  }
+
+  @Nullable
+  private static SVNInfo getInfo(@NotNull SvnVcs vcs, @NotNull SvnTarget target) {
+    SVNInfo result = null;
+
+    try {
+      result = target.isFile() ? vcs.getInfo(target.getFile()) : vcs.getInfo(target.getURL(), null);
+    }
+    catch (SVNException e) {
+      // TODO: Update this to more precise handling of exception codes
+      LOG.debug(e);
+    }
+
+    return result;
   }
 
   /**

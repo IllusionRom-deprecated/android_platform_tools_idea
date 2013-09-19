@@ -71,9 +71,7 @@ public abstract class SvnCommand {
     if (configDir != null) {
       myCommandLine.addParameters("--config-dir", configDir.getPath());
     }
-    if (!SvnCommandName.empty.equals(commandName)) {
-      myCommandLine.addParameter(commandName.getName());
-    }
+    myCommandLine.addParameter(commandName.getName());
   }
 
   public String[] getParameters() {
@@ -155,6 +153,8 @@ public abstract class SvnCommand {
     checkStarted();
     final OSProcessHandler handler;
     synchronized (myLock) {
+      // TODO: This line seems to cause situation when exitCode is not set before SvnLineCommand.runCommand() is finished.
+      // TODO: Carefully analyze behavior (on all operating systems) and fix.
       if (myIsDestroyed) return true;
       handler = myHandler;
     }

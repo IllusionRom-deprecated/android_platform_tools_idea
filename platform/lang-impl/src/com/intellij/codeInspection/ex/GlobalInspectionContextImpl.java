@@ -19,6 +19,7 @@ package com.intellij.codeInspection.ex;
 import com.intellij.analysis.AnalysisScope;
 import com.intellij.analysis.AnalysisUIOptions;
 import com.intellij.analysis.PerformAnalysisInBackgroundOption;
+import com.intellij.codeInsight.daemon.impl.HighlightInfoProcessor;
 import com.intellij.codeInsight.daemon.impl.LocalInspectionsPass;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.lang.GlobalInspectionContextExtension;
@@ -333,18 +334,18 @@ public class GlobalInspectionContextImpl extends GlobalInspectionContextBase imp
       @Override
       public void visitFile(final PsiFile file) {
         final VirtualFile virtualFile = file.getVirtualFile();
-        if (virtualFile != null) {
-          incrementJobDoneAmount(getStdJobDescriptors().LOCAL_ANALYSIS, ProjectUtilCore.displayUrlRelativeToProject(virtualFile, virtualFile
-            .getPresentableUrl(), getProject(), true, false));
-          if (SingleRootFileViewProvider.isTooLargeForIntelligence(virtualFile)) return;
-          if (localScopeFiles != null && !localScopeFiles.add(virtualFile)) return;
-        }
+        if (virtualFile == null) return;
+        String url = ProjectUtilCore.displayUrlRelativeToProject(virtualFile, virtualFile.getPresentableUrl(), getProject(), true, false);
+        incrementJobDoneAmount(getStdJobDescriptors().LOCAL_ANALYSIS, url);
+        if (SingleRootFileViewProvider.isTooLargeForIntelligence(virtualFile)) return;
+        if (localScopeFiles != null && !localScopeFiles.add(virtualFile)) return;
 
         final FileViewProvider viewProvider = psiManager.findViewProvider(virtualFile);
         final com.intellij.openapi.editor.Document document = viewProvider == null ? null : viewProvider.getDocument();
         if (document == null || virtualFile.getFileType().isBinary()) return; //do not inspect binary files
         final LocalInspectionsPass pass = new LocalInspectionsPass(file, document, 0,
-                                                                   file.getTextLength(), LocalInspectionsPass.EMPTY_PRIORITY_RANGE, true);
+                                                                   file.getTextLength(), LocalInspectionsPass.EMPTY_PRIORITY_RANGE, true,
+                                                                   HighlightInfoProcessor.getEmpty());
         try {
           final List<LocalInspectionToolWrapper> lTools = getWrappersFromTools(localTools, file);
           pass.doInspectInBatch(GlobalInspectionContextImpl.this, inspectionManager, lTools);
@@ -366,11 +367,10 @@ public class GlobalInspectionContextImpl extends GlobalInspectionContextBase imp
         }
         catch (ProcessCanceledException e) {
           final Throwable cause = e.getCause();
-          if (cause != null) {
-            LOG.error("In file: " + file, cause);
-          } else {
+          if (cause == null) {
             throw e;
           }
+          LOG.error("In file: " + file, cause);
         }
         catch (IndexNotReadyException e) {
           throw e;

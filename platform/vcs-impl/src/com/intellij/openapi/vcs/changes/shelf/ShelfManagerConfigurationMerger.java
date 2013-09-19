@@ -15,14 +15,15 @@
  */
 package com.intellij.openapi.vcs.changes.shelf;
 
+import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.XmlConfigurationMerger;
+import com.intellij.openapi.components.impl.stores.StreamProvider;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
-import com.intellij.openapi.application.PathManager;
-import com.intellij.openapi.options.StreamProvider;
 import org.jdom.Attribute;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
 
 import java.io.File;
@@ -38,11 +39,12 @@ public class ShelfManagerConfigurationMerger implements XmlConfigurationMerger {
   }
 
   @TestOnly
-  public ShelfManagerConfigurationMerger(final String configPath, final StreamProvider[] streamProviders) {
+  public ShelfManagerConfigurationMerger(final String configPath, @Nullable StreamProvider streamProvider) {
     myConfigPath = configPath;
-    myFileProcessor = new CompoundShelfFileProcessor(streamProviders, configPath);
+    myFileProcessor = new CompoundShelfFileProcessor(streamProvider, configPath);
   }
 
+  @Override
   @NotNull
   public Element merge(final Element serverElement, final Element localElement) {
     Map<Date, ShelvedChangeList> result = new LinkedHashMap<Date, ShelvedChangeList>();
@@ -50,7 +52,7 @@ public class ShelfManagerConfigurationMerger implements XmlConfigurationMerger {
     Map<String, ShelvedChangeList> serverFileToChangeList = collectChanges(serverElement);
     Map<String, ShelvedChangeList> localFileToChangeList = collectChanges(localElement);
 
-    List<String> serverFileNames = myFileProcessor.getServerFiles();
+    Collection<String> serverFileNames = myFileProcessor.getServerFiles();
     List<String> localFileNames = myFileProcessor.getLocalFiles();
 
     Collection<String> serverChangeListFiles = new HashSet<String>();
@@ -67,7 +69,7 @@ public class ShelfManagerConfigurationMerger implements XmlConfigurationMerger {
           newFileName = myFileProcessor.copyFileFromServer(serverFileName, localFileNames);
         }
         else {
-          newFileName = myFileProcessor.renameFileOnServer(serverFileName, serverFileNames,localFileNames );
+          newFileName = myFileProcessor.renameFileOnServer(serverFileName, serverFileNames, localFileNames );
         }
       }
       changeList.PATH = new File(myFileProcessor.getBaseIODir(),newFileName).getAbsolutePath();
@@ -147,6 +149,7 @@ public class ShelfManagerConfigurationMerger implements XmlConfigurationMerger {
     return result;
   }
 
+  @Override
   public String getComponentName() {
     return "ShelveChangesManager";
   }
