@@ -348,7 +348,7 @@ public class GroovyDocumentationProvider implements CodeDocumentationProvider, E
 
     if (element == null) return null;
 
-    String standard = JavaDocumentationProvider.generateExternalJavadoc(element);
+    String standard = element.getNavigationElement() instanceof PsiDocCommentOwner ? JavaDocumentationProvider.generateExternalJavadoc(element) : null;
 
     if (element instanceof GrVariable &&
         ((GrVariable)element).getTypeElementGroovy() == null &&

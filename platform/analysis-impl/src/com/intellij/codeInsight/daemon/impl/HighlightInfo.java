@@ -16,24 +16,26 @@
 
 package com.intellij.codeInsight.daemon.impl;
 
+import com.intellij.codeInsight.daemon.GutterMark;
 import com.intellij.codeInsight.daemon.HighlightDisplayKey;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInsight.intention.IntentionManager;
 import com.intellij.codeInspection.*;
 import com.intellij.codeInspection.actions.CleanupInspectionIntention;
-import com.intellij.codeInspection.ex.*;
+import com.intellij.codeInspection.ex.GlobalInspectionToolWrapper;
+import com.intellij.codeInspection.ex.InspectionToolWrapper;
+import com.intellij.codeInspection.ex.LocalInspectionToolWrapper;
+import com.intellij.codeInspection.ex.QuickFixWrapper;
 import com.intellij.lang.ASTNode;
 import com.intellij.lang.annotation.Annotation;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.lang.annotation.ProblemGroup;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.RangeMarker;
 import com.intellij.openapi.editor.colors.*;
 import com.intellij.openapi.editor.ex.RangeHighlighterEx;
 import com.intellij.openapi.editor.markup.GutterIconRenderer;
-import com.intellij.codeInsight.daemon.GutterMark;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.text.StringUtil;
@@ -256,9 +258,7 @@ public class HighlightInfo implements Segment {
   }
 
   @NotNull
-  private static final HighlightInfoFilter[] FILTERS =
-    ApplicationManager.getApplication().getExtensions(HighlightInfoFilter.EXTENSION_POINT_NAME);
-
+  private static final HighlightInfoFilter[] FILTERS = HighlightInfoFilter.EXTENSION_POINT_NAME.getExtensions();
 
   public boolean needUpdateOnTyping() {
     return isFlagSet(NEEDS_UPDATE_ON_TYPING_FLAG);
@@ -419,6 +419,16 @@ public class HighlightInfo implements Segment {
 
     @NotNull
     HighlightInfo createUnconditionally();
+  }
+
+  public static boolean isAcceptedByFilters(@NotNull HighlightInfo info, @Nullable PsiElement psiElement) {
+    PsiFile file = psiElement == null ? null : psiElement.getContainingFile();
+    for (HighlightInfoFilter filter : FILTERS) {
+      if (!filter.accept(info, file)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static class B implements Builder {
@@ -593,12 +603,7 @@ public class HighlightInfo implements Segment {
       LOG.assertTrue(psiElement != null || severity == HighlightInfoType.SYMBOL_TYPE_SEVERITY || severity == HighlightInfoType.INJECTED_FRAGMENT_SEVERITY || ArrayUtilRt.find(HighlightSeverity.DEFAULT_SEVERITIES, severity) != -1,
                      "Custom type demands element to detect its text attributes");
 
-      PsiFile file = psiElement == null ? null : psiElement.getContainingFile();
-      for (HighlightInfoFilter filter : FILTERS) {
-        if (!filter.accept(info, file)) {
-          return null;
-        }
-      }
+      if (!isAcceptedByFilters(info, psiElement)) return null;
 
       return info;
     }

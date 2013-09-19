@@ -23,7 +23,6 @@ import com.intellij.codeInspection.dataFlow.instructions.*;
 import com.intellij.codeInspection.dataFlow.value.*;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Condition;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
@@ -64,6 +63,7 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
   private DfaValue myRuntimeException;
   private DfaValue myError;
   private PsiType myNpe;
+  private Stack<PsiElement> myElementStack = new Stack<PsiElement>();
 
   ControlFlowAnalyzer(final DfaValueFactory valueFactory) {
     myFactory = valueFactory;
@@ -73,9 +73,9 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     myIgnoreAssertions = ignoreAssertions;
     PsiManager manager = codeFragment.getManager();
     GlobalSearchScope scope = codeFragment.getResolveScope();
-    myRuntimeException = myFactory.createTypeValue(PsiType.getJavaLangRuntimeException(manager, scope), Nullness.NOT_NULL);
-    myError = myFactory.createTypeValue(PsiType.getJavaLangError(manager, scope), Nullness.NOT_NULL);
-    myNpe = JavaPsiFacade.getElementFactory(manager.getProject()).createTypeByFQClassName(JAVA_LANG_NULL_POINTER_EXCEPTION, scope);
+    myRuntimeException = myFactory.createTypeValue(createClassType(manager, scope, JAVA_LANG_RUNTIME_EXCEPTION), Nullness.NOT_NULL);
+    myError = myFactory.createTypeValue(createClassType(manager, scope, JAVA_LANG_ERROR), Nullness.NOT_NULL);
+    myNpe = createClassType(manager, scope, JAVA_LANG_NULL_POINTER_EXCEPTION);
     myFields = new HashSet<DfaVariableValue>();
     myCatchStack = new Stack<CatchDescriptor>();
     myCurrentFlow = new ControlFlow(myFactory);
@@ -92,6 +92,12 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     addInstruction(new ReturnInstruction());
 
     return myCurrentFlow;
+  }
+
+  private static PsiClassType createClassType(PsiManager manager, GlobalSearchScope scope, String fqn) {
+    PsiClass aClass = JavaPsiFacade.getInstance(manager.getProject()).findClass(fqn, scope);
+    if (aClass != null) return JavaPsiFacade.getElementFactory(manager.getProject()).createType(aClass);
+    return JavaPsiFacade.getElementFactory(manager.getProject()).createTypeByFQClassName(fqn, scope);
   }
 
   private boolean myRecursionStopper = false;
@@ -126,10 +132,12 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
 
   private void startElement(PsiElement element) {
     myCurrentFlow.startElement(element);
+    myElementStack.push(element);
   }
 
   private void finishElement(PsiElement element) {
     myCurrentFlow.finishElement(element);
+    assert element == myElementStack.pop();
   }
 
   @Override
@@ -279,6 +287,16 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     startElement(block);
 
     for (PsiStatement statement : block.getStatements()) {
+      statement.accept(this);
+    }
+
+    flushCodeBlockVariables(block);
+
+    finishElement(block);
+  }
+
+  private void flushCodeBlockVariables(PsiCodeBlock block) {
+    for (PsiStatement statement : block.getStatements()) {
       if (statement instanceof PsiDeclarationStatement) {
         for (PsiElement declaration : ((PsiDeclarationStatement)statement).getDeclaredElements()) {
           if (declaration instanceof PsiVariable) {
@@ -286,10 +304,7 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
           }
         }
       }
-      statement.accept(this);
     }
-
-    finishElement(block);
   }
 
   @Override public void visitBlockStatement(PsiBlockStatement statement) {
@@ -676,6 +691,8 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     final ConditionalGotoInstruction branch = new ConditionalGotoInstruction(null, false, null);
     addInstruction(branch);
     addInstruction(new EmptyStackInstruction());
+    flushVariablesInsideTry(cd);
+
     if (forCatch) {
       PsiType type = cd.getLubType();
       boolean isRuntime = InheritanceUtil.isInheritor(type, JAVA_LANG_RUNTIME_EXCEPTION) || ExceptionUtil.isGeneralExceptionType(type);
@@ -701,10 +718,23 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     branch.setOffset(myCurrentFlow.getInstructionCount());
   }
 
+  private void flushVariablesInsideTry(CatchDescriptor cd) {
+    for (int i = myElementStack.size() - 1; i >= 0; i--) {
+      PsiElement scope = myElementStack.get(i);
+      if (PsiTreeUtil.isAncestor(scope, cd.getBlock(), false)) {
+        break;
+      }
+      if (scope instanceof PsiCodeBlock) {
+        flushCodeBlockVariables((PsiCodeBlock)scope);
+      }
+    }
+  }
+
   private void addThrowCode(PsiType exceptionClass) {
     if (exceptionClass == null) return;
     for (int i = myCatchStack.size() - 1; i >= 0; i--) {
       CatchDescriptor cd = myCatchStack.get(i);
+      flushVariablesInsideTry(cd);
       if (cd.isFinally()) {
         addInstruction(new GosubInstruction(cd.getJumpOffset(this)));
       }
@@ -785,6 +815,10 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
       myParameter = parameter;
       myBlock = catchBlock;
       myIsFinally = false;
+    }
+
+    public PsiCodeBlock getBlock() {
+      return myBlock;
     }
 
     public PsiType getType() {
@@ -1157,7 +1191,7 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
 
       if (!shortCircuit) {
         if (i > 0) {
-          combineStackBooleans(false, operand);
+          combineStackBooleans(true, operand);
         }
         continue;
       }
@@ -1424,7 +1458,6 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     if (resolved != null) {
       final PsiAnnotation contractAnno = findContractAnnotation(resolved);
       if (contractAnno != null) {
-        final Project project = expression.getProject();
         return CachedValuesManager.getCachedValue(contractAnno, new CachedValueProvider<List<MethodContract>>() {
           @Nullable
           @Override
@@ -1754,39 +1787,37 @@ class ControlFlowAnalyzer extends JavaElementVisitor {
     }
 
     PsiElement target = refExpr.resolve();
-    PsiVariable var = getAccessedVariable(target);
+    PsiModifierListOwner var = getAccessedVariable(target);
     if (var == null) {
       return null;
     }
 
-    PsiMethod accessMethod = target instanceof PsiMethod ? (PsiMethod)target : null;
     PsiExpression qualifier = refExpr.getQualifierExpression();
     if (qualifier == null) {
-      DfaVariableValue result = myFactory.getVarFactory().createVariableValue(var, refExpr.getType(), false, null, accessMethod);
+      DfaVariableValue result = myFactory.getVarFactory().createVariableValue(var, refExpr.getType(), false, null);
       if (var instanceof PsiField) {
         myFields.add(result);
       }
       return result;
     }
 
-    if (DfaPsiUtil.isFinalField(var) || DfaPsiUtil.isPlainMutableField(var)) {
+    if (!(var instanceof PsiField) || !var.hasModifierProperty(PsiModifier.TRANSIENT) && !var.hasModifierProperty(PsiModifier.VOLATILE)) {
       DfaVariableValue qualifierValue = createChainedVariableValue(qualifier);
       if (qualifierValue != null) {
-        return myFactory.getVarFactory().createVariableValue(var, refExpr.getType(), false, qualifierValue, accessMethod);
+        return myFactory.getVarFactory().createVariableValue(var, refExpr.getType(), false, qualifierValue);
       }
     }
     return null;
   }
 
   @Nullable
-  private static PsiVariable getAccessedVariable(final PsiElement target) {
+  private static PsiModifierListOwner getAccessedVariable(final PsiElement target) {
     if (target instanceof PsiVariable) {
       return (PsiVariable)target;
     }
     if (target instanceof PsiMethod) {
-      PsiMethod method = (PsiMethod)target;
-      if (PropertyUtil.isSimpleGetter(method)) {
-        return PropertyUtil.getSimplyReturnedField(method, PropertyUtil.getSingleReturnValue(method));
+      if (PropertyUtil.isSimplePropertyGetter((PsiMethod)target)) {
+        return (PsiMethod)target;
       }
     }
     return null;

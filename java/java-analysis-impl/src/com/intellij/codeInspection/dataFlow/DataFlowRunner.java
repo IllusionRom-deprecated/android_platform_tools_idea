@@ -128,12 +128,10 @@ public class DataFlowRunner {
         queue.add(new DfaInstructionState(myInstructions[0], initialState));
       }
 
-      long timeLimit = ourTimeLimit;
-      final boolean unitTestMode = ApplicationManager.getApplication().isUnitTestMode();
-      WorkingTimeMeasurer measurer = new WorkingTimeMeasurer(timeLimit);
+      WorkingTimeMeasurer measurer = new WorkingTimeMeasurer(shouldCheckTimeLimit() ? ourTimeLimit : ourTimeLimit * 42);
       int count = 0;
       while (!queue.isEmpty()) {
-        if (count % 50 == 0 && !unitTestMode && measurer.isTimeOver()) {
+        if (count % 64 == 0 && measurer.isTimeOver()) {
           LOG.debug("Too complex because the analysis took too long");
           psiBlock.putUserData(TOO_EXPENSIVE_HASH, psiBlock.getText().hashCode());
           return RunnerResult.TOO_COMPLEX;
@@ -184,6 +182,10 @@ public class DataFlowRunner {
     }
   }
 
+  protected boolean shouldCheckTimeLimit() {
+    return !ApplicationManager.getApplication().isUnitTestMode();
+  }
+
   private DfaInstructionState[] acceptInstruction(InstructionVisitor visitor, DfaInstructionState instructionState) {
     Instruction instruction = instructionState.getInstruction();
     if (instruction instanceof MethodCallInstruction) {
@@ -210,18 +212,18 @@ public class DataFlowRunner {
   }
 
   private void registerNestedClosures(DfaInstructionState instructionState, PsiClass nestedClass) {
-    DfaMemoryStateImpl closureState = createClosureState(instructionState.getMemoryState());
+    DfaMemoryState state = instructionState.getMemoryState();
     for (PsiMethod method : nestedClass.getMethods()) {
       PsiCodeBlock body = method.getBody();
       if (body != null) {
-        myNestedClosures.putValue(body, closureState);
+        myNestedClosures.putValue(body, createClosureState(state));
       }
     }
     for (PsiClassInitializer initializer : nestedClass.getInitializers()) {
-      myNestedClosures.putValue(initializer.getBody(), closureState);
+      myNestedClosures.putValue(initializer.getBody(), createClosureState(state));
     }
     for (PsiField field : nestedClass.getFields()) {
-      myNestedClosures.putValue(field, closureState);
+      myNestedClosures.putValue(field, createClosureState(state));
     }
   }
 
@@ -290,6 +292,7 @@ public class DataFlowRunner {
     for (DfaVariableValue value : vars) {
       copy.flushDependencies(value);
     }
+    copy.emptyStack();
     return copy;
   }
 }

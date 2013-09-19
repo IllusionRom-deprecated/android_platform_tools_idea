@@ -42,22 +42,23 @@ public class CmdPropertyClient extends BaseSvnClient implements PropertyClient {
     List<String> parameters = new ArrayList<String>();
 
     parameters.add(property);
-    CommandUtil.put(parameters, target);
     if (!revisionProperty) {
+      CommandUtil.put(parameters, target);
       CommandUtil.put(parameters, revision);
     } else {
-      parameters.add("--revprop");
-
       // currently revision properties are returned only for file targets
       assertFile(target);
 
+      // "svn propget --revprop" treats '@' symbol at file path end as part of the path - so here we manually omit adding '@' at the end
+      CommandUtil.put(parameters, target, false);
+      parameters.add("--revprop");
       CommandUtil.put(parameters, resolveRevisionNumber(target.getFile(), revision));
     }
     // always use --xml option here - this allows to determine if property exists with empty value or property does not exist, which
     // is critical for some parts of merge logic
     parameters.add("--xml");
 
-    SvnCommand command = CommandUtil.execute(myVcs, SvnCommandName.propget, parameters, null);
+    SvnCommand command = CommandUtil.execute(myVcs, target, SvnCommandName.propget, parameters, null);
     return parseSingleProperty(target, command.getOutput());
   }
 
@@ -72,7 +73,7 @@ public class CmdPropertyClient extends BaseSvnClient implements PropertyClient {
     parameters.add(property);
     fillListParameters(target, revision, depth, parameters, false);
 
-    SvnCommand command = CommandUtil.execute(myVcs, SvnCommandName.propget, parameters, null);
+    SvnCommand command = CommandUtil.execute(myVcs, target, SvnCommandName.propget, parameters, null);
     parseOutput(target, command.getOutput(), handler);
   }
 
@@ -84,7 +85,7 @@ public class CmdPropertyClient extends BaseSvnClient implements PropertyClient {
     List<String> parameters = new ArrayList<String>();
     fillListParameters(target, revision, depth, parameters, true);
 
-    SvnCommand command = CommandUtil.execute(myVcs, SvnCommandName.proplist, parameters, null);
+    SvnCommand command = CommandUtil.execute(myVcs, target, SvnCommandName.proplist, parameters, null);
     parseOutput(target, command.getOutput(), handler);
   }
 
@@ -106,7 +107,7 @@ public class CmdPropertyClient extends BaseSvnClient implements PropertyClient {
     CommandUtil.put(parameters, file);
     CommandUtil.put(parameters, depth);
 
-    CommandUtil.execute(myVcs, isDelete ? SvnCommandName.propdel : SvnCommandName.propset, parameters, null);
+    CommandUtil.execute(myVcs, SvnTarget.fromFile(file), isDelete ? SvnCommandName.propdel : SvnCommandName.propset, parameters, null);
   }
 
   private void fillListParameters(@NotNull SvnTarget target,

@@ -50,6 +50,7 @@ import org.tmatesoft.svn.core.internal.wc.ISVNAuthenticationStorage;
 import org.tmatesoft.svn.core.internal.wc.SVNConfigFile;
 import org.tmatesoft.svn.core.internal.wc.SVNFileUtil;
 import org.tmatesoft.svn.core.wc.ISVNOptions;
+import org.tmatesoft.svn.core.wc.SVNDiffOptions;
 import org.tmatesoft.svn.core.wc.SVNWCUtil;
 
 import java.io.File;
@@ -61,6 +62,7 @@ import java.util.*;
 
 @State(
   name = "SvnConfiguration",
+  roamingType = RoamingType.DISABLED,
   storages = {
     @Storage(
       file = StoragePathMacros.WORKSPACE_FILE
@@ -158,6 +160,10 @@ public class SvnConfiguration implements PersistentStateComponent<Element> {
     } catch (NumberFormatException e) {
       return 0;
     }
+  }
+
+  public SVNDiffOptions getMergeOptions() {
+    return new SVNDiffOptions(IGNORE_SPACES_IN_MERGE, IGNORE_SPACES_IN_MERGE, IGNORE_SPACES_IN_MERGE);
   }
 
   private void initServers() {

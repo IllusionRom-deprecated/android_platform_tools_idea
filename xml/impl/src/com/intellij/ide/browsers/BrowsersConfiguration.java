@@ -22,7 +22,7 @@ import com.intellij.openapi.components.*;
 import com.intellij.openapi.util.SystemInfo;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.util.containers.HashMap;
+import com.intellij.util.containers.hash.LinkedHashMap;
 import com.intellij.util.xmlb.SkipDefaultValuesSerializationFilters;
 import com.intellij.util.xmlb.XmlSerializer;
 import com.intellij.xml.XmlBundle;
@@ -43,21 +43,21 @@ import java.util.Map;
 @State(name = "WebBrowsersConfiguration", storages = {@Storage(file = StoragePathMacros.APP_CONFIG + "/browsers.xml")})
 public class BrowsersConfiguration implements PersistentStateComponent<Element> {
   public enum BrowserFamily {
+    CHROME(XmlBundle.message("browsers.chrome"), "chrome", "google-chrome", "Google Chrome", AllIcons.Xml.Browsers.Chrome16) {
+      @Override
+      public BrowserSpecificSettings createBrowserSpecificSettings() {
+        return new ChromeSettings();
+      }
+    },
     EXPLORER(XmlBundle.message("browsers.explorer"), "iexplore", null, null, AllIcons.Xml.Browsers.Explorer16),
-    SAFARI(XmlBundle.message("browsers.safari"), "safari", null, "Safari", AllIcons.Xml.Browsers.Safari16),
-    OPERA(XmlBundle.message("browsers.opera"), "opera", "opera", "Opera", AllIcons.Xml.Browsers.Opera16),
     FIREFOX(XmlBundle.message("browsers.firefox"), "firefox", "firefox", "Firefox", AllIcons.Xml.Browsers.Firefox16) {
       @Override
       public BrowserSpecificSettings createBrowserSpecificSettings() {
         return new FirefoxSettings();
       }
     },
-    CHROME(XmlBundle.message("browsers.chrome"), "chrome", "google-chrome", "Google Chrome", AllIcons.Xml.Browsers.Chrome16) {
-      @Override
-      public BrowserSpecificSettings createBrowserSpecificSettings() {
-        return new ChromeSettings();
-      }
-    };
+    OPERA(XmlBundle.message("browsers.opera"), "opera", "opera", "Opera", AllIcons.Xml.Browsers.Opera16),
+    SAFARI(XmlBundle.message("browsers.safari"), "safari", null, "Safari", AllIcons.Xml.Browsers.Safari16);
 
     private final String myName;
     private final String myWindowsPath;
@@ -106,23 +106,25 @@ public class BrowsersConfiguration implements PersistentStateComponent<Element> 
     }
   }
 
-  private final Map<BrowserFamily, WebBrowserSettings> myBrowserToSettingsMap = new HashMap<BrowserFamily, WebBrowserSettings>();
+  private final Map<BrowserFamily, WebBrowserSettings> myBrowserToSettingsMap = new LinkedHashMap<BrowserFamily, WebBrowserSettings>();
 
   @Override
   @SuppressWarnings({"HardCodedStringLiteral"})
   public Element getState() {
     @NonNls Element element = new Element("WebBrowsersConfiguration");
-    for (BrowserFamily browserFamily : myBrowserToSettingsMap.keySet()) {
-      final Element browser = new Element("browser");
-      browser.setAttribute("family", browserFamily.toString());
-      final WebBrowserSettings value = myBrowserToSettingsMap.get(browserFamily);
-      browser.setAttribute("path", value.getPath());
-      browser.setAttribute("active", Boolean.toString(value.isActive()));
-      final BrowserSpecificSettings specificSettings = value.getBrowserSpecificSettings();
+    for (Map.Entry<BrowserFamily, WebBrowserSettings> entry : myBrowserToSettingsMap.entrySet()) {
+      Element browser = new Element("browser");
+      browser.setAttribute("family", entry.getKey().toString());
+      WebBrowserSettings settings = entry.getValue();
+      browser.setAttribute("path", settings.getPath());
+      browser.setAttribute("active", Boolean.toString(settings.isActive()));
+      BrowserSpecificSettings specificSettings = settings.getBrowserSpecificSettings();
       if (specificSettings != null) {
-        final Element settingsElement = new Element("settings");
+        Element settingsElement = new Element("settings");
         XmlSerializer.serializeInto(specificSettings, settingsElement, new SkipDefaultValuesSerializationFilters());
-        browser.addContent(settingsElement);
+        if (!settingsElement.getContent().isEmpty()) {
+          browser.addContent(settingsElement);
+        }
       }
       element.addContent(browser);
     }
@@ -131,22 +133,19 @@ public class BrowsersConfiguration implements PersistentStateComponent<Element> 
   }
 
   @Override
-  public void loadState(@NonNls Element element) {
-    for (@NonNls Element child : element.getChildren("browser")) {
-      String family = child.getAttributeValue("family");
-      final String path = child.getAttributeValue("path");
-      final String active = child.getAttributeValue("active");
-      final BrowserFamily browserFamily;
+  public void loadState(Element element) {
+    for (Element child : element.getChildren("browser")) {
       Element settingsElement = child.getChild("settings");
       try {
-        browserFamily = BrowserFamily.valueOf(family);
+        BrowserFamily browserFamily = BrowserFamily.valueOf(child.getAttributeValue("family"));
         BrowserSpecificSettings specificSettings = settingsElement == null ? null : browserFamily.createBrowserSpecificSettings();
         if (specificSettings != null) {
           XmlSerializer.deserializeInto(specificSettings, settingsElement);
         }
-        myBrowserToSettingsMap.put(browserFamily, new WebBrowserSettings(path, Boolean.parseBoolean(active), specificSettings));
+        myBrowserToSettingsMap.put(browserFamily, new WebBrowserSettings(child.getAttributeValue("path"), Boolean.parseBoolean(child.getAttributeValue("active")), specificSettings));
       }
-      catch (IllegalArgumentException ignored) { }
+      catch (IllegalArgumentException ignored) {
+      }
     }
   }
 
@@ -175,7 +174,7 @@ public class BrowsersConfiguration implements PersistentStateComponent<Element> 
     WebBrowserSettings result = myBrowserToSettingsMap.get(browserFamily);
     if (result == null) {
       final String path = browserFamily.getExecutionPath();
-      result = new WebBrowserSettings(path == null ? "" : path, path != null, null);
+      result = new WebBrowserSettings(StringUtil.notNullize(path), path != null, null);
       myBrowserToSettingsMap.put(browserFamily, result);
     }
 
