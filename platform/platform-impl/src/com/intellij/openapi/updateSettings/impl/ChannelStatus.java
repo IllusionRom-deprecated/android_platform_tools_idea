@@ -28,10 +28,10 @@ public class ChannelStatus implements Comparable<ChannelStatus> {
   @NonNls public static final String EAP_CODE = "eap";
   @NonNls public static final String RELEASE_CODE = "release";
 
-  public static final ChannelStatus EAP = new ChannelStatus(0, EAP_CODE, "Early Access Program");
-  public static final ChannelStatus MILESTONE = new ChannelStatus(1, "milestone", "Milestone Releases");
-  public static final ChannelStatus BETA = new ChannelStatus(2, "beta", "Beta Releases or Public Previews");
-  public static final ChannelStatus RELEASE = new ChannelStatus(3, RELEASE_CODE, "New Major Version Releases");
+  public static final ChannelStatus EAP = new ChannelStatus(0, EAP_CODE, "Canary Channel");
+  public static final ChannelStatus MILESTONE = new ChannelStatus(1, "milestone", "Dev Channel");
+  public static final ChannelStatus BETA = new ChannelStatus(2, "beta", "Beta Channel");
+  public static final ChannelStatus RELEASE = new ChannelStatus(3, RELEASE_CODE, "Stable Channel");
 
   private static final List<ChannelStatus> ALL_TYPES = ContainerUtil.immutableList(RELEASE, BETA, MILESTONE, EAP);
 
