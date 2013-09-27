@@ -40,6 +40,7 @@ import com.intellij.ui.CheckedTreeNode;
 import com.intellij.ui.ScrollPaneFactory;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.ui.UIUtil;
+import com.intellij.util.ui.tree.TreeUtil;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -47,6 +48,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+import javax.swing.tree.DefaultMutableTreeNode;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
@@ -78,7 +80,7 @@ public class AddSupportForFrameworksPanel implements Disposable {
     myLibrariesContainer = model.getLibrariesContainer();
 
     myLabel.setVisible(!vertical);
-    Splitter splitter = vertical ? new Splitter(true, 0.6f, 0.3f, 0.9f) : new Splitter(false, 0.3f, 0.1f, 0.7f);
+    Splitter splitter = vertical ? new Splitter(true, 0.6f) : new Splitter(false, 0.3f, 0.1f, 0.7f);
     myFrameworksTree = new FrameworksTree() {
       @Override
       protected void onNodeStateChanged(CheckedTreeNode node) {
@@ -109,13 +111,13 @@ public class AddSupportForFrameworksPanel implements Disposable {
     splitter.setSecondComponent(myOptionsPanel);
     myFrameworksPanel.add(splitter, BorderLayout.CENTER);
 
-    myFrameworksTree.setSelectionRow(0);    
   }
 
   public void setProviders(List<FrameworkSupportInModuleProvider> providers) {
     myProviders = providers;
     createNodes();
     myFrameworksTree.setRoots(myRoots);
+    myFrameworksTree.setSelectionRow(0);
   }
 
   protected void onFrameworkStateChanged() {}
@@ -299,7 +301,7 @@ public class AddSupportForFrameworksPanel implements Disposable {
   private static void addChildFrameworks(final List<FrameworkSupportNodeBase> list, final List<FrameworkSupportNode> result,
                                          final boolean selectedOnly) {
     for (FrameworkSupportNodeBase node : list) {
-      if (!selectedOnly || node.isChecked()) {
+      if (!selectedOnly || node.isChecked() || node instanceof FrameworkGroupNode) {
         if (node instanceof FrameworkSupportNode) {
           result.add((FrameworkSupportNode)node);
         }
@@ -350,5 +352,9 @@ public class AddSupportForFrameworksPanel implements Disposable {
         return comparator.compare(o1.getProvider(), o2.getProvider());
       }
     });
+  }
+
+  public CheckedTreeNode findNodeFor(FrameworkSupportInModuleProvider provider) {
+    return (CheckedTreeNode)TreeUtil.findNodeWithObject((DefaultMutableTreeNode)myFrameworksTree.getModel().getRoot(), provider);
   }
 }

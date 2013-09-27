@@ -286,6 +286,7 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   public void testContractAnnotation() { doTest(); }
   public void testContractInLoopNotTooComplex() { doTest(); }
   public void testContractWithNullable() { doTest(); }
+  public void testContractPreservesUnknownNullability() { doTest(); }
 
   public void testBoxingImpliesNotNull() { doTest(); }
   public void testLargeIntegersAreNotEqualWhenBoxed() { doTest(); }
@@ -295,6 +296,12 @@ public class DataFlowInspectionTest extends LightCodeInsightFixtureTestCase {
   public void testAnonymousMethodIndependence() { doTest(); }
   public void testAnonymousFieldIndependence() { doTest(); }
   public void testNoConfusionWithAnonymousConstantInitializer() { doTest(); }
+  public void testForeachOverWildcards() { doTest(); }
+  public void testFinalGetter() { doTest(); }
+  
+  public void testManySequentialIfsNotComplex() { doTest(); }
+  public void testLongDisjunctionsNotComplex() { doTest(); }
+  public void testWhileNotComplex() { doTest(); }
   
   public void _testNullCheckBeforeInstanceof() { doTest(); }
 }

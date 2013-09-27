@@ -18,72 +18,171 @@ package com.intellij.ide.projectWizard;
 import com.intellij.framework.FrameworkGroup;
 import com.intellij.framework.FrameworkTypeEx;
 import com.intellij.framework.addSupport.FrameworkSupportInModuleProvider;
-import com.intellij.ide.util.frameworkSupport.FrameworkSupportModelImpl;
 import com.intellij.ide.util.frameworkSupport.FrameworkSupportUtil;
 import com.intellij.ide.util.newProjectWizard.AddSupportForFrameworksPanel;
 import com.intellij.ide.util.newProjectWizard.impl.FrameworkSupportModelBase;
-import com.intellij.ide.wizard.StepAdapter;
-import com.intellij.openapi.Disposable;
+import com.intellij.ide.util.projectWizard.ModuleBuilder;
+import com.intellij.ide.util.projectWizard.ModuleWizardStep;
+import com.intellij.ide.util.projectWizard.WizardContext;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ModifiableRootModel;
+import com.intellij.openapi.roots.ui.configuration.ModulesProvider;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainer;
 import com.intellij.openapi.roots.ui.configuration.projectRoot.LibrariesContainerFactory;
 import com.intellij.openapi.util.Disposer;
+import com.intellij.openapi.util.text.StringUtil;
+import com.intellij.ui.CheckedTreeNode;
 import com.intellij.ui.CollectionListModel;
+import com.intellij.ui.ColoredListCellRenderer;
 import com.intellij.ui.components.JBList;
 import com.intellij.util.ArrayUtil;
+import com.intellij.util.Function;
+import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.FactoryMap;
+import com.intellij.util.containers.MultiMap;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
 
 /**
  * @author Dmitry Avdeev
  *         Date: 04.09.13
  */
-public class ProjectTypeStep extends StepAdapter {
+public class ProjectTypeStep extends ModuleWizardStep {
 
+  private static final String FRAMEWORKS_CARD = "frameworks card";
+  private final WizardContext myContext;
+  private final NewProjectWizard myWizard;
+  private final ModulesProvider myModulesProvider;
   private JPanel myPanel;
   private JBList myProjectTypeList;
   private JPanel myOptionsPanel;
 
+  @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
+  private final FactoryMap<ProjectCategory, ModuleBuilder> myBuilders = new FactoryMap<ProjectCategory, ModuleBuilder>() {
+    @Nullable
+    @Override
+    protected ModuleBuilder create(ProjectCategory key) {
+      return key.createModuleBuilder();
+    }
+  };
+  private final Set<String> myCards = new HashSet<String>();
+
   private final AddSupportForFrameworksPanel myFrameworksPanel;
-  private final FrameworkSupportModelBase myModel;
+  private final ModuleBuilder.ModuleConfigurationUpdater myConfigurationUpdater;
 
-  public ProjectTypeStep(Project project, Disposable disposable) {
-
+  public ProjectTypeStep(WizardContext context, NewProjectWizard wizard, ModulesProvider modulesProvider) {
+    myContext = context;
+    myWizard = wizard;
+    myModulesProvider = modulesProvider;
+    Project project = context.getProject();
     final LibrariesContainer container = LibrariesContainerFactory.createContainer(project);
-    myModel = new FrameworkSupportModelImpl(project, "", container);
-    ProjectCategory[] projectCategories = ProjectCategory.EXTENSION_POINT_NAME.getExtensions();
-    myProjectTypeList.setModel(new CollectionListModel<ProjectCategory>(Arrays.asList(projectCategories)));
-    myProjectTypeList.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+    FrameworkSupportModelBase model = new FrameworkSupportModelBase(project, null, container) {
+      @NotNull
       @Override
-      public void valueChanged(ListSelectionEvent e) {
-        updateFrameworks((ProjectCategory)myProjectTypeList.getSelectedValue());
+      public String getBaseDirectoryForLibrariesPath() {
+        return StringUtil.notNullize(getSelectedBuilder().getContentEntryPath());
+      }
+    };
+    myConfigurationUpdater = new ModuleBuilder.ModuleConfigurationUpdater() {
+      @Override
+      public void update(@NotNull Module module, @NotNull ModifiableRootModel rootModel) {
+        myFrameworksPanel.addSupport(module, rootModel);
+      }
+    };
+
+    myProjectTypeList.setCellRenderer(new ColoredListCellRenderer() {
+      @Override
+      protected void customizeCellRenderer(JList list, Object value, int index, boolean selected, boolean hasFocus) {
+        ProjectCategory category = (ProjectCategory)value;
+        append(category.getDisplayName());
+        setIcon(category.getIcon());
       }
     });
 
-    myFrameworksPanel = new AddSupportForFrameworksPanel(Collections.<FrameworkSupportInModuleProvider>emptyList(), myModel, true);
-    Disposer.register(disposable, myFrameworksPanel);
+    List<ProjectCategory> categories = new ArrayList<ProjectCategory>();
+    categories.addAll(ContainerUtil.map(ModuleBuilder.getAllBuilders(), new Function<ModuleBuilder, ProjectCategory>() {
+      @Override
+      public ProjectCategory fun(ModuleBuilder builder) {
+        return new BuilderBasedProjectType(builder);
+      }
+    }));
+    categories.addAll(Arrays.asList(ProjectCategory.EXTENSION_POINT_NAME.getExtensions()));
 
-    myOptionsPanel.add(myFrameworksPanel.getMainPanel(), BorderLayout.CENTER);
+    final MultiMap<String, ProjectCategory> map = new MultiMap<String, ProjectCategory>();
+    for (ProjectCategory category : categories) {
+      map.putValue(category.getGroupName(), category);
+    }
+    Collections.sort(categories, new Comparator<ProjectCategory>() {
+      @Override
+      public int compare(ProjectCategory o1, ProjectCategory o2) {
+        return map.get(o2.getGroupName()).size() - map.get(o1.getGroupName()).size();
+      }
+    });
+
+    myProjectTypeList.setModel(new CollectionListModel<ProjectCategory>(categories));
+    myProjectTypeList.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+      @Override
+      public void valueChanged(ListSelectionEvent e) {
+        ModuleBuilder builder = getSelectedBuilder();
+        myContext.setProjectBuilder(builder);
+        myWizard.getSequence().setType(builder.getBuilderId());
+        builder.addModuleConfigurationUpdater(myConfigurationUpdater);
+        updateOptionsPanel((ProjectCategory)myProjectTypeList.getSelectedValue());
+      }
+    });
+
+    for (ProjectCategory category : categories) {
+      myWizard.getSequence().addStepsForBuilder(myBuilders.get(category), context, modulesProvider, true);
+    }
+
+    myFrameworksPanel = new AddSupportForFrameworksPanel(Collections.<FrameworkSupportInModuleProvider>emptyList(), model, true);
+    Disposer.register(wizard.getDisposable(), myFrameworksPanel);
+
+    myOptionsPanel.add(myFrameworksPanel.getMainPanel(), FRAMEWORKS_CARD);
     myProjectTypeList.setSelectedIndex(0);
   }
 
-  private void updateFrameworks(ProjectCategory projectCategory) {
-    List<FrameworkSupportInModuleProvider> providers = new ArrayList<FrameworkSupportInModuleProvider>();
-    if (projectCategory != null) {
+  private ModuleBuilder getSelectedBuilder() {
+    ProjectCategory projectCategory = (ProjectCategory)myProjectTypeList.getSelectedValue();
+    return myBuilders.get(projectCategory);
+  }
+
+  private void updateOptionsPanel(ProjectCategory projectCategory) {
+    if (projectCategory == null) return;
+    ModuleBuilder builder = myBuilders.get(projectCategory);
+    JComponent panel = builder.getCustomOptionsPanel(this);
+    String card;
+    if (panel != null) {
+      card = builder.getBuilderId();
+      if (myCards.add(card)) {
+         myOptionsPanel.add(panel, card);
+      }
+    }
+    else {
+      card = FRAMEWORKS_CARD;
+      List<FrameworkSupportInModuleProvider> providers = new ArrayList<FrameworkSupportInModuleProvider>();
       for (FrameworkSupportInModuleProvider framework : FrameworkSupportUtil.getAllProviders()) {
         if (matchFramework(projectCategory, framework)) {
           providers.add(framework);
         }
       }
+      myFrameworksPanel.setProviders(providers);
+      for (FrameworkSupportInModuleProvider provider : providers) {
+        if (ArrayUtil.contains(provider.getFrameworkType().getId(), projectCategory.getAssociatedFrameworkIds())) {
+          CheckedTreeNode treeNode = myFrameworksPanel.findNodeFor(provider);
+          treeNode.setChecked(true);
+        }
+      }
     }
-    myFrameworksPanel.setProviders(providers);
+    ((CardLayout)myOptionsPanel.getLayout()).show(myOptionsPanel, card);
   }
 
   private static boolean matchFramework(ProjectCategory projectCategory, FrameworkSupportInModuleProvider framework) {
@@ -117,6 +216,11 @@ public class ProjectTypeStep extends StepAdapter {
   @Override
   public JComponent getComponent() {
     return myPanel;
+  }
+
+  @Override
+  public void updateDataModel() {
+    myWizard.getSequence().addStepsForBuilder(getSelectedBuilder(), myContext, myModulesProvider, true);
   }
 
   @Override
