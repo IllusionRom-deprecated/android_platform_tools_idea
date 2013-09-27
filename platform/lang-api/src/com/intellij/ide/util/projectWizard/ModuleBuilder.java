@@ -17,6 +17,7 @@ package com.intellij.ide.util.projectWizard;
 
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.highlighter.ModuleFileType;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.extensions.ExtensionPointName;
@@ -57,7 +58,6 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
   private String myContentEntryPath;
   private final Set<ModuleConfigurationUpdater> myUpdaters = new HashSet<ModuleConfigurationUpdater>();
   private final EventDispatcher<ModuleBuilderListener> myDispatcher = EventDispatcher.create(ModuleBuilderListener.class);
-  private Map<String, Boolean> myAvailableFrameworks;
 
   @NotNull
   public static List<ModuleBuilder> getAllBuilders() {
@@ -138,6 +138,11 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
         }
       };
     }
+  }
+
+  @Nullable
+  public JComponent getCustomOptionsPanel(Disposable parentDisposable) {
+    return null;
   }
 
   protected List<WizardInputField> getAdditionalFields() {
@@ -362,10 +367,14 @@ public abstract class ModuleBuilder extends AbstractModuleBuilder {
     return myJdk;
   }
 
+  private Map<String, Boolean> myAvailableFrameworks;
+
+  /** @deprecated will be removed */
   public Map<String, Boolean> getAvailableFrameworks() {
     return myAvailableFrameworks;
   }
 
+  /** @deprecated will be removed */
   public void setAvailableFrameworks(Map<String, Boolean> availableFrameworks) {
     myAvailableFrameworks = availableFrameworks;
   }

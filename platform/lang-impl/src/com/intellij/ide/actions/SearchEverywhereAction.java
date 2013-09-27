@@ -34,6 +34,8 @@ import com.intellij.openapi.actionSystem.ex.CustomComponentAction;
 import com.intellij.openapi.actionSystem.impl.ActionManagerImpl;
 import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.editor.colors.EditorColorsManager;
+import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.fileEditor.impl.EditorHistoryManager;
 import com.intellij.openapi.keymap.KeymapUtil;
@@ -71,6 +73,7 @@ import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.OnOffButton;
 import com.intellij.ui.popup.AbstractPopup;
+import com.intellij.ui.popup.PopupPositionManager;
 import com.intellij.util.Alarm;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.Consumer;
@@ -88,6 +91,8 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static com.intellij.ui.popup.PopupPositionManager.Position.*;
 
 /**
  * @author Konstantin Bulenkov
@@ -107,10 +112,15 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
   private JBPopup myPopup;
   private int myLeftWidth;
   private SearchListModel myListModel = new SearchListModel();
+  private int myMoreClassesIndex = -1;
+  private int myMoreFilesIndex = -1;
+  private int myMoreActionsIndex = -1;
+  private int myMoreSettingsIndex = -1;
   private TitleIndexes myTitleIndexes;
   private Map<String, String> myConfigurables = new HashMap<String, String>();
 
   private Alarm myAlarm = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, ApplicationManager.getApplication());
+  private Alarm myUpdateAlarm = new Alarm(ApplicationManager.getApplication());
   private JBList myList = new JBList(myListModel) {
     {
       setOpaque(false);
@@ -142,11 +152,9 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     }, null);
   }
 
-  private int myTopHitsCount;
-  private int myInitialWidth;
-  private int myInitialHeight;
   private Balloon myBalloon;
   private JLabel mySearchLabel;
+  private int myPopupActualWidth;
 
   public SearchEverywhereAction() {
     myContentPanel = new JPanel(new BorderLayout());
@@ -184,7 +192,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         final int i = myList.locationToIndex(e.getPoint());
         if (i != -1) {
           myList.setSelectedIndex(i);
-          doNavigate();
+          doNavigate(i);
         }
       }
     });
@@ -272,7 +280,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
           focusManager.requestDefaultFocus(true);
         }
         else if (keyCode == KeyEvent.VK_ENTER) {
-          doNavigate();
+          doNavigate(myList.getSelectedIndex());
         }
       }
     });
@@ -291,7 +299,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
           myCalcThread = null;
         }
         myAlarm.cancelAllRequests();
-        myListModel.clear();
+        clearModel();
         myContentPanel.remove(field);
         myContentPanel.add(mySearchLabel);
 
@@ -307,14 +315,37 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     });
   }
 
+  private void clearModel() {
+    myListModel.clear();
+    myMoreClassesIndex = -1;
+    myMoreFilesIndex = -1;
+    myMoreActionsIndex = -1;
+    myMoreSettingsIndex = -1;
+  }
+
   private SearchTextField getField() {
     return myBalloon != null ? myPopupField : field;
   }
 
-  private void doNavigate() {
+  private void doNavigate(int index) {
+    final Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(getField().getTextEditor()));
+    if (isMoreItem(index)) {
+      String actionId = null;
+      if (index == myMoreClassesIndex) actionId = "GotoClass";
+      else if (index == myMoreFilesIndex) actionId = "GotoFile";
+      else if (index == myMoreSettingsIndex) actionId = "ShowSettings";
+      else if (index == myMoreActionsIndex) actionId = "GotoAction";
+      if (actionId != null) {
+        final AnAction action = ActionManager.getInstance().getAction(actionId);
+        GotoActionAction.openOptionOrPerformAction(action, getField().getText(), project, getField(), myActionEvent);
+        if (myPopup != null && myPopup.isVisible()) {
+          myPopup.cancel();
+        }
+        return;
+      }
+    }
     final String pattern = getField().getText();
     final Object value = myList.getSelectedValue();
-    final Project project = PlatformDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(getField().getTextEditor()));
     IdeFocusManager focusManager = IdeFocusManager.findInstanceByComponent(field.getTextEditor());
     if (myPopup != null && myPopup.isVisible()) {
       myPopup.cancel();
@@ -356,6 +387,10 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     focusManager.requestDefaultFocus(true);
   }
 
+  private boolean isMoreItem(int index) {
+    return index == myMoreClassesIndex || index == myMoreFilesIndex || index == myMoreSettingsIndex || index == myMoreActionsIndex;
+  }
+
   private void rebuildList(final String pattern) {
     if (myCalcThread != null) {
       myCalcThread.cancel();
@@ -377,13 +412,16 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     myPopupField.setOpaque(true);
     initSearchField(myPopupField);
     myPopupField.getTextEditor().setColumns(25);
-    myBalloon = JBPopupFactory.getInstance().createBalloonBuilder(myPopupField)
+    final JPanel panel = new JPanel(new BorderLayout());
+    panel.add(new JLabel("Search Everywhere:"), BorderLayout.NORTH);
+    panel.add(myPopupField, BorderLayout.CENTER);
+    myBalloon = JBPopupFactory.getInstance().createBalloonBuilder(panel)
       .setShowCallout(false)
       .setHideOnKeyOutside(false)
       .setHideOnAction(true)
       .setAnimationCycle(0)
       .setDialogMode(false)
-      .setBorderColor(new JBColor(new Color(156, 192, 255), new Color(77, 77, 77)))
+      .setBorderColor(new JBColor(new Color(156, 192, 255), Gray._77))
       .setFillColor(new JBColor(new Color(77, 121, 231), new Color(60, 63, 65)))
       .createBalloon();
     myBalloon.show(JBPopupFactory.getInstance().guessBestPopupLocation(e.getDataContext()), Balloon.Position.below);
@@ -454,8 +492,10 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
       Component cmp;
       PsiFile file;
       myLocationString = null;
-      if (value instanceof VirtualFile && myProject != null && (file = PsiManager.getInstance(myProject).findFile((VirtualFile)value)) != null) {
-          cmp = new GotoFileCellRenderer(list.getWidth()).getListCellRendererComponent(list, file, index, isSelected, cellHasFocus);
+      if (isMoreItem(index)) {
+        cmp = More.get(isSelected);
+      } else if (value instanceof VirtualFile && myProject != null && (file = PsiManager.getInstance(myProject).findFile((VirtualFile)value)) != null) {
+        cmp = new GotoFileCellRenderer(list.getWidth()).getListCellRendererComponent(list, file, index, isSelected, cellHasFocus);
       } else if (value instanceof PsiElement) {
         cmp = myPsiRenderer.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
       } else {
@@ -477,9 +517,12 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         cmp = panel;
       }
 
-      final Color bg = isSelected ? UIUtil.getListSelectionBackground() : getRightBackground();
-      cmp.setBackground(bg);
-      myMainPanel.setBorder(new CustomLineBorder(bg, 0, 0, 1, 0));
+      //cmp.setBackground(bg);
+      Color bg = cmp.getBackground();
+      if (bg == null) {
+        bg = UIUtil.getListBackground(isSelected);
+      }
+      myMainPanel.setBorder(new CustomLineBorder(bg, 0, 0, 2, 0));
       String title = myTitleIndexes.getTitle(index);
       myMainPanel.removeAll();
       if (title != null) {
@@ -487,6 +530,11 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         myMainPanel.add(SeparatorComponent.createLabeledLineSeparator(" " + title, getRightBackground()), BorderLayout.NORTH);
       }
       myMainPanel.add(cmp, BorderLayout.CENTER);
+      final int width = myMainPanel.getPreferredSize().width;
+      if (width > myPopupActualWidth) {
+        myPopupActualWidth = width;
+        schedulePopupUpdate();
+      }
       return myMainPanel;
     }
 
@@ -578,6 +626,16 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     }
   }
 
+  private void schedulePopupUpdate() {
+    myUpdateAlarm.cancelAllRequests();
+    myUpdateAlarm.addRequest(new Runnable() {
+      @Override
+      public void run() {
+        updatePopupBounds();
+      }
+    }, 50);
+  }
+
   private static JBColor getTitlePanelBackground() {
     return new JBColor(Gray._242, JBColor.background());
   }
@@ -620,7 +678,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         @Override
         public void run() {
           myTitleIndexes.clear();
-          myListModel.clear();
+          clearModel();
           myAlreadyAddedFiles.clear();
         }
       });
@@ -659,13 +717,13 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         Object[] objects = myActionModel.getElementsByName(o.elementName, true, pattern);
         for (Object object : objects) {
           myProgressIndicator.checkCanceled();
-          if (isSetting(object) && settings.size() < 15) {
+          if (isSetting(object) && settings.size() < 5) {
             settings.add(object);
           }
           else if (isToolWindowAction(object) && toolWindows.size() < 10) {
             toolWindows.add((AnAction)((Map.Entry)object).getKey());
           }
-          else if (isActionValue(object) && actions.size() < 15) {
+          else if (isActionValue(object) && actions.size() < 5) {
             actions.add((AnAction)((Map.Entry)object).getKey());
           }
         }
@@ -689,12 +747,14 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
               myListModel.addElement(action);
             }
           }
+          myMoreActionsIndex = actions.size() >= 5 ? myListModel.size() - 1 : -1;
           if (settings.size() > 0) {
             myTitleIndexes.settings = myListModel.size();
             for (Object setting : settings) {
               myListModel.addElement(setting);
             }
           }
+          myMoreSettingsIndex = settings.size() >= 5 ? myListModel.size() - 1 : -1;
         }
       });
     }
@@ -719,7 +779,6 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
               filesCounter++;
             }
           }
-          if (filesCounter > 15) break;
         }
       }
 
@@ -734,6 +793,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
               for (Object file : files) {
                 myListModel.addElement(file);
               }
+              myMoreFilesIndex = files.size() >= 15 ? myListModel.size() - 1 : -1;
             }
           }
         });
@@ -780,6 +840,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
               for (Object cls : classes) {
                 myListModel.addElement(cls);
               }
+              myMoreClassesIndex = classes.size() >= 15 ? myListModel.size() - 1 : -1;
             }
           }
         });
@@ -951,10 +1012,13 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
 
           myRenderer.recalculateWidth();
           if (myPopup == null || !myPopup.isVisible()) {
+            final Font editorFont = EditorColorsManager.getInstance().getGlobalScheme().getFont(EditorFontType.PLAIN);
+            myList.setFont(editorFont);
+            getField().getTextEditor().setFont(editorFont);
+            More.instance.label.setFont(editorFont);
             final ActionCallback callback = ListDelegationUtil.installKeyboardDelegation(getField().getTextEditor(), myList);
             final ComponentPopupBuilder builder = JBPopupFactory.getInstance()
               .createComponentPopupBuilder(new JBScrollPane(myList), null);
-            myInitialWidth = myInitialHeight = 0;
             myPopup = builder
               .setRequestFocus(false)
               .setCancelKeyEnabled(false)
@@ -997,29 +1061,16 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
             //rebuildList("");
           }
           else {
-            final Dimension size = myList.getPreferredSize();
-            Dimension sz = new Dimension(Math.max(getField().getWidth(), size.width), size.height);
-            if (sz.width > 800 || sz.height > 800) {
-              final int extra = new JBScrollPane().getVerticalScrollBar().getWidth();
-              sz = new Dimension(Math.min(800, Math.max(getField().getWidth(), size.width + extra)), Math.min(800, size.height + extra));
-              sz.width += 16;
-            }
-            else {
-              sz.height++;
-              sz.height++;
-              sz.width++;
-              sz.width++;
-            }
-            myPopup.setSize(sz);
-            final Point screen = getField().getLocationOnScreen();
-            final int x;
-            if (getField() == field) {
-               x = screen.x + getField().getWidth() - myPopup.getSize().width;
-            } else {
-              x = screen.x - myLeftWidth - 5;
-            }
-
-            //myPopup.setLocation(new Point(x, myPopup.getLocationOnScreen().y));
+            updatePopupBounds();
+            //final Point screen = getField().getLocationOnScreen();
+            //final int x;
+            //if (getField() == field) {
+            //   x = screen.x + getField().getWidth() - myPopup.getSize().width;
+            //} else {
+            //  x = screen.x - myLeftWidth - 5;
+            //}
+            //
+            ////myPopup.setLocation(new Point(x, myPopup.getLocationOnScreen().y));
           }
         }
       });
@@ -1081,6 +1132,34 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         ProgressManager.getInstance().runProcess(this, myProgressIndicator);
       }
     }
+  }
+
+  private void updatePopupBounds() {
+    if (myPopup == null || !myPopup.isVisible()) {
+      return;
+    }
+    final Dimension size = myList.getPreferredSize();
+    if (size.width < myPopupActualWidth) {
+      size.width = myPopupActualWidth;
+    }
+    Dimension sz = new Dimension(Math.max(getField().getWidth(), size.width), size.height);
+    if (sz.width > 800 || sz.height > 800) {
+      final int extra = new JBScrollPane().getVerticalScrollBar().getWidth();
+      sz = new Dimension(Math.min(800, Math.max(getField().getWidth(), size.width + extra)), Math.min(800, size.height + extra));
+      sz.width += 16;
+    }
+    else {
+      sz.height++;
+      sz.height++;
+      sz.width++;
+      sz.width++;
+    }
+    myPopup.setSize(sz);
+    adjustPopup();
+  }
+
+  private void adjustPopup() {
+    new PopupPositionManager.PositionAdjuster(getField().getTextEditor().getParent()).adjust(myPopup, BOTTOM, RIGHT, LEFT, TOP);
   }
 
   private static boolean isToolWindowAction(Object o) {
@@ -1167,8 +1246,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
       catch (NoSuchFieldException e) {
 
       }
-      catch (IllegalAccessException e) {
-        e.printStackTrace();
+      catch (IllegalAccessException ignore) {
       }
     }
 
@@ -1179,6 +1257,22 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
 
     public void update() {
       fireContentsChanged(this, 0, getSize() - 1);
+    }
+  }
+
+  static class More extends JPanel {
+    static final More instance = new More();
+    final JLabel label = new JLabel("    ... more");
+
+    private More() {
+      super(new BorderLayout());
+      add(label, BorderLayout.WEST);
+    }
+
+    static More get(boolean isSelected) {
+      instance.setBackground(UIUtil.getListBackground(isSelected));
+      instance.label.setForeground(UIUtil.getListForeground(isSelected));
+      return instance;
     }
   }
 }
