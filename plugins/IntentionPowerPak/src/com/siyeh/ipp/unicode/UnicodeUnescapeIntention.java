@@ -88,6 +88,10 @@ public class UnicodeUnescapeIntention extends Intention {
    * see JLS 3.3. Unicode Escapes
    */
   private static int indexOfUnicodeEscape(String text, int offset) {
+    if (text == null) {
+      // apparently an editor can have a selection, but still null for selected text.
+      return -1;
+    }
     final int length = text.length();
     for (int i = 0; i < length; i++) {
       final char c = text.charAt(i);
@@ -111,7 +115,7 @@ public class UnicodeUnescapeIntention extends Intention {
         }
       }
       while (text.charAt(nextChar) == 'u'); // \uuuu0061 is a legal unicode escape
-      if (nextChar + 3 >= length) {
+      if (nextChar == i + 1 || nextChar + 3 >= length) {
         break;
       }
       if (StringUtil.isHexDigit(text.charAt(nextChar)) &&

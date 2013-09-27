@@ -94,7 +94,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
   EditorMarkupModelImpl(@NotNull EditorImpl editor) {
     super(editor.getDocument());
     myEditor = editor;
-    myEditorFragmentRenderer = new EditorFragmentRenderer(0, Collections.<RangeHighlighterEx>emptyList(), 0);
+    myEditorFragmentRenderer = new EditorFragmentRenderer();
   }
 
   private int offsetToLine(int offset, Document document) {
@@ -184,7 +184,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
       collectRangeHighlighters(this, line, highlighters);
       collectRangeHighlighters((MarkupModelEx)DocumentMarkupModel.forDocument(myEditor.getDocument(), getEditor().getProject(), true), line,
                                highlighters);
-      myEditorFragmentRenderer.update(line, highlighters, 0);
+      myEditorFragmentRenderer.update(line, highlighters);
       HintHint hint = new HintHint(me).setAwtTooltip(true).setPreferredPosition(Balloon.Position.atLeft).setShowImmediately(true)
         .setAnimationEnabled(false);
       myEditorFragmentRenderer.show(myEditor, me.getPoint(), true, ERROR_STRIPE_TOOLTIP_GROUP, hint);
@@ -267,9 +267,11 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
   private void doClick(final MouseEvent e) {
     RangeHighlighter marker = getNearestRangeHighlighter(e);
     int offset;
+    LogicalPosition logicalPositionToScroll = null;
     if (marker == null) {
       if (myEditorPreviewHint != null) {
-        offset = myEditor.getDocument().getLineStartOffset(getLineByEvent(e)/*myEditorFragmentRenderer.myLine*/);
+        logicalPositionToScroll = myEditor.visualToLogicalPosition(new VisualPosition(myEditorFragmentRenderer.myStartLine, 0));
+        offset = myEditor.getDocument().getLineStartOffset(logicalPositionToScroll.line);
       } else {
         return;
       }
@@ -281,7 +283,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
     if (doc.getLineCount() > 0 && myEditorPreviewHint == null) {
       // Necessary to expand folded block even if navigating just before one
       // Very useful when navigating to first unused import statement.
-      int lineEnd = doc.getLineEndOffset(myEditorFragmentRenderer.myLine);
+      int lineEnd = doc.getLineEndOffset(doc.getLineNumber(offset));
       myEditor.getCaretModel().moveToOffset(lineEnd);
     }
 
@@ -289,8 +291,8 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
     myEditor.getSelectionModel().removeSelection();
     ScrollingModel scrollingModel = myEditor.getScrollingModel();
     scrollingModel.disableAnimation();
-    if (myEditorPreviewHint != null) {
-      int lineY = myEditor.logicalPositionToXY(new LogicalPosition(myEditorFragmentRenderer.myStartLine, 0)).y;
+    if (logicalPositionToScroll != null) {
+      int lineY = myEditor.logicalPositionToXY(logicalPositionToScroll).y;
       int relativePopupOffset = myEditorFragmentRenderer.myRelativeY;
       scrollingModel.scrollVertically(lineY - relativePopupOffset);
     }
@@ -1014,20 +1016,18 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
   private class EditorFragmentRenderer implements TooltipRenderer {
     private int myLine;
     private Collection<RangeHighlighterEx> myHighlighters;
-    private int myMouseX;
     private BufferedImage myImage;
     private int myStartLine;
     private int myEndLine;
     private int myRelativeY;
 
-    private EditorFragmentRenderer(int currentLine, Collection<RangeHighlighterEx> rangeHighlighters, int mouseX) {
-      update(currentLine, rangeHighlighters, mouseX);
+    private EditorFragmentRenderer() {
+      update(0, Collections.<RangeHighlighterEx>emptyList());
     }
 
-    public void update(int currentLine, Collection<RangeHighlighterEx> rangeHighlighters, int mouseX) {
+    public void update(int currentLine, Collection<RangeHighlighterEx> rangeHighlighters) {
       myLine = currentLine;
       myHighlighters = rangeHighlighters;
-      myMouseX = mouseX;
       myImage = null;
       myStartLine = Math.max(0, myLine - myPreviewLines);
       myEndLine = Math.min(myEditor.getDocument().getLineCount() - 1, myLine + myPreviewLines + 1);
@@ -1043,13 +1043,13 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
       if (myEditorPreviewHint == null) {
         final JPanel editorFragmentPreviewPanel = new JPanel() {
           private static final int R = 6;
-
+          private static final int LEFT_INDENT = BalloonImpl.ARC + 5;
 
           @Override
           public Dimension getPreferredSize() {
             int width = myEditor.getGutterComponentEx().getWidth();
             width += Math.min(myEditor.getScrollingModel().getVisibleArea().width, myEditor.getContentComponent().getWidth());
-            return new Dimension(width - BalloonImpl.POINTER_WIDTH, myEditor.getLineHeight() * (myEndLine - myStartLine));
+            return new Dimension(width - BalloonImpl.POINTER_WIDTH - LEFT_INDENT, myEditor.getLineHeight() * (myEndLine - myStartLine));
           }
 
           @Override
@@ -1077,7 +1077,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
                   exs.add(rangeHighlighter);
                 }
               }
-              AffineTransform translateInstance = AffineTransform.getTranslateInstance(myMouseX, lineShift);
+              AffineTransform translateInstance = AffineTransform.getTranslateInstance(-LEFT_INDENT, lineShift);
               translateInstance.preConcatenate(transform);
               g2d.setTransform(translateInstance);
               EditorGutterComponentEx gutterComponentEx = myEditor.getGutterComponentEx();
@@ -1086,7 +1086,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
               gutterComponentEx.paint(g2d);
               JComponent contentComponent = myEditor.getContentComponent();
               g2d.setClip(width, 0, contentComponent.getWidth(), contentComponent.getHeight());
-              translateInstance = AffineTransform.getTranslateInstance(width - myMouseX, lineShift);
+              translateInstance = AffineTransform.getTranslateInstance(width - LEFT_INDENT, lineShift);
               translateInstance.preConcatenate(transform);
               g2d.setTransform(translateInstance);
               contentComponent.paint(g2d);
