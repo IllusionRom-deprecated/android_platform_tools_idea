@@ -65,6 +65,7 @@
       <w>cygpath</w>
       <w>cygwin</w>
       <w>dalvik</w>
+      <w>darcula</w>
       <w>ddmlib</w>
       <w>ddms</w>
       <w>debuggable</w>
@@ -240,6 +241,7 @@
       <w>resampling</w>
       <w>resizability</w>
       <w>resized</w>
+      <w>revalidate</w>
       <w>rrggbb</w>
       <w>sccs</w>
       <w>screenshot</w>
