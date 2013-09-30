@@ -11,7 +11,7 @@ INSTALLATION INSTRUCTIONS
 
   2. Open a console and cd into "{installation home}/bin" and type:
 
-       ./@@product@@.sh
+       ./@@script_name@@
 
      to start the application.
 
