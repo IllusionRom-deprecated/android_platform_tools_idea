@@ -217,6 +217,7 @@ private layoutUnix(Map _args, String home, Paths paths) {
   Map args = new HashMap(_args)
   args.product_uc = "STUDIO"
   args.vm_options = "studio"
+  args.script_name = "studio.sh"
 
   layout(target) {
     dir("bin") {
@@ -226,7 +227,7 @@ private layoutUnix(Map _args, String home, Paths paths) {
 
   ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/icon_AS.png", tofile: "$target/bin/idea.png")
 
-  unixScripts(target, home, "studio.sh", args)
+  unixScripts(target, home, args.script_name, args)
   unixVMOptions(target, "studio")
   unixReadme(target, home, args)
 }

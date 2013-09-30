@@ -506,6 +506,7 @@ binding.setVariable("unixReadme", { String target, String home, Map args ->
                    ["product_full": fullName,
                     "product": p("component.names.product").toLowerCase(),
                     "system_selector": args.system_selector,
+                    "script_name" : args.script_name,
                     "settings_dir": settings_dir], "@@")
   ant.fixcrlf(file: "$target/bin/Install-Linux-tar.txt", eol: "unix")
 })
