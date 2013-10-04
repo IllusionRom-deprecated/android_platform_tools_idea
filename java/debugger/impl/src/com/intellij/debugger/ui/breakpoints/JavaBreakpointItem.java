@@ -70,7 +70,7 @@ class JavaBreakpointItem extends BreakpointItem {
 
   @Override
   protected void doUpdateDetailView(DetailView panel, boolean editorOnly) {
-    saveState();
+    //saveState();
     myBreakpointPropertiesPanel = null;
 
     if (!editorOnly) {
@@ -79,8 +79,6 @@ class JavaBreakpointItem extends BreakpointItem {
 
       if (myBreakpointPropertiesPanel != null) {
         myBreakpointPropertiesPanel.initFrom(myBreakpoint, true);
-
-        myBreakpointPropertiesPanel.setSaveOnRemove(true);
 
         final JPanel mainPanel = myBreakpointPropertiesPanel.getPanel();
         panel.setPropertiesPanel(mainPanel);
