@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2011 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ public class StringSearcher {
                        Character.isJavaIdentifierPart(pattern.charAt(pattern.length() - 1));
   }
 
+  @NotNull
   public String getPattern(){
     return myPattern;
   }
@@ -174,13 +175,14 @@ public class StringSearcher {
 
   /**
    * @deprecated Use {@link #scan(CharSequence)} instead
-   * @param text
-   * @param startOffset
-   * @param endOffset
-   * @return
    */
   public int scan(char[] text, int startOffset, int endOffset){
     final int res = scan(new CharArrayCharSequence(text),text, startOffset, endOffset);
     return res >= 0 ? res: -1;
+  }
+
+  @Override
+  public String toString() {
+    return "pattern " + myPattern;
   }
 }

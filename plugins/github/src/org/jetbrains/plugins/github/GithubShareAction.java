@@ -95,9 +95,9 @@ public class GithubShareAction extends DumbAwareAction {
   @Override
   public void actionPerformed(final AnActionEvent e) {
     final Project project = e.getData(PlatformDataKeys.PROJECT);
-    final VirtualFile file = e.getData(PlatformDataKeys.VIRTUAL_FILE);
+    final VirtualFile file = e.getData(CommonDataKeys.VIRTUAL_FILE);
 
-    if (project == null || project.isDisposed()) {
+    if (project == null || project.isDisposed() || !GithubUtil.testGitExecutable(project)) {
       return;
     }
 
@@ -172,7 +172,7 @@ public class GithubShareAction extends DumbAwareAction {
           return;
         }
 
-        final String remoteUrl = GithubUrlUtil.getGitHost() + "/" + githubInfo.getUser().getLogin() + "/" + name + ".git";
+        final String remoteUrl = GithubUrlUtil.getCloneUrl(githubInfo.getUser().getLogin(), name);
         final String remoteName = finalExternalRemoteDetected ? "github" : "origin";
 
         //git remote add origin git@github.com:login/name.git
@@ -330,7 +330,7 @@ public class GithubShareAction extends DumbAwareAction {
     catch (VcsException e) {
       LOG.warn(e);
       GithubNotifications.showErrorURL(project, "Can't finish GitHub sharing process", "Successfully created project ", "'" + name + "'",
-                                       " on GitHub, but initial commit failed:<br/>" + e.getMessage(), url);
+                                       " on GitHub, but initial commit failed:<br/>" + GithubUtil.getErrorTextFromException(e), url);
       return false;
     }
     LOG.info("Successfully created initial commit");

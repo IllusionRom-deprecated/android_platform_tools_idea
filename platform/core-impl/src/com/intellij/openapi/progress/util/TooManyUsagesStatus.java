@@ -67,6 +67,7 @@ public class TooManyUsagesStatus {
 
   public void pauseProcessingIfTooManyUsages() {
     if (tooManyUsagesStatus.get() == Status.WARNING_DIALOG_SHOWN) {
+      //assert ApplicationManager.getApplication().isDispatchThread() || !ApplicationManager.getApplication().isReadAccessAllowed();
       try {
         waitWhileUserClick.await(1, TimeUnit.SECONDS);
       }

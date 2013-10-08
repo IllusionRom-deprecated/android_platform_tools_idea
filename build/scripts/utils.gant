@@ -257,6 +257,7 @@ binding.setVariable("platformApiModules", [
   "platform-api",
   "usageView",
   "vcs-api",
+  "vcs-log-api",
   "xdebugger-api",
   "xml-openapi",
   "xml-psi-api",
@@ -277,6 +278,8 @@ binding.setVariable("platformImplementationModules", [
   "projectModel-impl",
   "platform-impl",
   "vcs-impl",
+  "vcs-log-graph",
+  "vcs-log-impl",
   "testRunner",
   "smRunner",
   "relaxng",
@@ -672,6 +675,7 @@ binding.setVariable("buildMacZip", { String zipRoot, String zipPath, List paths,
     allPaths.each {
       zipfileset(dir: it, prefix: zipRoot) {
         exclude(name: "bin/*.sh")
+        exclude(name: "bin/*.py")
         exclude(name: "bin/fsnotifier")
         exclude(name: "bin/restarter")
         exclude(name: "Contents/MacOS/*")
@@ -685,6 +689,7 @@ binding.setVariable("buildMacZip", { String zipRoot, String zipPath, List paths,
     allPaths.each {
       zipfileset(dir: it, filemode: "755", prefix: zipRoot) {
         include(name: "bin/*.sh")
+        include(name: "bin/*.py")
         include(name: "bin/fsnotifier")
         include(name: "bin/restarter")
         include(name: "Contents/MacOS/*")

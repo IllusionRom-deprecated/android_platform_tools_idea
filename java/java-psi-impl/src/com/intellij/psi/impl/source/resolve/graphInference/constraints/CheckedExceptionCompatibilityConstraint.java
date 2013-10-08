@@ -36,7 +36,7 @@ import java.util.Set;
 public class CheckedExceptionCompatibilityConstraint extends InputOutputConstraintFormula {
   private static final Logger LOG = Logger.getInstance("#" + CheckedExceptionCompatibilityConstraint.class.getName());
   private final PsiExpression myExpression;
-  private final PsiType myT;
+  private PsiType myT;
 
   public CheckedExceptionCompatibilityConstraint(PsiExpression expression, PsiType t) {
     myExpression = expression;
@@ -149,6 +149,11 @@ public class CheckedExceptionCompatibilityConstraint extends InputOutputConstrai
   }
 
   @Override
+  protected void setT(PsiType t) {
+    myT = t;
+  }
+
+  @Override
   protected InputOutputConstraintFormula createSelfConstraint(PsiType type, PsiExpression expression) {
     return new CheckedExceptionCompatibilityConstraint(expression, type);
   }
@@ -156,9 +161,8 @@ public class CheckedExceptionCompatibilityConstraint extends InputOutputConstrai
   @Override
   protected void collectReturnTypeVariables(InferenceSession session,
                                             PsiExpression psiExpression,
-                                            PsiMethod interfaceMethod,
+                                            PsiType returnType, 
                                             Set<InferenceVariable> result) {
-    final PsiType returnType = interfaceMethod.getReturnType();
     session.collectDependencies(returnType, result, true);
   }
 }

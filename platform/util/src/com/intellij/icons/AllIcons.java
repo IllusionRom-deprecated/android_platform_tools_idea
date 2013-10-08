@@ -68,6 +68,7 @@ public class AllIcons {
     public static final Icon FileStatus = IconLoader.getIcon("/actions/fileStatus.png"); // 16x16
     public static final Icon Filter_small = IconLoader.getIcon("/actions/filter_small.png"); // 16x16
     public static final Icon Find = IconLoader.getIcon("/actions/find.png"); // 16x16
+    public static final Icon FindPlain = IconLoader.getIcon("/actions/findPlain.png"); // 16x16
     public static final Icon ForceRefresh = IconLoader.getIcon("/actions/forceRefresh.png"); // 16x16
     public static final Icon Forward = IconLoader.getIcon("/actions/forward.png"); // 16x16
     public static final Icon GC = IconLoader.getIcon("/actions/gc.png"); // 16x16
@@ -316,6 +317,7 @@ public class AllIcons {
     public static final Icon Archive = IconLoader.getIcon("/fileTypes/archive.png"); // 16x16
     public static final Icon AS = IconLoader.getIcon("/fileTypes/as.png"); // 16x16
     public static final Icon Aspectj = IconLoader.getIcon("/fileTypes/aspectj.png"); // 16x16
+    public static final Icon Config = IconLoader.getIcon("/fileTypes/config.png"); // 16x16
     public static final Icon Css = IconLoader.getIcon("/fileTypes/css.png"); // 16x16
     public static final Icon Custom = IconLoader.getIcon("/fileTypes/custom.png"); // 16x16
     public static final Icon Diagram = IconLoader.getIcon("/fileTypes/diagram.png"); // 16x16

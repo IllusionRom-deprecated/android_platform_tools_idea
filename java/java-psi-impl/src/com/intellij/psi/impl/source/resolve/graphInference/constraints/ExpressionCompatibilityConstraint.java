@@ -41,10 +41,11 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
 
   @Override
   public boolean reduce(InferenceSession session, List<ConstraintFormula> constraints) {
-    if (session.isProperType(myT)) {
-      return TypeConversionUtil.areTypesAssignmentCompatible(myT, myExpression);
-    }
     if (!PsiPolyExpressionUtil.isPolyExpression(myExpression)) {
+      if (session.isProperType(myT)) {
+        return TypeConversionUtil.areTypesAssignmentCompatible(myT, myExpression);
+      }
+    
       final PsiType exprType = myExpression.getType();
       if (exprType != null && !exprType.equals(PsiType.NULL)) {
         constraints.add(new TypeCompatibilityConstraint(myT, exprType));
@@ -75,8 +76,7 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
     if (myExpression instanceof PsiCallExpression) {
       final PsiExpressionList argumentList = ((PsiCallExpression)myExpression).getArgumentList();
       if (argumentList != null) {
-        final Map<PsiElement,Pair<PsiMethod,PsiSubstitutor>> map = MethodCandidateInfo.CURRENT_CANDIDATE.get();
-        final Pair<PsiMethod,PsiSubstitutor> pair = map != null ? map.get(argumentList) : null;
+        final Pair<PsiMethod,PsiSubstitutor> pair = MethodCandidateInfo.getCurrentMethod(argumentList);
         final PsiMethod method = pair != null ? pair.first : ((PsiCallExpression)myExpression).resolveMethod();
         PsiType returnType = null;
         InferenceSession callSession = null;
@@ -168,16 +168,20 @@ public class ExpressionCompatibilityConstraint extends InputOutputConstraintForm
   }
 
   @Override
+  protected void setT(PsiType t) {
+    myT = t;
+  }
+
+  @Override
   protected InputOutputConstraintFormula createSelfConstraint(PsiType type, PsiExpression expression) {
     return new ExpressionCompatibilityConstraint(expression, type);
   }
 
   protected void collectReturnTypeVariables(InferenceSession session,
                                             PsiExpression psiExpression,
-                                            PsiMethod interfaceMethod,
+                                            PsiType returnType, 
                                             Set<InferenceVariable> result) {
     if (psiExpression instanceof PsiLambdaExpression) {
-      final PsiType returnType = interfaceMethod.getReturnType();
       if (returnType != PsiType.VOID) {
         final List<PsiExpression> returnExpressions = LambdaUtil.getReturnExpressions((PsiLambdaExpression)psiExpression);
         for (PsiExpression expression : returnExpressions) {
