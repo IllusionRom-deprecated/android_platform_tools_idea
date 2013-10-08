@@ -44,6 +44,7 @@ import com.intellij.xdebugger.impl.breakpoints.ui.grouping.XBreakpointFileGroupi
 import com.intellij.xdebugger.impl.settings.XDebuggerSettingsManager;
 import com.intellij.xdebugger.impl.ui.tree.actions.XDebuggerTreeActionBase;
 import com.intellij.xdebugger.settings.XDebuggerSettings;
+import gnu.trove.THashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -126,7 +127,7 @@ public class XDebuggerUtilImpl extends XDebuggerUtil {
   @Override
   public <B extends XBreakpoint<?>> XBreakpointType<B, ?> findBreakpointType(@NotNull Class<? extends XBreakpointType<B, ?>> typeClass) {
     if (myBreakpointTypeByClass == null) {
-      myBreakpointTypeByClass = new HashMap<Class<? extends XBreakpointType>, XBreakpointType<?,?>>();
+      myBreakpointTypeByClass = new THashMap<Class<? extends XBreakpointType>, XBreakpointType<?,?>>();
       for (XBreakpointType<?, ?> breakpointType : XBreakpointUtil.getBreakpointTypes()) {
         myBreakpointTypeByClass.put(breakpointType.getClass(), breakpointType);
       }
@@ -148,13 +149,13 @@ public class XDebuggerUtilImpl extends XDebuggerUtil {
 
   @Override
   @Nullable
-  public XSourcePosition createPosition(@NotNull final VirtualFile file, final int line) {
+  public XSourcePosition createPosition(final VirtualFile file, final int line) {
     return XSourcePositionImpl.create(file, line);
   }
 
   @Override
   @Nullable
-  public XSourcePosition createPositionByOffset(@NotNull final VirtualFile file, final int offset) {
+  public XSourcePosition createPositionByOffset(final VirtualFile file, final int offset) {
     return XSourcePositionImpl.createByOffset(file, offset);
   }
 

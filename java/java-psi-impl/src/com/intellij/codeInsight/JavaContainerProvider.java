@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2012 JetBrains s.r.o.
+ * Copyright 2000-2013 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,13 +27,14 @@ import org.jetbrains.annotations.NotNull;
 public class JavaContainerProvider implements ContainerProvider {
   @Override
   public PsiElement getContainer(@NotNull PsiElement item) {
-    if (item instanceof PsiTypeParameter) return item.getParent().getParent();
-    if (item instanceof PsiClass) {
-      final PsiClass containingClass = ((PsiClass)item).getContainingClass();
-      return containingClass != null ? containingClass : item.getContainingFile();
+    if (item instanceof PsiTypeParameter) {
+      PsiElement parent = item.getParent();
+      return parent == null ? null : parent.getParent();
     }
-    if (item instanceof PsiMember) return ((PsiMember)item).getContainingClass();
-
+    if (item instanceof PsiMember) {
+      PsiClass containingClass = ((PsiMember)item).getContainingClass();
+      return containingClass == null ? item.getContainingFile() : containingClass;
+    }
     return null;
   }
 }

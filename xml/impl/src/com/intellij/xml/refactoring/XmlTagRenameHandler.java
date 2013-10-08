@@ -25,6 +25,7 @@ package com.intellij.xml.refactoring;
 import com.intellij.featureStatistics.FeatureUsageTracker;
 import com.intellij.ide.TitledHandler;
 import com.intellij.lang.Language;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
@@ -100,7 +101,7 @@ public class XmlTagRenameHandler implements RenameHandler, TitledHandler {
 
   @Nullable
   private static Editor getEditor(@Nullable DataContext context) {
-    return PlatformDataKeys.EDITOR.getData(context);
+    return CommonDataKeys.EDITOR.getData(context);
   }
 
   @Nullable
@@ -109,7 +110,7 @@ public class XmlTagRenameHandler implements RenameHandler, TitledHandler {
       final Editor editor = getEditor(context);
       if (editor != null) {
         final int offset = editor.getCaretModel().getOffset();
-        final PsiFile file = LangDataKeys.PSI_FILE.getData(context);
+        final PsiFile file = CommonDataKeys.PSI_FILE.getData(context);
         if (file instanceof XmlFile) {
           return file.getViewProvider().findElementAt(offset);
         }

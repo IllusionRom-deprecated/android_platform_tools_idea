@@ -100,4 +100,27 @@ public enum WorkingCopyFormat {
   public int getFormat() {
     return myFormat;
   }
+
+  public boolean isOrGreater(@NotNull WorkingCopyFormat format) {
+    return myVersion.isOrGreaterThan(format.getVersion().major, format.getVersion().minor);
+  }
+
+  @NotNull
+  public static WorkingCopyFormat from(@NotNull Version version) {
+    WorkingCopyFormat result = UNKNOWN;
+
+    for (WorkingCopyFormat format : WorkingCopyFormat.values()) {
+      if (format.getVersion().is(version.major, version.minor)) {
+        result = format;
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  @Override
+  public String toString() {
+    return getName();
+  }
 }

@@ -15,6 +15,10 @@
  */
 package org.jetbrains.idea.maven.navigator;
 
+import com.intellij.execution.ProgramRunnerUtil;
+import com.intellij.execution.RunManager;
+import com.intellij.execution.RunnerAndConfigurationSettings;
+import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.util.treeView.NodeDescriptor;
 import com.intellij.openapi.project.Project;
@@ -26,6 +30,7 @@ import com.intellij.pom.Navigatable;
 import com.intellij.ui.JBColor;
 import com.intellij.ui.SimpleTextAttributes;
 import com.intellij.ui.treeStructure.*;
+import com.intellij.util.PathUtil;
 import com.intellij.util.containers.ContainerUtil;
 import gnu.trove.THashMap;
 import icons.MavenIcons;
@@ -33,6 +38,8 @@ import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.TestOnly;
+import org.jetbrains.idea.maven.execution.MavenRunConfiguration;
+import org.jetbrains.idea.maven.execution.MavenRunConfigurationType;
 import org.jetbrains.idea.maven.execution.MavenRunner;
 import org.jetbrains.idea.maven.model.*;
 import org.jetbrains.idea.maven.project.MavenProject;
@@ -229,6 +236,12 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
   public void updateGoals() {
     for (ProjectNode each : myProjectToNodeMapping.values()) {
       each.updateGoals();
+    }
+  }
+
+  public void updateRunConfigurations() {
+    for (ProjectNode each : myProjectToNodeMapping.values()) {
+      each.updateRunConfigurations();
     }
   }
 
@@ -645,6 +658,7 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
     private final PluginsNode myPluginsNode;
     private final DependenciesNode myDependenciesNode;
     private final ModulesNode myModulesNode;
+    private final RunConfigurationsNode myRunConfigurationsNode;
 
     private String myTooltipCache;
 
@@ -656,6 +670,7 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
       myPluginsNode = new PluginsNode(this);
       myDependenciesNode = new DependenciesNode(this, mavenProject);
       myModulesNode = new ModulesNode(this);
+      myRunConfigurationsNode = new RunConfigurationsNode(this);
 
       setUniformIcon(MavenIcons.MavenProject);
       updateProject();
@@ -677,9 +692,8 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
 
     @Override
     protected List<? extends MavenSimpleNode> doGetChildren() {
-      return Arrays.asList(myLifecycleNode, myPluginsNode, myDependenciesNode, myModulesNode);
+      return Arrays.asList(myLifecycleNode, myPluginsNode, myRunConfigurationsNode, myDependenciesNode, myModulesNode);
     }
-
 
     public ModulesNode getModulesNode() {
       return myModulesNode;
@@ -694,6 +708,8 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
         myDependenciesNode.updateDependencies();
       }
 
+      myRunConfigurationsNode.updateRunConfigurations(myMavenProject);
+
       myTooltipCache = makeDescription();
 
       updateFrom(getParent());
@@ -706,6 +722,11 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
     public void updateGoals() {
       updateFrom(myLifecycleNode);
       updateFrom(myPluginsNode);
+    }
+
+    public void updateRunConfigurations() {
+      myRunConfigurationsNode.updateRunConfigurations(myMavenProject);
+      updateFrom(myRunConfigurationsNode);
     }
 
     @Override
@@ -987,12 +1008,14 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
     public void updatePlugins(MavenProject mavenProject) {
       List<MavenPlugin> plugins = mavenProject.getDeclaredPlugins();
 
-      for (PluginNode each : myPluginNodes.toArray(new PluginNode[myPluginNodes.size()])) {
+      for (Iterator<PluginNode> itr = myPluginNodes.iterator(); itr.hasNext(); ) {
+        PluginNode each = itr.next();
+
         if (plugins.contains(each.getPlugin())) {
           each.updatePlugin();
         }
         else {
-          myPluginNodes.remove(each);
+          itr.remove();
         }
       }
       for (MavenPlugin each : plugins) {
@@ -1000,6 +1023,7 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
           myPluginNodes.add(new PluginNode(this, each));
         }
       }
+
       sort(myPluginNodes);
       childrenChanged();
     }
@@ -1220,6 +1244,110 @@ public class MavenProjectsStructure extends SimpleTreeStructure {
     public boolean isVisible() {
       // show regardless absence of children
       return getDisplayKind() != DisplayKind.NEVER;
+    }
+  }
+
+  public class RunConfigurationsNode extends GroupNode {
+
+    private final List<RunConfigurationNode> myChildren = new ArrayList<RunConfigurationNode>();
+
+    public RunConfigurationsNode(ProjectNode parent) {
+      super(parent);
+      setUniformIcon(MavenIcons.Phase);
+    }
+
+    @Override
+    public String getName() {
+      return message("view.node.run.configurations");
+    }
+
+    @Override
+    protected List<? extends MavenSimpleNode> doGetChildren() {
+      return myChildren;
+    }
+
+    public void updateRunConfigurations(MavenProject mavenProject) {
+      boolean childChanged = false;
+
+      List<RunnerAndConfigurationSettings>
+        list = RunManager.getInstance(myProject).getConfigurationSettingsList(MavenRunConfigurationType.getInstance());
+
+      Set<RunnerAndConfigurationSettings> cfgs = new HashSet<RunnerAndConfigurationSettings>(((Collection<RunnerAndConfigurationSettings>)((Collection)list)));
+
+      for (Iterator<RunConfigurationNode> itr = myChildren.iterator(); itr.hasNext(); ) {
+        RunConfigurationNode node = itr.next();
+
+        if (cfgs.remove(node.getSettings())) {
+          node.updateRunConfiguration();
+        }
+        else {
+          itr.remove();
+          childChanged = true;
+        }
+      }
+
+      String directory = PathUtil.getCanonicalPath(mavenProject.getDirectory());
+
+      int oldSize = myChildren.size();
+
+      for (RunnerAndConfigurationSettings cfg : cfgs) {
+        MavenRunConfiguration mavenRunConfiguration = (MavenRunConfiguration)cfg.getConfiguration();
+
+        if (directory.equals(PathUtil.getCanonicalPath(mavenRunConfiguration.getRunnerParameters().getWorkingDirPath()))) {
+          myChildren.add(new RunConfigurationNode(this, cfg));
+        }
+      }
+
+      if (oldSize != myChildren.size()) {
+        childChanged = true;
+        sort(myChildren);
+      }
+
+      if (childChanged) {
+        childrenChanged();
+      }
+    }
+  }
+
+  public class RunConfigurationNode extends MavenSimpleNode {
+
+    private RunnerAndConfigurationSettings mySettings;
+
+    public RunConfigurationNode(RunConfigurationsNode parent, RunnerAndConfigurationSettings settings) {
+      super(parent);
+      mySettings = settings;
+      setUniformIcon(ProgramRunnerUtil.getConfigurationIcon(settings, false));
+    }
+
+    public RunnerAndConfigurationSettings getSettings() {
+      return mySettings;
+    }
+
+    @Override
+    public String getName() {
+      return mySettings.getName();
+    }
+
+    @Override
+    protected void doUpdate() {
+      setNameAndTooltip(getName(),
+                        null,
+                        StringUtil.join(((MavenRunConfiguration)mySettings.getConfiguration()).getRunnerParameters().getGoals(), " "));
+    }
+
+    @Nullable
+    @Override
+    String getMenuId() {
+      return "Maven.RunConfigurationMenu";
+    }
+
+    public void updateRunConfiguration() {
+
+    }
+
+    @Override
+    public void handleDoubleClickOrEnter(SimpleTree tree, InputEvent inputEvent) {
+      ProgramRunnerUtil.executeConfiguration(myProject, mySettings, DefaultRunExecutor.getRunExecutorInstance());
     }
   }
 }

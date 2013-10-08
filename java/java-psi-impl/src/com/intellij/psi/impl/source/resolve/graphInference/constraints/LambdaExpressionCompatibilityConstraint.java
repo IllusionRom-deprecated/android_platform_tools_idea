@@ -12,7 +12,7 @@ import java.util.List;
  */
 public class LambdaExpressionCompatibilityConstraint implements ConstraintFormula {
   private final PsiLambdaExpression myExpression;
-  private final PsiType myT;
+  private PsiType myT;
 
   public LambdaExpressionCompatibilityConstraint(PsiLambdaExpression expression, PsiType t) {
     myExpression = expression;
@@ -28,7 +28,7 @@ public class LambdaExpressionCompatibilityConstraint implements ConstraintFormul
     if (myExpression.hasFormalParameterTypes()) {
     }
     final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(
-      FunctionalInterfaceParameterizationUtil.getFunctionalType(myT, myExpression));
+      FunctionalInterfaceParameterizationUtil.getFunctionalType(myT, myExpression, false));
     final PsiMethod interfaceMethod = LambdaUtil.getFunctionalInterfaceMethod(resolveResult);
     if (interfaceMethod == null) {
       return false;
@@ -69,5 +69,10 @@ public class LambdaExpressionCompatibilityConstraint implements ConstraintFormul
       }
     }
     return true;
+  }
+
+  @Override
+  public void apply(PsiSubstitutor substitutor) {
+    myT = substitutor.substitute(myT);
   }
 }
