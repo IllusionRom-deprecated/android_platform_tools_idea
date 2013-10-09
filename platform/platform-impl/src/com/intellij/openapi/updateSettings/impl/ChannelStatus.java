@@ -28,7 +28,22 @@ public class ChannelStatus implements Comparable<ChannelStatus> {
   @NonNls public static final String EAP_CODE = "eap";
   @NonNls public static final String RELEASE_CODE = "release";
 
+  /**
+   * EAP is our Canary Channel.
+   * <p/>
+   * From the updates.xml description: <br/>
+   * Canary builds are the bleeding edge, released about weekly. While these builds do get tested,
+   * they are still subject to bugs, as we want people to see what's new as soon as possible.
+   * This is not recommended for production.
+   */
   public static final ChannelStatus EAP = new ChannelStatus(0, EAP_CODE, "Canary Channel");
+  /**
+   * Milestone is our Dev Channel.
+   * <p/>
+   * From the updates.xml description: <br/>
+   * Dev channel builds are hand-picked older canary builds that survived the test of time.
+   * It's updated roughly every month.
+   */
   public static final ChannelStatus MILESTONE = new ChannelStatus(1, "milestone", "Dev Channel");
   public static final ChannelStatus BETA = new ChannelStatus(2, "beta", "Beta Channel");
   public static final ChannelStatus RELEASE = new ChannelStatus(3, RELEASE_CODE, "Stable Channel");
