@@ -18,7 +18,6 @@ package com.intellij.psi.impl.source.resolve.graphInference;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.resolve.ParameterTypeInferencePolicy;
-import com.intellij.psi.impl.source.resolve.PsiOldInferenceHelper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,7 +40,7 @@ public class PsiGraphInferenceHelper implements PsiInferenceHelper {
                                                  @NotNull ParameterTypeInferencePolicy policy) {
     final InferenceSession inferenceSession =
       new InferenceSession(new PsiTypeParameter[]{typeParameter}, parameters, arguments, partialSubstitutor, parent, myManager);
-    return inferenceSession.infer().substitute(typeParameter);
+    return inferenceSession.infer(parameters, arguments, parent).substitute(typeParameter);
   }
 
   @NotNull
@@ -54,7 +53,9 @@ public class PsiGraphInferenceHelper implements PsiInferenceHelper {
                                            @NotNull ParameterTypeInferencePolicy policy,
                                            @NotNull LanguageLevel languageLevel) {
     if (typeParameters.length == 0) return partialSubstitutor;
-    return new InferenceSession(typeParameters, parameters, arguments, partialSubstitutor, parent, myManager).infer();
+    final InferenceSession inferenceSession =
+      new InferenceSession(typeParameters, parameters, arguments, partialSubstitutor, parent, myManager);
+    return inferenceSession.infer(parameters, arguments, parent);
   }
 
   @NotNull
@@ -73,6 +74,31 @@ public class PsiGraphInferenceHelper implements PsiInferenceHelper {
                                                  PsiType arg,
                                                  boolean isContraVariantPosition,
                                                  LanguageLevel languageLevel) {
-    return new PsiOldInferenceHelper(myManager).getSubstitutionForTypeParameter(typeParam, param, arg, isContraVariantPosition, languageLevel);
+    if (arg == PsiType.VOID || param == PsiType.VOID) return PsiType.NULL;
+    final PsiType[] leftTypes;
+    final PsiType[] rightTypes;
+    if (isContraVariantPosition) {
+      leftTypes = new PsiType[] {param};
+      rightTypes = new PsiType[]{arg};
+    }
+    else {
+      leftTypes = new PsiType[] {arg};
+      rightTypes = new PsiType[]{param};
+    }
+    final InferenceSession inferenceSession = new InferenceSession(new PsiTypeParameter[]{typeParam}, leftTypes, rightTypes, PsiSubstitutor.EMPTY, myManager);
+    if (inferenceSession.isProperType(param) && inferenceSession.isProperType(arg)) {
+      boolean proceed = false;
+      for (PsiClassType classType : typeParam.getExtendsListTypes()) {
+        if (!inferenceSession.isProperType(classType)) {
+          proceed = true;
+          break;
+        }
+      }
+      if (!proceed) {
+        return PsiType.NULL;
+      }
+    }
+    final PsiSubstitutor substitutor = inferenceSession.infer();
+    return substitutor.substitute(typeParam);
   }
 }

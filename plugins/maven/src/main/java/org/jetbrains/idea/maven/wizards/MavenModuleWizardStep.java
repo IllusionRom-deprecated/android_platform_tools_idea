@@ -20,6 +20,7 @@ import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.util.text.StringUtil;
 import org.jetbrains.annotations.Nullable;
@@ -292,6 +293,13 @@ public class MavenModuleWizardStep extends ModuleWizardStep {
   @Override
   public String getHelpId() {
     return "reference.dialogs.new.project.fromScratch.maven";
+  }
+
+  @Override
+  public void disposeUIResources() {
+    if (myArchetypes != null) {
+      Disposer.dispose(myArchetypes);
+    }
   }
 }
 

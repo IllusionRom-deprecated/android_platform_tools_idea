@@ -35,10 +35,11 @@ public abstract class InputOutputConstraintFormula implements ConstraintFormula 
 
   protected abstract PsiExpression getExpression();
   protected abstract PsiType getT();
+  protected abstract void setT(PsiType t);
   protected abstract InputOutputConstraintFormula createSelfConstraint(PsiType type, PsiExpression expression);
   protected abstract void collectReturnTypeVariables(InferenceSession session,
                                                      PsiExpression psiExpression,
-                                                     PsiMethod interfaceMethod,
+                                                     PsiType returnType, 
                                                      Set<InferenceVariable> result);
 
   public Set<InferenceVariable> getInputVariables(InferenceSession session) {
@@ -50,25 +51,25 @@ public abstract class InputOutputConstraintFormula implements ConstraintFormula 
         if (inferenceVariable != null) {
           return Collections.singleton(inferenceVariable);
         }
-        final PsiType functionalInterfaceType = psiExpression instanceof PsiLambdaExpression 
-                                                ? ((PsiLambdaExpression)psiExpression).getFunctionalInterfaceType() 
-                                                : ((PsiMethodReferenceExpression)psiExpression).getFunctionalInterfaceType();
-        if (functionalInterfaceType != null) {
+        if (LambdaHighlightingUtil.checkInterfaceFunctional(type) == null) {
           final PsiType functionType =
-            psiExpression instanceof PsiLambdaExpression 
-            ? FunctionalInterfaceParameterizationUtil.getFunctionalType(functionalInterfaceType, (PsiLambdaExpression)psiExpression) 
-            : functionalInterfaceType;
+            psiExpression instanceof PsiLambdaExpression
+            ? FunctionalInterfaceParameterizationUtil.getFunctionalType(type, (PsiLambdaExpression)psiExpression)
+            : type;
           final PsiClassType.ClassResolveResult resolveResult = PsiUtil.resolveGenericsClassInType(functionType);
           final PsiMethod interfaceMethod = LambdaUtil.getFunctionalInterfaceMethod(resolveResult);
           if (interfaceMethod != null) {
 
             final Set<InferenceVariable> result = new HashSet<InferenceVariable>();
             final PsiSubstitutor substitutor = LambdaUtil.getSubstitutor(interfaceMethod, resolveResult);
-            for (PsiParameter parameter : interfaceMethod.getParameterList().getParameters()) {
-              session.collectDependencies(substitutor.substitute(parameter.getType()), result, true);
+            if (psiExpression instanceof PsiLambdaExpression && !((PsiLambdaExpression)psiExpression).hasFormalParameterTypes() || 
+                psiExpression instanceof PsiMethodReferenceExpression && !((PsiMethodReferenceExpression)psiExpression).isExact()) {
+              for (PsiParameter parameter : interfaceMethod.getParameterList().getParameters()) {
+                session.collectDependencies(substitutor.substitute(parameter.getType()), result, true);
+              }
             }
 
-            collectReturnTypeVariables(session, psiExpression, interfaceMethod, result);
+            collectReturnTypeVariables(session, psiExpression, substitutor.substitute(interfaceMethod.getReturnType()), result);
 
             return result;
           }
@@ -101,12 +102,19 @@ public abstract class InputOutputConstraintFormula implements ConstraintFormula 
 
   @Nullable
   public Set<InferenceVariable> getOutputVariables(Set<InferenceVariable> inputVariables, InferenceSession session) {
-    if (!PsiPolyExpressionUtil.isPolyExpression(getExpression())) {
+    if (PsiPolyExpressionUtil.isPolyExpression(getExpression())) {
       final HashSet<InferenceVariable> mentionedVariables = new HashSet<InferenceVariable>();
       session.collectDependencies(getT(), mentionedVariables, true);
-      mentionedVariables.removeAll(inputVariables);
+      if (inputVariables != null) {
+        mentionedVariables.removeAll(inputVariables);
+      }
       return mentionedVariables;
     }
     return null;
+  }
+
+  @Override
+  public void apply(PsiSubstitutor substitutor) {
+    setT(substitutor.substitute(getT()));
   }
 }
