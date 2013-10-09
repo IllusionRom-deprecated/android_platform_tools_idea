@@ -6,3 +6,5 @@
 /test-system
 /test-config
 .jps-build-data
+/bin/build-log.xml
+/bin/build.log
