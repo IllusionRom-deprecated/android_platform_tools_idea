@@ -165,7 +165,7 @@
     </orderEntry>
     <orderEntry type="module" module-name="external-system-impl" />
     <orderEntry type="module" module-name="external-system-api" />
-    <orderEntry type="module-library">
+    <orderEntry type="module-library" exported="">
       <library name="GradleJnaPosix">
         <CLASSES>
           <root url="jar://$MODULE_DIR$/lib/jna-3.2.7.jar!/" />

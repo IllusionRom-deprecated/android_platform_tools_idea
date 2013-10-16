@@ -69,6 +69,7 @@ public class AllIcons {
     public static final Icon Filter_small = IconLoader.getIcon("/actions/filter_small.png"); // 16x16
     public static final Icon Find = IconLoader.getIcon("/actions/find.png"); // 16x16
     public static final Icon FindPlain = IconLoader.getIcon("/actions/findPlain.png"); // 16x16
+    public static final Icon FindWhite = IconLoader.getIcon("/actions/findWhite.png"); // 16x16
     public static final Icon ForceRefresh = IconLoader.getIcon("/actions/forceRefresh.png"); // 16x16
     public static final Icon Forward = IconLoader.getIcon("/actions/forward.png"); // 16x16
     public static final Icon GC = IconLoader.getIcon("/actions/gc.png"); // 16x16
@@ -856,8 +857,10 @@ public class AllIcons {
     public static final Icon TestSourceFolder = IconLoader.getIcon("/nodes/testSourceFolder.png"); // 16x16
     public static final Icon TreeClosed = IconLoader.getIcon("/nodes/TreeClosed.png"); // 16x16
     public static final Icon TreeCollapseNode = IconLoader.getIcon("/nodes/treeCollapseNode.png"); // 16x16
+    public static final Icon TreeDownArrow = IconLoader.getIcon("/nodes/treeDownArrow.png"); // 11x11
     public static final Icon TreeExpandNode = IconLoader.getIcon("/nodes/treeExpandNode.png"); // 16x16
     public static final Icon TreeOpen = IconLoader.getIcon("/nodes/TreeOpen.png"); // 16x16
+    public static final Icon TreeRightArrow = IconLoader.getIcon("/nodes/treeRightArrow.png"); // 11x11
     public static final Icon Undeploy = IconLoader.getIcon("/nodes/undeploy.png"); // 16x16
     public static final Icon UnknownJdk = IconLoader.getIcon("/nodes/unknownJdk.png"); // 16x16
     public static final Icon UpFolder = IconLoader.getIcon("/nodes/upFolder.png"); // 16x16
