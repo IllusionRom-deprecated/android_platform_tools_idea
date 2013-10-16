@@ -20,8 +20,8 @@ import com.intellij.ide.DataManager;
 import com.intellij.ide.DefaultTreeExpander;
 import com.intellij.ide.IdeBundle;
 import com.intellij.ide.TreeExpander;
+import com.intellij.ide.structureView.ModelListener;
 import com.intellij.ide.structureView.StructureView;
-import com.intellij.ide.structureView.StructureViewBuilder;
 import com.intellij.ide.structureView.StructureViewModel;
 import com.intellij.ide.structureView.StructureViewTreeElement;
 import com.intellij.ide.structureView.impl.StructureViewComposite;
@@ -40,9 +40,8 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.CommandProcessor;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.fileEditor.FileEditor;
-import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.fileEditor.ex.IdeDocumentHistory;
 import com.intellij.openapi.keymap.KeymapUtil;
 import com.intellij.openapi.project.Project;
@@ -51,12 +50,10 @@ import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.util.*;
 import com.intellij.openapi.util.registry.Registry;
 import com.intellij.openapi.util.text.StringUtil;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.IdeFocusManager;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
 import com.intellij.ui.*;
 import com.intellij.ui.popup.AbstractPopup;
 import com.intellij.ui.popup.PopupUpdateProcessor;
@@ -96,7 +93,6 @@ import java.util.List;
  */
 public class FileStructurePopup implements Disposable {
   private static final Logger LOG = Logger.getInstance("#com.intellij.ide.util.FileStructurePopup");
-  private final Editor myEditor;
   private final Project myProject;
   private final StructureViewModel myTreeModel;
   private final StructureViewModel myBaseTreeModel;
@@ -121,53 +117,49 @@ public class FileStructurePopup implements Disposable {
   private boolean myInitialNodeIsLeaf;
   private final List<Pair<String, JCheckBox>> myTriggeredCheckboxes = new ArrayList<Pair<String, JCheckBox>>();
   private final TreeExpander myTreeExpander;
-  private StructureView myStructureView;
+  @NotNull private final FileEditor myFileEditor;
+  private final StructureView myStructureViewDelegate;
 
 
-  public FileStructurePopup(StructureViewModel structureViewModel,
-                            @Nullable Editor editor,
-                            Project project,
-                            @NotNull final Disposable auxDisposable,
+  public FileStructurePopup(@NotNull Project project,
+                            @NotNull FileEditor fileEditor,
+                            @NotNull StructureView structureView,
                             final boolean applySortAndFilter) {
     myProject = project;
-    myEditor = editor;
+    myFileEditor = fileEditor;
+    myStructureViewDelegate = structureView;
 
     //Stop code analyzer to speedup EDT
     DaemonCodeAnalyzer.getInstance(myProject).disableUpdateByTimer(this);
     IdeFocusManager.getInstance(myProject).typeAheadUntil(myTreeHasBuilt);
+    Disposer.register(this, myStructureViewDelegate);
 
     //long l = System.currentTimeMillis();
-    if (editor instanceof EditorImpl) {
-      VirtualFile file = ((EditorImpl)editor).getVirtualFile();
-      FileEditor fileEditor = FileEditorManager.getInstance(myProject).getSelectedEditor(file);
-      if (fileEditor != null) {
-        StructureViewBuilder builder = fileEditor.getStructureViewBuilder();
-        myPsiFile = PsiManager.getInstance(project).findFile(file);
-        if (builder != null && myPsiFile != null) {
-          myStructureView = builder.createStructureView(fileEditor, project);
-          Disposer.register(this, myStructureView);
-        }
-      }
+    if (myFileEditor instanceof TextEditor) {
+      Editor e = ((TextEditor)myFileEditor).getEditor();
+      myPsiFile = PsiDocumentManager.getInstance(myProject).getPsiFile(e.getDocument());
     }
+
     //System.out.println(System.currentTimeMillis() - l);
-    if (myStructureView instanceof StructureViewComposite) {
-      StructureViewComposite.StructureViewDescriptor[] views = ((StructureViewComposite)myStructureView).getStructureViews();
+    if (myStructureViewDelegate instanceof StructureViewComposite) {
+      StructureViewComposite.StructureViewDescriptor[] views = ((StructureViewComposite)myStructureViewDelegate).getStructureViews();
       myBaseTreeModel = new StructureViewCompositeModel(myPsiFile, views);
       Disposer.register(this, (Disposable)myBaseTreeModel);
-    } else {
-      myBaseTreeModel = structureViewModel;
     }
-    Disposer.register(this, auxDisposable);
+    else {
+      myBaseTreeModel = myStructureViewDelegate.getTreeModel();
+    }
+
     if (applySortAndFilter) {
       myTreeActionsOwner = new TreeStructureActionsOwner(myBaseTreeModel);
       myTreeModel = new TreeModelWrapper(myBaseTreeModel, myTreeActionsOwner);
     }
     else {
       myTreeActionsOwner = null;
-      myTreeModel = structureViewModel;
+      myTreeModel = myStructureViewDelegate.getTreeModel();
     }
 
-    myTreeStructure = new SmartTreeStructure(project, myTreeModel){
+    myTreeStructure = new SmartTreeStructure(project, myTreeModel) {
       @Override
       public void rebuildTree() {
         if (ApplicationManager.getApplication().isUnitTestMode() || !myPopup.isDisposed()) {
@@ -200,9 +192,10 @@ public class FileStructurePopup implements Disposable {
                               @NotNull SimpleTextAttributes attributes,
                               boolean isMainText,
                               boolean selected) {
-        if (!isMainText ) {
+        if (!isMainText) {
           super.doAppend(fragment, attributes, isMainText, selected);
-        } else {
+        }
+        else {
           SpeedSearchUtil.appendFragmentsForSpeedSearch(myTree, fragment, attributes, selected, this);
         }
       }
@@ -247,10 +240,23 @@ public class FileStructurePopup implements Disposable {
     };
 
     myTreeExpander = new DefaultTreeExpander(myTree);
+    final ModelListener modelListener = new ModelListener() {
+      @Override
+      public void onModelChanged() {
+        myAbstractTreeBuilder.queueUpdate();
+      }
+    };
+    myTreeModel.addModelListener(modelListener);
+    Disposer.register(this, new Disposable() {
+      @Override
+      public void dispose() {
+        myTreeModel.removeModelListener(modelListener);
+      }
+    });
 
     //myAbstractTreeBuilder.getUi().setPassthroughMode(true);
     myAbstractTreeBuilder.getUi().getUpdater().setDelay(1);
-    myInitialPsiElement = getCurrentElement(getPsiFile(myProject));
+    myInitialPsiElement = getCurrentElement(myPsiFile);
     //myAbstractTreeBuilder.setCanYieldUpdate(true);
     Disposer.register(this, myAbstractTreeBuilder);
     TreeUtil.installActions(myTree);
@@ -304,9 +310,10 @@ public class FileStructurePopup implements Disposable {
     });
     myTree.getEmptyText().setText("Loading...");
     final Point location = DimensionService.getInstance().getLocation(getDimensionServiceKey(), myProject);
-    if (location != null && myEditor != null) {
-      myPopup.showInScreenCoordinates(myEditor.getContentComponent(), location);
-    } else {
+    if (location != null) {
+      myPopup.showInScreenCoordinates(myFileEditor.getComponent(), location);
+    }
+    else {
       myPopup.showCenteredInCurrentWindow(myProject);
     }
 
@@ -436,7 +443,7 @@ public class FileStructurePopup implements Disposable {
     Set<PsiElement> parents = getAllParents(element);
 
     FilteringTreeStructure.FilteringNode node = (FilteringTreeStructure.FilteringNode)myAbstractTreeBuilder.getRootElement();
-    if (element != null && node != null && myStructureView instanceof StructureViewComposite) {
+    if (element != null && node != null && myStructureViewDelegate instanceof StructureViewComposite) {
       parents.remove(element.getContainingFile());
       final List<FilteringTreeStructure.FilteringNode> fileNodes = node.children();
 
@@ -446,7 +453,8 @@ public class FileStructurePopup implements Disposable {
           return found;
         }
       }
-    } else {
+    }
+    else {
       final FilteringTreeStructure.FilteringNode found = findNode(parents, node);
       if (found == null) {
         TreeUtil.ensureSelection(myTree);
@@ -506,11 +514,6 @@ public class FileStructurePopup implements Disposable {
     return null;
   }
 
-  @Nullable
-  protected PsiFile getPsiFile(final Project project) {
-    return myEditor == null ? null : PsiDocumentManager.getInstance(project).getPsiFile(myEditor.getDocument());
-  }
-
   @Override
   public void dispose() {
 
@@ -523,8 +526,6 @@ public class FileStructurePopup implements Disposable {
 
   @Nullable
   public PsiElement getCurrentElement(@Nullable final PsiFile psiFile) {
-    if (psiFile == null) return null;
-
     PsiDocumentManager.getInstance(myProject).commitAllDocuments();
 
     Object elementAtCursor = myTreeModel.getCurrentEditorElement();
@@ -532,8 +533,8 @@ public class FileStructurePopup implements Disposable {
       return (PsiElement)elementAtCursor;
     }
 
-    if (myEditor != null) {
-      return psiFile.getViewProvider().findElementAt(myEditor.getCaretModel().getOffset());
+    if (psiFile != null && myFileEditor instanceof TextEditor) {
+      return psiFile.getViewProvider().findElementAt(((TextEditor)myFileEditor).getEditor().getCaretModel().getOffset());
     }
 
     return null;
@@ -543,7 +544,7 @@ public class FileStructurePopup implements Disposable {
     List<FileStructureFilter> fileStructureFilters = new ArrayList<FileStructureFilter>();
     List<FileStructureNodeProvider> fileStructureNodeProviders = new ArrayList<FileStructureNodeProvider>();
     if (myTreeActionsOwner != null) {
-      for(Filter filter: myBaseTreeModel.getFilters()) {
+      for (Filter filter : myBaseTreeModel.getFilters()) {
         if (filter instanceof FileStructureFilter) {
           final FileStructureFilter fsFilter = (FileStructureFilter)filter;
           myTreeActionsOwner.setActionIncluded(fsFilter, true);
@@ -580,7 +581,8 @@ public class FileStructurePopup implements Disposable {
       public void actionPerformed(AnActionEvent e) {
         if (mySpeedSearch != null && mySpeedSearch.isPopupActive()) {
           mySpeedSearch.hidePopup();
-        } else {
+        }
+        else {
           myPopup.cancel();
         }
       }
@@ -596,7 +598,7 @@ public class FileStructurePopup implements Disposable {
       }
     }.installOn(myTree);
 
-    for(FileStructureFilter filter: fileStructureFilters) {
+    for (FileStructureFilter filter : fileStructureFilters) {
       addCheckbox(comboPanel, filter);
     }
 
@@ -612,13 +614,26 @@ public class FileStructurePopup implements Disposable {
     DataManager.registerDataProvider(panel, new DataProvider() {
       @Override
       public Object getData(@NonNls String dataId) {
-        if (PlatformDataKeys.PROJECT.is(dataId)) {
+        if (CommonDataKeys.PROJECT.is(dataId)) {
           return myProject;
         }
+        if (PlatformDataKeys.FILE_EDITOR.is(dataId)) {
+          return myFileEditor;
+        }
         if (CommonDataKeys.PSI_ELEMENT.is(dataId)) {
-          final Object node = ContainerUtil.getFirstItem(myAbstractTreeBuilder.getSelectedElements());
+          Object node = ContainerUtil.getFirstItem(myAbstractTreeBuilder.getSelectedElements());
           if (!(node instanceof FilteringTreeStructure.FilteringNode)) return null;
           return getPsi((FilteringTreeStructure.FilteringNode)node);
+        }
+        if (LangDataKeys.PSI_ELEMENT_ARRAY.is(dataId)) {
+          Set<Object> nodes = myAbstractTreeBuilder.getSelectedElements();
+          if (nodes.isEmpty()) return PsiElement.EMPTY_ARRAY;
+          ArrayList<PsiElement> result = new ArrayList<PsiElement>();
+          for (Object o : nodes) {
+            if (!(o instanceof FilteringTreeStructure.FilteringNode)) continue;
+            ContainerUtil.addIfNotNull(result, getPsi((FilteringTreeStructure.FilteringNode)o));
+          }
+          return ContainerUtil.toArray(result, PsiElement.ARRAY_FACTORY);
         }
         if (LangDataKeys.POSITION_ADJUSTER_POPUP.is(dataId)) {
           return myPopup;
@@ -722,8 +737,7 @@ public class FileStructurePopup implements Disposable {
     if (text == null) return;
 
     Shortcut[] shortcuts = action instanceof FileStructureFilter ?
-                          ((FileStructureFilter)action).getShortcut() : ((FileStructureNodeProvider)action).getShortcut();
-
+                           ((FileStructureFilter)action).getShortcut() : ((FileStructureNodeProvider)action).getShortcut();
 
 
     final JCheckBox chkFilter = new JCheckBox();
@@ -770,7 +784,8 @@ public class FileStructurePopup implements Disposable {
         };
         if (ApplicationManager.getApplication().isUnitTestMode()) {
           runnable.run();
-        } else {
+        }
+        else {
           ApplicationManager.getApplication().invokeLater(runnable);
         }
       }
@@ -911,10 +926,10 @@ public class FileStructurePopup implements Disposable {
             myVisibleParents.add(o);
           }
           return true;
-        } else {
+        }
+        else {
           return false;
         }
-
       }
       return true;
     }
@@ -926,7 +941,6 @@ public class FileStructurePopup implements Disposable {
       }
       return mySpeedSearch.matchingFragments(text) != null;
     }
-
   }
 
   @Nullable
@@ -934,7 +948,7 @@ public class FileStructurePopup implements Disposable {
     if (ApplicationManager.getApplication().isUnitTestMode()) return myTestSearchFilter;
 
     return mySpeedSearch != null && !StringUtil.isEmpty(mySpeedSearch.getEnteredPrefix())
-                    ? mySpeedSearch.getEnteredPrefix() : null;
+           ? mySpeedSearch.getEnteredPrefix() : null;
   }
 
   public class MyTreeSpeedSearch extends TreeSpeedSearch {
@@ -997,7 +1011,8 @@ public class FileStructurePopup implements Disposable {
             max = size;
             cur.clear();
             cur.add(p);
-          } else if (size == max) {
+          }
+          else if (size == max) {
             cur.add(p);
           }
         }
@@ -1013,7 +1028,6 @@ public class FileStructurePopup implements Disposable {
       });
       return cur.isEmpty() ? null : cur.get(0).node;
     }
-
   }
 
   class FileStructureTree extends JBTreeWithHintProvider implements AlwaysExpandedTree {
@@ -1038,7 +1052,8 @@ public class FileStructurePopup implements Disposable {
           newValueIsSet = false;
         }
         fast = newValueIsSet;
-      } else {
+      }
+      else {
         fast = false;
       }
 
