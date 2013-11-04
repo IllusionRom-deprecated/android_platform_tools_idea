@@ -27,9 +27,12 @@ import com.intellij.psi.PsiCompiledElement;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.codeStyle.MinusculeMatcher;
 import com.intellij.psi.codeStyle.NameUtil;
+import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.proximity.PsiProximityComparator;
 import com.intellij.util.*;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.indexing.FindSymbolParameters;
+import com.intellij.util.indexing.IdFilter;
 import gnu.trove.THashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,12 +53,12 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
   public boolean filterElements(@NotNull final ChooseByNameBase base,
                                 @NotNull final String pattern,
                                 boolean everywhere,
-                                @NotNull ProgressIndicator indicator,
+                                @NotNull final ProgressIndicator indicator,
                                 @NotNull final Processor<Object> consumer) {
     String namePattern = getNamePattern(base, pattern);
     String qualifierPattern = getQualifierPattern(base, pattern);
 
-    if (removeModelSpecificMarkup(base, namePattern).isEmpty() && !base.canShowListForEmptyPattern()) return true;
+    if (removeModelSpecificMarkup(base.getModel(), namePattern).isEmpty() && !base.canShowListForEmptyPattern()) return true;
 
     final ChooseByNameModel model = base.getModel();
     String matchingPattern = convertToMatchingPattern(base, namePattern);
@@ -71,7 +74,7 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
       ((ChooseByNameModelEx)model).processNames(new Processor<String>() {
         @Override
         public boolean process(String sequence) {
-          ProgressManager.checkCanceled();
+          indicator.checkCanceled();
           MatchResult result = matches(base, pattern, matcher, sequence);
           if (result != null) {
             collect.consume(result);
@@ -120,6 +123,14 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
     List<Pair<String, MinusculeMatcher>> patternsAndMatchers = getPatternsAndMatchers(qualifierPattern, base);
 
     boolean sortedByMatchingDegree = !(base.getModel() instanceof CustomMatcherModel);
+    IdFilter idFilter = null;
+
+    if (model instanceof ContributorsBasedGotoByModel) {
+      idFilter = ((ContributorsBasedGotoByModel)model).getIdFilter(everywhere);
+    }
+
+    GlobalSearchScope searchScope = FindSymbolParameters.searchScopeFor(base.myProject, everywhere);
+    FindSymbolParameters parameters = new FindSymbolParameters(pattern, namePattern, searchScope, idFilter);
     boolean afterStartMatch = false;
 
     for (MatchResult result : namesList) {
@@ -130,7 +141,7 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
 
       // use interruptible call if possible
       Object[] elements = model instanceof ContributorsBasedGotoByModel ?
-                                ((ContributorsBasedGotoByModel)model).getElementsByName(name, everywhere, namePattern, indicator)
+                                ((ContributorsBasedGotoByModel)model).getElementsByName(name, parameters, indicator)
                                 : model.getElementsByName(name, everywhere, namePattern);
       if (elements.length > 1) {
         sameNameElements.clear();
@@ -193,9 +204,11 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
 
   @NotNull
   private static String getNamePattern(@NotNull ChooseByNameBase base, String pattern) {
-    pattern = base.transformPattern(pattern);
+    String transformedPattern = base.transformPattern(pattern);
+    return getNamePattern(base.getModel(), transformedPattern);
+  }
 
-    ChooseByNameModel model = base.getModel();
+  public static String getNamePattern(ChooseByNameModel model, String pattern) {
     final String[] separators = model.getSeparators();
     int lastSeparatorOccurrence = 0;
     for (String separator : separators) {
@@ -317,7 +330,7 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
 
   @NotNull
   private static String convertToMatchingPattern(@NotNull ChooseByNameBase base, @NotNull String pattern) {
-    pattern = removeModelSpecificMarkup(base, pattern);
+    pattern = removeModelSpecificMarkup(base.getModel(), pattern);
 
     if (!base.canShowListForEmptyPattern()) {
       LOG.assertTrue(!pattern.isEmpty(), base);
@@ -336,8 +349,7 @@ public class DefaultChooseByNameItemProvider implements ChooseByNameItemProvider
   }
 
   @NotNull
-  private static String removeModelSpecificMarkup(@NotNull ChooseByNameBase base, @NotNull String pattern) {
-    ChooseByNameModel model = base.getModel();
+  private static String removeModelSpecificMarkup(@NotNull ChooseByNameModel model, @NotNull String pattern) {
     if (model instanceof ContributorsBasedGotoByModel) {
       pattern = ((ContributorsBasedGotoByModel)model).removeModelSpecificMarkup(pattern);
     }

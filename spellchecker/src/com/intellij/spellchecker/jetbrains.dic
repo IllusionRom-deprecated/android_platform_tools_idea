@@ -252,6 +252,7 @@ mediumint
 mediumtext
 metadata
 middleint
+middleware
 millis
 minextents
 minimizable
@@ -318,6 +319,7 @@ onchange
 onclick
 online
 openid
+openjdk
 openssl
 outfile
 overrider
