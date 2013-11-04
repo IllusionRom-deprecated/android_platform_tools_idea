@@ -2223,7 +2223,7 @@ public class StringUtil extends StringUtilRt {
     for (; i < string1Length && j < string2Length; i++, j++) {
       char ch1 = string1.charAt(i);
       char ch2 = string2.charAt(j);
-      if ((isDigit(ch1) || ch1 == ' ') && (isDigit(ch2) || ch2 == ' ')) {
+      if ((isDecimalDigit(ch1) || ch1 == ' ') && (isDecimalDigit(ch2) || ch2 == ' ')) {
         int startNum1 = i;
         while (ch1 == ' ' || ch1 == '0') { // skip leading spaces and zeros
           startNum1++;
@@ -2239,8 +2239,8 @@ public class StringUtil extends StringUtilRt {
         i = startNum1;
         j = startNum2;
         // find end index of number
-        while (i < string1Length && isDigit(string1.charAt(i))) i++;
-        while (j < string2Length && isDigit(string2.charAt(j))) j++;
+        while (i < string1Length && isDecimalDigit(string1.charAt(i))) i++;
+        while (j < string2Length && isDecimalDigit(string2.charAt(j))) j++;
         final int lengthDiff = (i - startNum1) - (j - startNum2);
         if (lengthDiff != 0) {
           // numbers with more digits are always greater than shorter numbers
@@ -2290,7 +2290,7 @@ public class StringUtil extends StringUtilRt {
     return string1Length - string2Length;
   }
 
-  private static boolean isDigit(char c) {
+  public static boolean isDecimalDigit(char c) {
     return c >= '0' && c <= '9';
   }
 
@@ -2404,18 +2404,22 @@ public class StringUtil extends StringUtilRt {
   }
 
   @NotNull
+  public static String trimMiddle(@NotNull String text, int maxLength) {
+    return shortenTextWithEllipsis(text, maxLength, maxLength >> 1, true);
+  }
+
+  @NotNull
   public static String shortenTextWithEllipsis(@NotNull final String text, final int maxLength, final int suffixLength, boolean useEllipsisSymbol) {
-    final int prefix_length = maxLength - suffixLength - 3;
-    assert prefix_length > 0;
-    String result;
     final int textLength = text.length();
     if (textLength > maxLength) {
-      result = text.substring(0, prefix_length) + (useEllipsisSymbol ? "\u2026" : "...") + text.substring(textLength - suffixLength);
+      String symbol = useEllipsisSymbol ? "\u2026" : "...";
+      final int prefixLength = maxLength - suffixLength - symbol.length();
+      assert prefixLength > 0;
+      return text.substring(0, prefixLength) + symbol + text.substring(textLength - suffixLength);
     }
     else {
-      result = text;
+      return text;
     }
-    return result;
   }
 
   @NotNull

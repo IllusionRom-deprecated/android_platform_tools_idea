@@ -33,6 +33,8 @@
 
     <extensionPoint name="xml.xmlSuppressionProvider"
                     interface="com.intellij.codeInspection.XmlSuppressionProvider"/>
+    <extensionPoint name="xml.nsColorProvider"
+                    interface="com.intellij.codeInsight.daemon.impl.analysis.XmlNSColorProvider"/>
 
     <extensionPoint name="breadcrumbsInfoProvider" interface="com.intellij.xml.breadcrumbs.BreadcrumbsInfoProvider"/>
 
@@ -109,6 +111,9 @@
     <lang.syntaxHighlighterFactory key="XHTML" implementationClass="com.intellij.lang.xhtml.XhtmlSyntaxHighlighterFactory"/>
     <lang.syntaxHighlighterFactory key="DTD" implementationClass="com.intellij.lang.dtd.DtdSyntaxHighlighterFactory"/>
 
+    <annotator language="XML" implementationClass="com.intellij.codeInsight.daemon.impl.analysis.XmlNamespaceAnnotator"/>
+    <annotator language="XML" implementationClass="com.intellij.codeInsight.daemon.impl.analysis.XmlNsPrefixAnnotator"/>
+
     <renameHandler id="xmlTagRenameHandler" implementation="com.intellij.xml.refactoring.XmlTagRenameHandler"/>
     <renameHandler implementation="com.intellij.xml.refactoring.SchemaPrefixRenameHandler" order="before xmlTagRenameHandler"/>
     <refactoring.inlineHandler language="XML" implementationClass="com.intellij.xml.refactoring.XmlInlineHandler"/>
@@ -152,6 +157,9 @@
 
     <applicationService serviceInterface="com.intellij.javaee.ExternalResourceManager"
                         serviceImplementation="com.intellij.javaee.ExternalResourceManagerImpl"/>
+
+    <applicationService serviceInterface="com.intellij.codeInspection.XmlQuickFixFactory"
+                        serviceImplementation="com.intellij.codeInspection.XmlQuickFixFactoryImpl"/>
 
     <standardResourceProvider implementation="com.intellij.javaee.InternalResourceProvider"/>
 
@@ -506,6 +514,8 @@
         implementation="com.intellij.psi.impl.source.resolve.reference.impl.providers.DependentNSReferenceQuickFixProvider"/>
 
     <selectInTarget implementation="com.intellij.ide.browsers.SelectInDefaultBrowserTarget"/>
+    <xml.xmlExtension implementation="com.intellij.xml.HtmlXmlExtension"/>
+
   </extensions>
   <extensions defaultExtensionNs="org.jetbrains">
     <urlOpener implementation="com.intellij.ide.browsers.impl.DefaultUrlOpener" order="last"/>

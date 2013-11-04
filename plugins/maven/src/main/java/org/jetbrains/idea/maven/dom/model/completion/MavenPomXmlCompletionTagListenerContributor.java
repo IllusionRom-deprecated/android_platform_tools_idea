@@ -5,6 +5,7 @@ import com.intellij.codeInsight.actions.ReformatCodeProcessor;
 import com.intellij.codeInsight.completion.*;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementDecorator;
+import com.intellij.codeInsight.template.TemplateManager;
 import com.intellij.openapi.editor.CaretModel;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -17,6 +18,7 @@ import com.intellij.util.xml.DomFileDescription;
 import com.intellij.util.xml.DomManager;
 import org.jetbrains.idea.maven.dom.MavenDomProjectModelDescription;
 import org.jetbrains.idea.maven.dom.MavenDomUtil;
+import org.jetbrains.idea.maven.dom.converters.MavenDependencyCompletionUtil;
 import org.jetbrains.idea.maven.dom.model.MavenDomDependency;
 
 import java.util.Set;
@@ -30,6 +32,10 @@ public class MavenPomXmlCompletionTagListenerContributor extends CompletionContr
 
   @Override
   public void fillCompletionVariants(CompletionParameters parameters, final CompletionResultSet result) {
+    if (TemplateManager.getInstance(parameters.getOriginalFile().getProject()).getActiveTemplate(parameters.getEditor()) != null) {
+      return; // Don't brake the template.
+    }
+
     PsiFile psiFile = parameters.getOriginalFile();
     if (!(psiFile instanceof XmlFile)) return;
 
@@ -70,6 +76,8 @@ public class MavenPomXmlCompletionTagListenerContributor extends CompletionContr
                       context.commitDocument();
 
                       new ReformatCodeProcessor(context.getProject(), context.getFile(), xmlTag.getTextRange(), true).run();
+
+                      MavenDependencyCompletionUtil.invokeCompletion(context, CompletionType.BASIC);
                     }
                   }
                 }

@@ -39,12 +39,12 @@ public class StringBufferReplaceableByString {
 
   public void assignment(int p) {
     StringBuilder b = new StringBuilder();
-    b.append(p);
     p++;
+    b.append(p);
     System.out.println(b.toString());
     StringBuilder c = new StringBuilder();
-    c.append(p);
     p = 2;
+    c.append(p);
     System.out.println(c.toString());
 
     StringBuilder d = new StringBuilder();
@@ -79,4 +79,54 @@ public class StringBufferReplaceableByString {
     data.append(String.format("%02d:%02d", Math.abs(hours), min));
     return data.toString();
   }
+
+  class HighlightStaticImport {
+
+    void example1() {
+      System.out.println();
+      final StringBuilder builder = new StringBuilder();
+      builder.append(foo1());
+      b(); // side effect
+      builder.append(foo1());
+      bar(builder.toString());
+      System.out.println();
+    }
+
+    void example2() {
+      final StringBuilder builder = new StringBuilder();
+      builder.append(foo1());
+      b(); // side effect, but has no effect on builder anymore
+      bar(builder.toString());
+    }
+
+    String s;
+
+    void b() {
+      s = "asdf";
+    }
+
+    private void bar(String s) {
+
+    }
+
+    private String foo1() {
+      return null;
+    }
+  }
+
+  void a(Repository repository, Integer workingCopyId) {
+    final StringBuilder builder = new StringBuilder();
+    builder.append(executeAndDumpGetRequest("/repositories/" + toPathComponent(repository.name()) + "/workingCopies/" + toPathComponent(workingCopyId.toString()) + "/changes"));
+    builder.append('\n');
+    builder.append(executeAndDumpGetRequest("/repositories/" + toPathComponent(repository.name()) + "/workingCopies/" + toPathComponent(workingCopyId.toString()) + "/changes/_"));
+    builder.append('\n');
+    builder.append(executeAndDumpGetRequest("/repositories/" + toPathComponent(repository.name()) + "/workingCopies/" + toPathComponent(workingCopyId.toString()) + "/changes/__"));
+    checkOutputFiles(new TestDataFile[]{new TestDataFile(testName(), builder.toString())});
+  }
+  private void checkOutputFiles(TestDataFile[] testDataFiles) {}
+  private String executeAndDumpGetRequest(String s) { return s; }
+  private String toPathComponent(String name) { return name; }
+  class Repository { public String name() { return "name"; } }
+  public String testName() { return "test"; }
+  class TestDataFile { public TestDataFile(String s, String s1) { } }
 }

@@ -900,16 +900,17 @@ public class TypeConversionUtil {
     PsiClass leftClass = leftResult.getElement();
     PsiClass rightClass = rightResult.getElement();
 
-    if (!leftClass.hasTypeParameters()) return true;
+    Iterator<PsiTypeParameter> li = PsiUtil.typeParametersIterator(leftClass);
+
+    if (!li.hasNext()) return true;
     PsiSubstitutor leftSubstitutor = leftResult.getSubstitutor();
 
     if (!leftClass.getManager().areElementsEquivalent(leftClass, rightClass)) {
       rightSubstitutor = getSuperClassSubstitutor(leftClass, rightClass, rightSubstitutor);
       rightClass = leftClass;
     }
-    else if (!rightClass.hasTypeParameters()) return true;
+    else if (!PsiUtil.typeParametersIterator(rightClass).hasNext()) return true;
 
-    Iterator<PsiTypeParameter> li = PsiUtil.typeParametersIterator(leftClass);
     Iterator<PsiTypeParameter> ri = PsiUtil.typeParametersIterator(rightClass);
     while (li.hasNext()) {
       if (!ri.hasNext()) return false;
@@ -1460,12 +1461,16 @@ public class TypeConversionUtil {
     return null;
   }
 
-  // true if floating point literal consists of zeros only
+  /**
+   * See JLS 3.10.2. Floating-Point Literals
+   * @return true  if floating point literal consists of zeros only
+   */
   public static boolean isFPZero(@NotNull final String text) {
     for (int i = 0; i < text.length(); i++) {
       final char c = text.charAt(i);
       if (Character.isDigit(c) && c != '0') return false;
-      if (Character.toUpperCase(c) == 'E') break;
+      final char d = Character.toUpperCase(c);
+      if (d == 'E' || d == 'P') break;
     }
     return true;
   }

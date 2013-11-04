@@ -23,13 +23,10 @@ import com.intellij.codeInsight.lookup.LookupElementPresentation
 import com.intellij.codeInsight.lookup.LookupManager
 import com.intellij.codeInsight.lookup.PsiTypeLookupItem
 import com.intellij.codeInsight.lookup.impl.LookupImpl
-import com.intellij.codeInsight.template.JavaCodeContextType
-import com.intellij.codeInsight.template.LiveTemplateTest
-import com.intellij.codeInsight.template.Template
-import com.intellij.codeInsight.template.TemplateContextType
-import com.intellij.codeInsight.template.TemplateManager
+import com.intellij.codeInsight.template.*
 import com.intellij.codeInsight.template.impl.TemplateImpl
 import com.intellij.codeInsight.template.impl.TemplateManagerImpl
+import com.intellij.codeInsight.template.impl.TemplateSettings
 import com.intellij.ide.DataManager
 import com.intellij.ide.ui.UISettings
 import com.intellij.openapi.Disposable
@@ -49,11 +46,14 @@ import com.intellij.openapi.extensions.LoadingOrder
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.statistics.StatisticsManager
 import com.intellij.psi.statistics.impl.StatisticsManagerImpl
 import com.intellij.util.containers.ContainerUtil
+
+import java.awt.event.KeyEvent
 /**
  * @author peter
  */
@@ -577,10 +577,13 @@ public interface Test {
  }
 
   private def registerContributor(final Class contributor, LoadingOrder order = LoadingOrder.LAST) {
+    registerCompletionContributor(contributor, testRootDisposable, order)
+  }
+  static def registerCompletionContributor(final Class contributor, Disposable parentDisposable, LoadingOrder order) {
     def ep = Extensions.rootArea.getExtensionPoint("com.intellij.completion.contributor")
     def bean = new CompletionContributorEP(language: 'JAVA', implementationClass: contributor.name)
     ep.registerExtension(bean, order)
-    disposeOnTearDown({ ep.unregisterExtension(bean) } as Disposable)
+    Disposer.register(parentDisposable, { ep.unregisterExtension(bean) } as Disposable)
   }
 
   public void testLeftRightMovements() {
@@ -1546,7 +1549,8 @@ class Foo {
     LookupElementPresentation p = LookupElementPresentation.renderElement(myFixture.lookupElements[1])
     assert p.itemText == 'tpl'
     assert !p.tailText
-    assert p.typeText == '  [Tab] '
+    def tabKeyPresentation = KeyEvent.getKeyText(TemplateSettings.TAB_CHAR as int)
+    assert p.typeText == "  [$tabKeyPresentation] "
   }
 
 }

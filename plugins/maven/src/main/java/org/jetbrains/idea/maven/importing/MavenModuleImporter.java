@@ -15,6 +15,7 @@
  */
 package org.jetbrains.idea.maven.importing;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.ReadAction;
@@ -46,6 +47,13 @@ public class MavenModuleImporter {
   public static final String SUREFIRE_PLUGIN_LIBRARY_NAME = "maven-surefire-plugin urls";
 
   private static final Set<String> IMPORTED_CLASSIFIERS = ImmutableSet.of("client");
+
+  private static final Map<String, LanguageLevel> MAVEN_IDEA_PLUGIN_LEVELS = ImmutableMap.of(
+    "JDK_1_3", LanguageLevel.JDK_1_3,
+    "JDK_1_4", LanguageLevel.JDK_1_4,
+    "JDK_1_5", LanguageLevel.JDK_1_5,
+    "JDK_1_6", LanguageLevel.JDK_1_6,
+    "JDK_1_7", LanguageLevel.JDK_1_7);
 
   private final Module myModule;
   private final MavenProjectsTree myMavenTree;
@@ -261,8 +269,8 @@ public class MavenModuleImporter {
                                            @NotNull MavenArtifact artifact) {
     Library.ModifiableModel libraryModel = null;
 
-    for (Element artifactsElement : (List<Element>)buildHelperCfg.getChildren("artifacts")) {
-      for (Element artifactElement : (List<Element>)artifactsElement.getChildren("artifact")) {
+    for (Element artifactsElement : buildHelperCfg.getChildren("artifacts")) {
+      for (Element artifactElement : artifactsElement.getChildren("artifact")) {
         String typeString = artifactElement.getChildTextTrim("type");
         if (typeString != null && !typeString.equals("jar")) continue;
 
@@ -314,7 +322,17 @@ public class MavenModuleImporter {
   }
 
   private void configLanguageLevel() {
-    final LanguageLevel level = LanguageLevel.parse(myMavenProject.getSourceLevel());
+    LanguageLevel level = null;
+
+    Element cfg = myMavenProject.getPluginConfiguration("com.googlecode", "maven-idea-plugin");
+    if (cfg != null) {
+      level = MAVEN_IDEA_PLUGIN_LEVELS.get(cfg.getChildTextTrim("jdkLevel"));
+    }
+
+    if (level == null) {
+      level = LanguageLevel.parse(myMavenProject.getSourceLevel());
+    }
+
     myRootModelAdapter.setLanguageLevel(level);
   }
 }
