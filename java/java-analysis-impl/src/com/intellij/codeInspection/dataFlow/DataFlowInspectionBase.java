@@ -148,7 +148,7 @@ public class DataFlowInspectionBase extends BaseJavaBatchLocalInspectionTool {
     PsiClass containingClass = PsiTreeUtil.getParentOfType(scope, PsiClass.class);
     if (containingClass != null && PsiUtil.isLocalOrAnonymousClass(containingClass)) return;
 
-    final StandardDataFlowRunner dfaRunner = new StandardDataFlowRunner() {
+    final StandardDataFlowRunner dfaRunner = new StandardDataFlowRunner(scope) {
       @Override
       protected boolean shouldCheckTimeLimit() {
         if (!onTheFly) return false;
@@ -482,9 +482,10 @@ public class DataFlowInspectionBase extends BaseJavaBatchLocalInspectionTool {
         holder.registerProblem(expr, text);
       }
       else if (AnnotationUtil.isAnnotatingApplicable(statement)) {
+        final String defaultNullable = NullableNotNullManager.getInstance(holder.getProject()).getPresentableDefaultNullable();
         final String text = isNullLiteralExpression(expr)
-                            ? InspectionsBundle.message("dataflow.message.return.null.from.notnullable")
-                            : InspectionsBundle.message("dataflow.message.return.nullable.from.notnullable");
+                            ? InspectionsBundle.message("dataflow.message.return.null.from.notnullable", defaultNullable)
+                            : InspectionsBundle.message("dataflow.message.return.nullable.from.notnullable", defaultNullable);
         final NullableNotNullManager manager = NullableNotNullManager.getInstance(expr.getProject());
         holder.registerProblem(expr, text, new AnnotateMethodFix(manager.getDefaultNullable(), ArrayUtil.toStringArray(manager.getNotNulls())){
           @Override

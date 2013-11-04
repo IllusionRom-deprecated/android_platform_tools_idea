@@ -6,6 +6,7 @@ import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.application.AccessToken;
 import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileChooser.FileChooser;
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory;
@@ -39,14 +40,20 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.util.*;
 
 /**
  * @author Konstantin Bulenkov
  */
 public abstract class FindJarFix<T extends PsiElement> implements IntentionAction, Iconable {
+
+  private static final Logger LOG = Logger.getInstance(FindJarFix.class);
+
   private static final String CLASS_ROOT_URL = "http://findjar.com/class/";
   private static final String CLASS_PAGE_EXT = ".html";
   private static final String SERVICE_URL = "http://findjar.com";
@@ -122,9 +129,22 @@ public abstract class FindJarFix<T extends PsiElement> implements IntentionActio
     final Runnable runnable = new Runnable() {
       public void run() {
         try {
-          final DOMParser parser = new DOMParser();
-          parser.parse(CLASS_ROOT_URL + fqn.replace('.', '/') + CLASS_PAGE_EXT);
-          final Document doc = parser.getDocument();
+          Document doc;
+
+          DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+          builderFactory.setExpandEntityReferences(false);
+          builderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+
+          URL url = new URL(CLASS_ROOT_URL + fqn.replace('.', '/') + CLASS_PAGE_EXT);
+
+          InputStream stream = url.openStream();
+          try {
+            doc = builderFactory.newDocumentBuilder().parse(stream);
+          }
+          finally {
+            stream.close();
+          }
+
           if (doc != null) {
             final NodeList links = doc.getElementsByTagName(LINK_TAG_NAME);
             for (int i = 0; i < links.getLength(); i++) {
@@ -145,7 +165,8 @@ public abstract class FindJarFix<T extends PsiElement> implements IntentionActio
         }
         catch (IOException ignore) {//
         }
-        catch (SAXException e) {//
+        catch (Exception e) {//
+          LOG.warn(e);
         }
       }
     };
@@ -154,7 +175,7 @@ public abstract class FindJarFix<T extends PsiElement> implements IntentionActio
       @Override
       public void run(@NotNull ProgressIndicator indicator) {
         indicator.setIndeterminate(true);
-        runnable.run();
+        runUncanceledRunnableWithProgress(runnable, indicator);
       }
 
       @Override
@@ -240,6 +261,22 @@ public abstract class FindJarFix<T extends PsiElement> implements IntentionActio
     }
   }
 
+  private static void runUncanceledRunnableWithProgress(Runnable run, ProgressIndicator indicator) {
+    Thread t = new Thread(run, "FindJar download thread");
+    t.setDaemon(true);
+    t.start();
+
+    try {
+      while (t.isAlive()) {
+        t.join(500);
+        indicator.checkCanceled();
+      }
+    }
+    catch (InterruptedException e) {
+      indicator.checkCanceled();
+    }
+  }
+
   private void downloadJar(String jarUrl, String jarName) {
     final Project project = myModule.getProject();
     final String dirPath = PropertiesComponent.getInstance(project).getValue("findjar.last.used.dir");
@@ -249,12 +286,13 @@ public abstract class FindJarFix<T extends PsiElement> implements IntentionActio
       PropertiesComponent.getInstance(project).setValue("findjar.last.used.dir", file.getPath());
       final DownloadableFileService downloader = DownloadableFileService.getInstance();
       final DownloadableFileDescription description = downloader.createFileDescription(jarUrl, jarName);
-      final VirtualFile[] jars = downloader.createDownloader(Arrays.asList(description), project, myEditorComponent, jarName)
-        .toDirectory(file.getPath()).download();
-      if (jars != null && jars.length == 1) {
+      final List<VirtualFile> jars =
+        downloader.createDownloader(Arrays.asList(description), jarName)
+                  .downloadFilesWithProgress(file.getPath(), project, myEditorComponent);
+      if (jars != null && jars.size() == 1) {
         AccessToken token = WriteAction.start();
         try {
-          OrderEntryFix.addJarToRoots(jars[0].getPresentableUrl(), myModule, myRef);
+          OrderEntryFix.addJarToRoots(jars.get(0).getPresentableUrl(), myModule, myRef);
         }
         finally {
           token.finish();
