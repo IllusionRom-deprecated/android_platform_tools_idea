@@ -156,6 +156,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
   }
 
   private boolean showToolTipByMouseMove(final MouseEvent e) {
+    if (myEditor.getVisibleLineCount() == 0) return false;
     MouseEvent me = new MouseEvent(e.getComponent(), e.getID(), e.getWhen(), e.getModifiers(), 0, e.getY() + 1, e.getClickCount(),
                                               e.isPopupTrigger());
 
@@ -212,7 +213,7 @@ public class EditorMarkupModelImpl extends MarkupModelImpl implements EditorMark
   }
 
   private int fitLineToEditor(int visualLine) {
-    return Math.min(myEditor.getVisibleLineCount() - 1, Math.max(0, visualLine));
+    return Math.max(0, Math.min(myEditor.getVisibleLineCount() - 1, visualLine));
   }
 
   private int getOffset(int visualLine, boolean startLine) {

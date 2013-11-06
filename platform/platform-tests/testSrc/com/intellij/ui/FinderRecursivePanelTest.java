@@ -15,7 +15,8 @@
  */
 package com.intellij.ui;
 
-import com.intellij.openapi.util.Disposer;
+import com.intellij.idea.Bombed;
+import com.intellij.openapi.project.Project;
 import com.intellij.testFramework.PlatformTestCase;
 import com.intellij.ui.components.JBList;
 import org.jetbrains.annotations.NotNull;
@@ -23,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
 
 public class FinderRecursivePanelTest extends PlatformTestCase {
@@ -85,8 +87,9 @@ public class FinderRecursivePanelTest extends PlatformTestCase {
     assertMerge(items, -1, -1, newItems);
   }
 
+  @Bombed(year = 2013, month = Calendar.DECEMBER, day = 01, user = "Yann Cebron")
   public void testUpdate() throws InterruptedException {
-    StringFinderRecursivePanel panel_0 = new StringFinderRecursivePanel() {
+    StringFinderRecursivePanel panel_0 = new StringFinderRecursivePanel(getProject()) {
       @NotNull
       @Override
       protected JComponent createRightComponent(String s) {
@@ -105,7 +108,8 @@ public class FinderRecursivePanelTest extends PlatformTestCase {
         };
       }
     };
-    Disposer.register(myTestRootDisposable, panel_0);
+    disposeOnTearDown(panel_0);
+
     panel_0.setTestSelectedIndex(0);
     //panel_0.updateRightComponent(true);
 
@@ -131,8 +135,8 @@ public class FinderRecursivePanelTest extends PlatformTestCase {
 
     private JBList myList;
 
-    private StringFinderRecursivePanel() {
-      super(FinderRecursivePanelTest.this.myProject, "fooPanel");
+    private StringFinderRecursivePanel(Project project) {
+      super(project, "fooPanel");
       init();
     }
 

@@ -265,7 +265,7 @@ public class VcsLogDataHolder implements Disposable {
           myEntireLogLoadWaiter.countDown();
         }
       }
-    }, "Loading entire log structure...");
+    }, "Loading log structure...");
   }
 
   /**
@@ -292,12 +292,12 @@ public class VcsLogDataHolder implements Disposable {
           return;
         }
 
-        try {
-          myEntireLogLoadWaiter.await();
-        }
-        catch (InterruptedException e) {
-          throw new RuntimeException(e);
-        }
+//        try {
+//          myEntireLogLoadWaiter.await();
+//        }
+//        catch (InterruptedException e) {
+//          throw new RuntimeException(e);
+//        }
 
         List<TimedVcsCommit> compoundLog = myMultiRepoJoiner.join(myLogData.myLogsByRoot.values());
         DataPack fullDataPack = DataPack.build(compoundLog, myLogData.getAllRefs(), indicator);
@@ -320,7 +320,7 @@ public class VcsLogDataHolder implements Disposable {
    */
   private void smartRefresh(ProgressIndicator indicator, Consumer<DataPack> onSuccess) throws VcsException {
     if (myLogData == null || !myLogData.isFullLogReady()) {
-      LOG.error("The full log is not ready: ", new Attachment("log-data", myLogData.toString()));
+      LOG.error("The full log is not ready!");
     }
 
     Map<VirtualFile, List<TimedVcsCommit>> logsToBuild = ContainerUtil.newHashMap();
@@ -434,8 +434,14 @@ public class VcsLogDataHolder implements Disposable {
           public VcsFullCommitDetails fun(TimedVcsCommit commit) {
             VcsFullCommitDetails detail = allDetails.get(commit.getHash());
             if (detail == null) {
-              LOG.error("Details not stored for commit " + commit, new Attachment("filtered_details", allDetails.toString()),
-                        new Attachment("compound_log", compoundLog.toString()));
+              String message = "Details not stored for commit " + commit;
+              if (LOG.isDebugEnabled()) {
+                LOG.error(message, new Attachment("filtered_details", allDetails.toString()),
+                                   new Attachment("compound_log", compoundLog.toString()));
+              }
+              else {
+                LOG.error(message);
+              }
             }
             return detail;
           }
@@ -457,6 +463,15 @@ public class VcsLogDataHolder implements Disposable {
   @NotNull
   public Map<VirtualFile, VcsUser> getCurrentUser() {
     return myCurrentUser;
+  }
+
+  public boolean isMultiRoot() {
+    return myLogProviders.size() > 1;
+  }
+
+  @NotNull
+  public Project getProject() {
+    return myProject;
   }
 
   private static class RecentCommitsInfo {
@@ -704,6 +719,7 @@ public class VcsLogDataHolder implements Disposable {
   @NotNull
   public Collection<VcsFullCommitDetails> getTopCommitDetails() {
     final Collection<TimedVcsCommit> topCommits = getTopCommits();
+    final AtomicBoolean errorDetailsAttached = new AtomicBoolean();
     return ContainerUtil.mapNotNull(topCommits, new Function<TimedVcsCommit, VcsFullCommitDetails>() {
       @Nullable
       @Override
@@ -715,9 +731,17 @@ public class VcsLogDataHolder implements Disposable {
         }
 
         // shouldn't happen
-        LOG.error("No details were stored for commit " + hash,
-                  new Attachment("details_cache.txt", myTopCommitsDetailsCache.toString()),
-                  new Attachment("top_commits.txt", topCommits.toString()));
+        String errorMessage = "No details were stored for commit " + hash;
+        // log the error only once for the getTopCommitDetails request
+        if (!errorDetailsAttached.get()) {
+          errorDetailsAttached.set(true);
+          // temporary disable the error message until the bug is properly fixed.
+          // the bug is: we store 1000 commit details per root, but iterate through the roots_num * 1000 latest commits
+          // therefore this error shouldn't happen only in the case when commits of all repositories are evently distributed in time.
+//          LOG.error(errorMessage,
+//                    new Attachment("details_cache.txt", myTopCommitsDetailsCache.toString()),
+//                    new Attachment("top_commits.txt", topCommits.toString()));
+        }
         return null;
       }
     });
