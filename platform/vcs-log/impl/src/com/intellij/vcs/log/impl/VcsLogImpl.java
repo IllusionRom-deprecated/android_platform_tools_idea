@@ -34,20 +34,12 @@ import java.util.List;
  */
 public class VcsLogImpl implements VcsLog {
 
-  private final VcsLogDataHolder myDataHolder;
-  private final VcsLogUI myUi;
+  @NotNull private final VcsLogDataHolder myDataHolder;
+  @NotNull private final VcsLogUI myUi;
 
-  public VcsLogImpl(VcsLogManager vcsLogManager) {
-    myDataHolder = vcsLogManager.getDataHolder();
-    myUi = vcsLogManager.getLogUi();
-  }
-
-  /**
-   * Checks if the log is initialized.
-   * TODO Temporary method until the old Git log is switched off and removed
-   */
-  public boolean isReady() {
-    return myDataHolder != null && myUi != null;
+  public VcsLogImpl(@NotNull VcsLogDataHolder holder, @NotNull VcsLogUI ui) {
+    myDataHolder = holder;
+    myUi = ui;
   }
 
   @Override
@@ -62,6 +54,22 @@ public class VcsLogImpl implements VcsLog {
       }
     }
     return hashes;
+  }
+
+  @NotNull
+  @Override
+  public List<VcsFullCommitDetails> getSelectedDetails() {
+    List<VcsFullCommitDetails> details = ContainerUtil.newArrayList();
+    JBTable table = myUi.getTable();
+    for (int row : table.getSelectedRows()) {
+      AbstractVcsLogTableModel model = (AbstractVcsLogTableModel)table.getModel();
+      VcsFullCommitDetails commitDetails = model.getFullCommitDetails(row);
+      if (commitDetails == null) {
+        return ContainerUtil.emptyList();
+      }
+      details.add(commitDetails);
+    }
+    return details;
   }
 
   @Override
