@@ -1,6 +1,9 @@
 package com.intellij.vcs.log.impl;
 
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.actionSystem.DataKey;
+import com.intellij.openapi.actionSystem.DataSink;
+import com.intellij.openapi.actionSystem.TypeSafeDataProvider;
 import com.intellij.openapi.extensions.ExtensionPointName;
 import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.project.Project;
@@ -20,7 +23,6 @@ import com.intellij.ui.content.ContentManagerEvent;
 import com.intellij.util.Consumer;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
-import com.intellij.vcs.log.VcsLogObjectsFactory;
 import com.intellij.vcs.log.VcsLogProvider;
 import com.intellij.vcs.log.VcsLogRefresher;
 import com.intellij.vcs.log.VcsLogSettings;
@@ -45,7 +47,6 @@ public class VcsLogManager implements Disposable {
 
   @NotNull private final Project myProject;
   @NotNull private final ProjectLevelVcsManager myVcsManager;
-  @NotNull private final VcsLogObjectsFactory myLogObjectsFactory;
   @NotNull private final VcsLogSettings mySettings;
   @NotNull private final VcsLogUiProperties myUiProperties;
 
@@ -54,11 +55,10 @@ public class VcsLogManager implements Disposable {
   private VcsLogUI myUi;
 
   public VcsLogManager(@NotNull Project project, @NotNull ProjectLevelVcsManager vcsManager,
-                       @NotNull VcsLogObjectsFactory logObjectsFactory, @NotNull VcsLogSettings settings,
+                       @NotNull VcsLogSettings settings,
                        @NotNull VcsLogUiProperties uiProperties) {
     myProject = project;
     myVcsManager = vcsManager;
-    myLogObjectsFactory = logObjectsFactory;
     mySettings = settings;
     myUiProperties = uiProperties;
     Disposer.register(myProject, this);
@@ -69,7 +69,8 @@ public class VcsLogManager implements Disposable {
     final Map<VirtualFile, VcsLogProvider> logProviders = findLogProviders();
     final VcsLogContainer mainPanel = new VcsLogContainer(myProject);
 
-    VcsLogDataHolder.init(myProject, myLogObjectsFactory, logProviders, mySettings, new Consumer<VcsLogDataHolder>() {
+    myLogDataHolder = new VcsLogDataHolder(myProject, logProviders, mySettings);
+    myLogDataHolder.initialize(new Consumer<VcsLogDataHolder>() {
       @Override
       public void consume(VcsLogDataHolder vcsLogDataHolder) {
         Disposer.register(VcsLogManager.this, vcsLogDataHolder);
@@ -117,6 +118,7 @@ public class VcsLogManager implements Disposable {
     return myLogDataHolder;
   }
 
+  @NotNull
   public VcsLogUI getLogUi() {
     return myUi;
   }
@@ -125,7 +127,7 @@ public class VcsLogManager implements Disposable {
   public void dispose() {
   }
 
-  private static class VcsLogContainer extends JPanel {
+  private class VcsLogContainer extends JPanel implements TypeSafeDataProvider {
 
     private final JBLoadingPanel myLoadingPanel;
 
@@ -140,6 +142,14 @@ public class VcsLogManager implements Disposable {
       myLoadingPanel.add(mainComponent);
       myLoadingPanel.stopLoading();
     }
+
+    @Override
+    public void calcData(DataKey key, DataSink sink) {
+      if (myUi != null) {
+        myUi.getMainFrame().calcData(key, sink);
+      }
+    }
+
   }
 
   private static class PostponeableLogRefresher implements VcsLogRefresher, Disposable {

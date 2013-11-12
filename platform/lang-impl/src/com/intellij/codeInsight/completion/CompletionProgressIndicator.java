@@ -209,7 +209,11 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
         final int selectionEndOffset = initContext.getSelectionEndOffset();
         final PsiReference reference = initContext.getFile().findReferenceAt(selectionEndOffset);
         if (reference != null) {
-          initContext.setReplacementOffset(findReplacementOffset(selectionEndOffset, reference));
+          int referenceStart = reference.getElement().getTextRange().getStartOffset();
+          if (referenceStart + reference.getRangeInElement().getStartOffset() != selectionEndOffset ||
+              referenceStart == initContext.getStartOffset()) {
+            initContext.setReplacementOffset(findReplacementOffset(selectionEndOffset, reference));
+          }
         }
       }
       catch (IndexNotReadyException ignored) {
@@ -351,7 +355,7 @@ public class CompletionProgressIndicator extends ProgressIndicatorBase implement
     myLookup.refreshUi(true, justShown);
     hideAutopopupIfMeaningless();
     if (justShown) {
-      myLookup.ensureSelectionVisible();
+      myLookup.ensureSelectionVisible(true);
     }
     return true;
   }
