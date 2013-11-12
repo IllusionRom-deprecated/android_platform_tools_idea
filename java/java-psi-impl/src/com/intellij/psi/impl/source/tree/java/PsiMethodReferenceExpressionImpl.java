@@ -84,25 +84,41 @@ public class PsiMethodReferenceExpressionImpl extends PsiReferenceExpressionBase
       }
       else if (isConstructor()) {
         methods = containingClass.getConstructors();
-        if (methods.length == 0) { //default constructor
-          return containingClass;
-        }
       }
       if (methods != null) {
         PsiMethod psiMethod = null;
-        for (PsiMethod method : methods) {
-          if (PsiUtil.isAccessible(method, this, null)) {
-            if (psiMethod != null) return null;
-            psiMethod = method;
+        if (methods.length > 0) {
+          for (PsiMethod method : methods) {
+            if (PsiUtil.isAccessible(method, this, null)) {
+              if (psiMethod != null) return null;
+              psiMethod = method;
+            }
+          }
+          if (psiMethod == null) return null;
+          if (psiMethod.isVarArgs()) return null;
+          if (psiMethod.getTypeParameters().length > 0) {
+            final PsiReferenceParameterList parameterList = getParameterList();
+            return parameterList != null && parameterList.getTypeParameterElements().length > 0 ? psiMethod : null;
           }
         }
-        if (psiMethod == null) return null;
-        if (psiMethod.isVarArgs()) return null;
-        if (psiMethod.getTypeParameters().length > 0) {
-          final PsiReferenceParameterList parameterList = getParameterList();
-          return parameterList != null && parameterList.getTypeParameterElements().length > 0 ? psiMethod : null;
+        if (containingClass.hasTypeParameters()) {
+          final PsiElement qualifier = getQualifier();
+          if (qualifier instanceof PsiTypeElement) {
+            final PsiJavaCodeReferenceElement referenceElement = ((PsiTypeElement)qualifier).getInnermostComponentReferenceElement();
+            if (referenceElement != null) {
+              final PsiReferenceParameterList parameterList = referenceElement.getParameterList();
+              if (parameterList == null || parameterList.getTypeParameterElements().length == 0) {
+                return null;
+              }
+            }
+          } else if (qualifier instanceof PsiReferenceExpression) {
+            final PsiReferenceParameterList parameterList = ((PsiReferenceExpression)qualifier).getParameterList();
+            if (parameterList == null || parameterList.getTypeParameterElements().length == 0) {
+              return null;
+            }
+          }
         }
-        return psiMethod;
+        return psiMethod == null ? containingClass : psiMethod;
       }
     }
     return null;

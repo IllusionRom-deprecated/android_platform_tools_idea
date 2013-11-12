@@ -8,19 +8,19 @@ import com.intellij.openapi.externalSystem.model.project.ContentRootData;
 import com.intellij.openapi.externalSystem.model.project.ExternalSystemSourceType;
 import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.service.project.ProjectStructureHelper;
+import com.intellij.openapi.externalSystem.util.DisposeAwareProjectChange;
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
 import com.intellij.openapi.externalSystem.util.Order;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.*;
-import com.intellij.openapi.roots.impl.SourceFolderImpl;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.util.containers.ContainerUtilRt;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.jps.model.JpsElement;
+import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 import org.jetbrains.jps.model.java.JavaResourceRootType;
 import org.jetbrains.jps.model.java.JavaSourceRootProperties;
 import org.jetbrains.jps.model.java.JavaSourceRootType;
@@ -81,9 +81,9 @@ public class ContentRootDataService implements ProjectDataService<ContentRootDat
                                  @NotNull final Module module,
                                  boolean synchronous)
   {
-    ExternalSystemApiUtil.executeProjectChangeAction(synchronous, new Runnable() {
+    ExternalSystemApiUtil.executeProjectChangeAction(synchronous, new DisposeAwareProjectChange(module) {
       @Override
-      public void run() {
+      public void execute() {
         final ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
         final ModifiableRootModel model = moduleRootManager.getModifiableModel();
         final ContentEntry[] contentEntries = model.getContentEntries();
@@ -113,8 +113,12 @@ public class ContentRootDataService implements ProjectDataService<ContentRootDat
               createSourceRootIfAbsent(contentEntry, path, module.getName(), JavaResourceRootType.TEST_RESOURCE, false);
               retainedPaths.add(ExternalSystemApiUtil.toCanonicalPath(path));
             }
-            for (String path : contentRoot.getPaths(ExternalSystemSourceType.GENERATED)) {
+            for (String path : contentRoot.getPaths(ExternalSystemSourceType.SOURCE_GENERATED)) {
               createSourceRootIfAbsent(contentEntry, path, module.getName(), JavaSourceRootType.SOURCE, true);
+              retainedPaths.add(ExternalSystemApiUtil.toCanonicalPath(path));
+            }
+            for (String path : contentRoot.getPaths(ExternalSystemSourceType.TEST_GENERATED)) {
+              createSourceRootIfAbsent(contentEntry, path, module.getName(), JavaSourceRootType.TEST_SOURCE, true);
               retainedPaths.add(ExternalSystemApiUtil.toCanonicalPath(path));
             }
             for (String path : contentRoot.getPaths(ExternalSystemSourceType.EXCLUDED)) {
@@ -183,10 +187,10 @@ public class ContentRootDataService implements ProjectDataService<ContentRootDat
     }
     LOG.info(String.format("Importing source root '%s' for content root '%s' of module '%s'", path, entry.getUrl(), moduleName));
     SourceFolder sourceFolder = entry.addSourceFolder(toVfsUrl(path), sourceRootType);
-    if (generated && sourceFolder instanceof SourceFolderImpl) {
-      JpsElement properties = ((SourceFolderImpl)sourceFolder).getJpsElement().getProperties();
-      if(properties instanceof JavaSourceRootProperties) {
-        JavaSourceRootProperties.class.cast(properties).setForGeneratedSources(true);
+    if (generated) {
+      JavaSourceRootProperties properties = sourceFolder.getJpsElement().getProperties(JavaModuleSourceRootTypes.SOURCES);
+      if(properties != null) {
+        properties.setForGeneratedSources(true);
       }
     }
   }

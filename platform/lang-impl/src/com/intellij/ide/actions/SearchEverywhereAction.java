@@ -561,13 +561,13 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
     final JPanel panel = new JPanel(new BorderLayout()) {
       @Override
       protected void paintComponent(Graphics g) {
-        ((Graphics2D)g).setPaint(new GradientPaint(0,0, new JBColor(new Color(0x6688f2), new Color(48, 87, 186)), 0, getHeight(),
-                                                   new JBColor(new Color(0x2d60ee), new Color(43, 80, 172))));
+        ((Graphics2D)g).setPaint(new GradientPaint(0,0, new JBColor(new Color(211, 232, 253), new Color(64, 80, 94)), 0, getHeight(),
+                                                   new JBColor(new Color(200, 215, 239), new Color(53, 65, 87))));
         g.fillRect(0, 0, getWidth(), getHeight());
       }
    };
     final JLabel title = new JLabel(" Search Everywhere:");
-    title.setForeground(new JBColor(Gray._255, Gray._180));
+    title.setForeground(new JBColor(Gray._50, Gray._180));
     if (SystemInfo.isMac) {
       title.setFont(title.getFont().deriveFont(Font.BOLD, title.getFont().getSize() - 1f));
     } else {
@@ -604,6 +604,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         showPoint = JBPopupFactory.getInstance().guessBestPopupLocation(e.getDataContext());
       }
     }
+    myList.setFont(UIUtil.getListFont());
     myBalloon.show(showPoint);
     initSearchActions(myBalloon, myPopupField);
     IdeFocusManager focusManager = IdeFocusManager.getInstance(e.getProject());
@@ -672,7 +673,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
 
       getTextEditor().putClientProperty("JTextField.Search.noBorderRing", Boolean.TRUE);
       if (UIUtil.isUnderDarcula()) {
-        getTextEditor().setBackground(Gray._55);
+        getTextEditor().setBackground(Gray._45);
         getTextEditor().setForeground(Gray._240);
       }
     }
@@ -972,6 +973,7 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
         updatePopup();
       }
       catch (Exception ignore) {
+        ignore.printStackTrace();
       }
       finally {
         myList.getEmptyText().setText(StatusText.DEFAULT_EMPTY_TEXT);
@@ -1261,6 +1263,12 @@ public class SearchEverywhereAction extends AnAction implements CustomComponentA
           }
         }
       };
+
+      final ActionManager actionManager = ActionManager.getInstance();
+      final List<String> actions = AbbreviationManager.getInstance().findActions(pattern);
+      for (String actionId : actions) {
+        consumer.consume(actionManager.getAction(actionId));
+      }
 
       for (SearchTopHitProvider provider : SearchTopHitProvider.EP_NAME.getExtensions()) {
         myProgressIndicator.checkCanceled();
