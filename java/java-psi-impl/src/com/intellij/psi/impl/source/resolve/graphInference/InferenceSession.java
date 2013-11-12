@@ -28,7 +28,6 @@ import com.intellij.util.ArrayUtilRt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -70,16 +69,15 @@ public class InferenceSession {
   }
   
   public InferenceSession(PsiTypeParameter[] typeParams,
-                          PsiParameter[] parameters, 
-                          PsiExpression[] args,
                           PsiSubstitutor siteSubstitutor,
-                          PsiElement parent,
                           PsiManager manager) {
     myManager = manager;
     mySiteSubstitutor = siteSubstitutor;
 
     initBounds(typeParams);
+  }
 
+  public void initExpressionConstraints(PsiParameter[] parameters, PsiExpression[] args, PsiElement parent) {
     final Pair<PsiMethod, PsiCallExpression> pair = getPair(parent);
     if (parameters.length > 0) {
       for (int i = 0; i < args.length; i++) {
@@ -274,38 +272,50 @@ public class InferenceSession {
       if (!PsiType.VOID.equals(returnType) && returnType != null) {
         PsiType targetType = PsiTypesUtil.getExpectedTypeByParent(context);
         if (targetType == null) {
-          final PsiElement parent = PsiUtil.skipParenthesizedExprUp(context.getParent());
-          if (parent instanceof PsiExpressionList) {
-            final PsiElement gParent = parent.getParent();
-            if (gParent instanceof PsiCallExpression) {
-              final PsiExpressionList argumentList = ((PsiCallExpression)gParent).getArgumentList();
-              if (argumentList != null) {
-                final Pair<PsiMethod, PsiSubstitutor> pair = MethodCandidateInfo.getCurrentMethod(argumentList);
-                final JavaResolveResult resolveResult = pair == null ? ((PsiCallExpression)gParent).resolveMethodGenerics() : null;
-                final PsiElement parentMethod = pair != null ? pair.first : resolveResult.getElement();
-                if (parentMethod instanceof PsiMethod) {
-                  final PsiParameter[] parameters = ((PsiMethod)parentMethod).getParameterList().getParameters();
-                  PsiElement arg = context;
-                  while (arg.getParent() instanceof PsiParenthesizedExpression) {
-                    arg = parent.getParent();
-                  }
-                  final PsiExpression[] args = argumentList.getExpressions();
-                  targetType = getParameterType(parameters, args, ArrayUtilRt.find(args, arg), pair != null ? pair.second : resolveResult.getSubstitutor());
-                }
-              }
-            }
-          } else if (parent instanceof PsiConditionalExpression) {
-            targetType = PsiTypesUtil.getExpectedTypeByParent((PsiExpression)parent);
-          }
-          else if (parent instanceof PsiLambdaExpression) {
-            targetType = LambdaUtil.getFunctionalInterfaceReturnType(((PsiLambdaExpression)parent).getFunctionalInterfaceType());
-          }
+          targetType = getTargetType(context);
         }
         if (targetType != null) {
           myConstraints.add(new TypeCompatibilityConstraint(GenericsUtil.eliminateWildcards(targetType, false), PsiImplUtil.normalizeWildcardTypeByPosition(returnType, context)));
         }
       }
     }
+  }
+
+  private static PsiType getTargetType(PsiExpression context) {
+    final PsiElement parent = PsiUtil.skipParenthesizedExprUp(context.getParent());
+    if (parent instanceof PsiExpressionList) {
+      final PsiElement gParent = parent.getParent();
+      if (gParent instanceof PsiCallExpression) {
+        final PsiExpressionList argumentList = ((PsiCallExpression)gParent).getArgumentList();
+        if (argumentList != null) {
+          final Pair<PsiMethod, PsiSubstitutor> pair = MethodCandidateInfo.getCurrentMethod(argumentList);
+          final JavaResolveResult resolveResult = pair == null ? ((PsiCallExpression)gParent).resolveMethodGenerics() : null;
+          final PsiElement parentMethod = pair != null ? pair.first : resolveResult.getElement();
+          if (parentMethod instanceof PsiMethod) {
+            final PsiParameter[] parameters = ((PsiMethod)parentMethod).getParameterList().getParameters();
+            if (parameters.length == 0) return null;
+            PsiElement arg = context;
+            while (arg.getParent() instanceof PsiParenthesizedExpression) {
+              arg = arg.getParent();
+            }
+            final PsiExpression[] args = argumentList.getExpressions();
+            final int i = ArrayUtilRt.find(args, arg);
+            if (i < 0) return null;
+            return getParameterType(parameters, args, i, pair != null ? pair.second : resolveResult.getSubstitutor());
+          }
+        }
+      }
+    } else if (parent instanceof PsiConditionalExpression) {
+      PsiType targetType = PsiTypesUtil.getExpectedTypeByParent((PsiExpression)parent);
+      if (targetType == null) {
+        targetType = getTargetType((PsiExpression)parent);
+      }
+      return targetType;
+    }
+    else if (parent instanceof PsiLambdaExpression) {
+      return LambdaUtil.getFunctionalInterfaceReturnType(((PsiLambdaExpression)parent).getFunctionalInterfaceType());
+    }
+    return null;
   }
 
   public InferenceVariable getInferenceVariable(PsiType psiType) {
@@ -419,16 +429,17 @@ public class InferenceSession {
             inferenceVariable.setInstantiation(null);
             continue;
           }
-          PsiType bound = null;
-          for (PsiType eqBound : eqBounds) {
-            if (eqBound == null) continue;
-            if (bound != null && !isProperType(eqBound)) continue;
-            bound = acceptBoundsWithRecursiveDependencies(typeParameter, eqBound, substitutor);
-          }
-          if (bound != null) {
-            if (bound instanceof PsiCapturedWildcardType && eqBounds.size() > 1) {
-              continue;
+          if (eqBounds.size() > 1) {
+            for (Iterator<PsiType> iterator = eqBounds.iterator(); iterator.hasNext(); ) {
+              PsiType eqBound = iterator.next();
+              if (PsiUtil.resolveClassInType(eqBound) == typeParameter) {
+                iterator.remove();
+              }
             }
+            if (eqBounds.size() > 1) continue;
+          }
+          PsiType bound = eqBounds.isEmpty() ? null :  acceptBoundsWithRecursiveDependencies(typeParameter, eqBounds.get(0), substitutor);
+          if (bound != null) {
             inferenceVariable.setInstantiation(bound);
           } else {
             PsiType lub = null;

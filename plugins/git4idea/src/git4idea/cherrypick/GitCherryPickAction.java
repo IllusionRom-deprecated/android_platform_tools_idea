@@ -29,6 +29,7 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.vcs.log.*;
 import git4idea.GitLocalBranch;
 import git4idea.GitPlatformFacade;
+import git4idea.GitUtil;
 import git4idea.GitVcs;
 import git4idea.commands.Git;
 import git4idea.config.GitVcsSettings;
@@ -131,7 +132,13 @@ public class GitCherryPickAction extends DumbAwareAction {
   @Override
   public void update(AnActionEvent e) {
     super.update(e);
-    e.getPresentation().setEnabled(enabled(e));
+    final VcsLog log = getVcsLog(e);
+    if (log != null && !GitUtil.logHasGitRoot(log)) {
+      e.getPresentation().setEnabledAndVisible(false);
+    }
+    else {
+      e.getPresentation().setEnabled(enabled(e));
+    }
   }
 
   private boolean enabled(AnActionEvent e) {
@@ -198,7 +205,7 @@ public class GitCherryPickAction extends DumbAwareAction {
     return ContainerUtil.map(commits, new Function<GitHeavyCommit, VcsFullCommitDetails>() {
       @Override
       public VcsFullCommitDetails fun(GitHeavyCommit commit) {
-        final VcsLogObjectsFactory factory = ServiceManager.getService(VcsLogObjectsFactory.class);
+        final VcsLogObjectsFactory factory = ServiceManager.getService(project, VcsLogObjectsFactory.class);
         List<Hash> parents = ContainerUtil.map(commit.getParentsHashes(), new Function<String, Hash>() {
           @Override
           public Hash fun(String hashValue) {
