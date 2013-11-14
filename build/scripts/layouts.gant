@@ -681,6 +681,7 @@ def layoutAndroid() {
       dir("templates") {
         fileset(dir: "${home}/../base/templates") {
          include(name: "activities/**")
+         include(name: "gradle/**")
          include(name: "gradle-projects/**")
        }
       }
