@@ -105,6 +105,7 @@ public class StartupUtil {
     Logger log = Logger.getInstance(Main.class);
     startLogging(log);
     loadSystemLibraries(log);
+    Main.dumpDelayedLogging(log);
     fixProcessEnvironment(log);
 
     if (!Main.isHeadless()) {

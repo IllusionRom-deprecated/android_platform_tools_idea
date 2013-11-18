@@ -739,6 +739,7 @@ public final class UpdateChecker {
     String platform = PlatformUtils.getPlatformPrefix();
 
     File tempFile = FileUtil.createTempFile(platform, "patch", true);
+    LOG.info(String.format("[Patch] Download %s to %s", fileName, tempFile.getAbsolutePath()));
 
     OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFile));
     try {
@@ -804,6 +805,7 @@ public final class UpdateChecker {
     File patchFile = new File(FileUtil.getTempDirectory(), patchFileName);
     FileUtil.copy(tempFile, patchFile);
     FileUtil.delete(tempFile);
+    LOG.info(String.format("[Patch] moved to %s", patchFile.getAbsolutePath()));
   }
 
   public static Set<String> getDisabledToUpdatePlugins() {
