@@ -171,9 +171,6 @@ private layoutWin(Map _args, String home, Paths paths) {
 
   ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/androidstudio.ico", tofile: "$target/bin/idea.ico")
 
-  // The 0.1 launcher. We need to keep it around, as 0.1 clients link to it from Start Menu
-  // ant.copy(file: "$home/../google/WinLauncher2/out/Release/WinLauncher2.exe", tofile: "$target/studio.exe")
-
   // The 0.1.1 win launcher.
   ant.copy(  file: "$home/../adt/idea/native/WinLauncher/out/Release-Win32/studio.exe",
            tofile: "$target/bin/studio.exe")
@@ -183,6 +180,9 @@ private layoutWin(Map _args, String home, Paths paths) {
            tofile: "$target/bin/studio64.exe")
   ant.copy(  file: "$home/../adt/idea/native/WinLauncher/out/Release-x64/studio64.exe.manifest",
            tofile: "$target/bin/studio64.exe.manifest")
+  // Manual updater script
+  ant.copy(  file: "$home/../adt/idea/native/update_studio.bat",
+           tofile: "$target/bin/update_studio.bat")
 
   winScripts(target, home, "studio.bat", args)
   winVMOptions(target, args, "studio.exe", "studio64.exe")
