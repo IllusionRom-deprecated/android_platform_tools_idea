@@ -17,6 +17,7 @@ package com.intellij.idea;
 
 import com.intellij.ide.Bootstrap;
 import com.intellij.openapi.application.PathManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.SystemInfoRt;
 import com.intellij.openapi.util.io.FileUtilRt;
@@ -26,9 +27,11 @@ import com.intellij.util.Restarter;
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.List;
+
 
 @SuppressWarnings({"UseOfSystemOutOrSystemErr", "MethodNamesDifferingOnlyByCase"})
 public class Main {
@@ -41,6 +44,8 @@ public class Main {
   private static final String AWT_HEADLESS = "java.awt.headless";
   private static final String PLATFORM_PREFIX_PROPERTY = "idea.platform.prefix";
   private static final String[] NO_ARGS = {};
+
+  private static final String MAIN_LOG_PROPERTY = "com.intellij.idea.Main.DelayedLog";
 
   private static boolean isHeadless;
   private static boolean isCommandLine;
@@ -67,8 +72,9 @@ public class Main {
           installPatch();
         }
         catch (Throwable t) {
+          appendLog("Exception: " + t.toString() + '\n');
           showMessage("Update Failed", t);
-          System.exit(UPDATE_FAILED);
+          exit(UPDATE_FAILED);
         }
       }
     }
@@ -78,8 +84,13 @@ public class Main {
     }
     catch (Throwable t) {
       showMessage("Start Failed", t);
-      System.exit(STARTUP_EXCEPTION);
+      exit(STARTUP_EXCEPTION);
     }
+  }
+
+  private static void exit(int code) {
+    dumpDelayedLogging();
+    System.exit(code);
   }
 
   public static boolean isHeadless() {
@@ -131,11 +142,15 @@ public class Main {
       throw new IOException("Cannot create temporary patch file");
     }
 
+    appendLog("[Patch] Original patch %s: %s\n", originalPatchFile.exists() ? "exists" : "does not exist",
+              originalPatchFile.getAbsolutePath());
+
     if (!originalPatchFile.exists()) {
       return;
     }
 
     if (!originalPatchFile.renameTo(copyPatchFile) || !FileUtilRt.delete(originalPatchFile)) {
+      appendLog("[Patch] Cannot create temporary patch file\n");
       throw new IOException("Cannot create temporary patch file");
     }
 
@@ -158,13 +173,16 @@ public class Main {
                          PathManager.getHomePath());
 
       status = Restarter.scheduleRestart(ArrayUtilRt.toStringArray(args));
+
+      appendLog("[Patch] Restarted status: %d, cmd: %s\n", status, args.toString());
     }
     else {
+      appendLog("[Patch] Restart is not supported\n");
       String message = "Patch update is not supported - please do it manually";
       showMessage("Update Error", message, true);
     }
 
-    System.exit(status);
+    exit(status);
   }
 
   public static void showMessage(String title, Throwable t) {
@@ -174,6 +192,12 @@ public class Main {
     message.append(studio ? "code.google.com/p/android/issues" : "youtrack.jetbrains.com");
     message.append("\n\n");
     t.printStackTrace(new PrintWriter(message));
+
+    String p = System.getProperty(MAIN_LOG_PROPERTY);
+    if (p != null) {
+      message.append('\n').append(p);
+    }
+
     showMessage(title, message.toString(), true);
   }
 
@@ -205,6 +229,62 @@ public class Main {
 
       int type = error ? JOptionPane.ERROR_MESSAGE : JOptionPane.INFORMATION_MESSAGE;
       JOptionPane.showMessageDialog(JOptionPane.getRootFrame(), scrollPane, title, type);
+    }
+  }
+
+
+  /**
+   * Appends the non-null string to an internal log property because at
+   * this point when the updater runs the main logger hasn't been setup yet.
+   *
+   * We use a system property rather than a global static variable because
+   * both codes do not run in the same ClassLoader and don't have the same
+   * globals.
+   */
+  private static void appendLog(String message, Object...params) {
+    String p = System.getProperty(MAIN_LOG_PROPERTY);
+    DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss ");
+    String s = dateFormat.format(new Date()) + String.format(message, params);
+    if (p == null) {
+      p = s;
+    } else {
+      p += s;
+    }
+    System.setProperty(MAIN_LOG_PROPERTY, p);
+  }
+
+  /** Invoked by Main to dump the log when the Main is exiting right away.
+   * The normal IDE log will not be used. */
+  public static void dumpDelayedLogging() {
+    String p = System.getProperty(MAIN_LOG_PROPERTY);
+    if (p != null) {
+      System.clearProperty(MAIN_LOG_PROPERTY);
+      File log = new File(PathManager.getLogPath());
+      //noinspection ResultOfMethodCallIgnored
+      log.mkdirs();
+      log = new File(log, "idea_patch.log");
+      FileOutputStream fos = null;
+      try {
+        //noinspection IOResourceOpenedButNotSafelyClosed
+        fos = new FileOutputStream(log, true /*append*/);
+        fos.write(p.getBytes("UTF-8"));
+      } catch (IOException ignore) {
+      } finally {
+        if (fos != null) {
+          try { fos.close(); } catch (IOException ignored) {}
+        }
+      }
+    }
+  }
+
+  /** Invoked by StartupUtil once the main logger is setup. */
+  public static void dumpDelayedLogging(Logger log) {
+    if (log != null) {
+      String p = System.getProperty(MAIN_LOG_PROPERTY);
+      if (p != null) {
+        log.info(p);
+        System.clearProperty(MAIN_LOG_PROPERTY);
+      }
     }
   }
 }
