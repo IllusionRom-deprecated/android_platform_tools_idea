@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="android-builder">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../../prebuilts/tools/common/builder/builder-0.6.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/../../prebuilts/tools/common/builder/builder-0.6.1-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
