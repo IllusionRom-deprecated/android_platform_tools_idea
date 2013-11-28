@@ -88,7 +88,13 @@ public class VfsUtilCore {
   }
 
   public static boolean isEqualOrAncestor(@NotNull String ancestorUrl, @NotNull String fileUrl) {
-    return ancestorUrl.equals(fileUrl) || StringUtil.startsWithConcatenation(fileUrl, ancestorUrl, "/");
+    if (ancestorUrl.equals(fileUrl)) return true;
+    if (StringUtil.endsWithChar(ancestorUrl, '/')) {
+      return fileUrl.startsWith(ancestorUrl);
+    }
+    else {
+      return StringUtil.startsWithConcatenation(fileUrl, ancestorUrl, "/");
+    }
   }
 
   public static boolean isAncestor(@NotNull File ancestor, @NotNull File file, boolean strict) {
@@ -362,6 +368,11 @@ public class VfsUtilCore {
         return virtualToIoFile(file);
       }
     });
+  }
+
+  @NotNull
+  public static String toIdeaUrl(@NotNull String url) {
+    return toIdeaUrl(url, true);
   }
 
   @NotNull

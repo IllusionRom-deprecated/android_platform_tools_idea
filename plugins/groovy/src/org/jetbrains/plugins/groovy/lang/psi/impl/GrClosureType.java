@@ -80,7 +80,7 @@ public class GrClosureType extends GrLiteralClassType {
     if (psiClass != null && psiClass.getTypeParameters().length == 1) {
       final PsiType type = GrClosureSignatureUtil.getReturnType(mySignature);
       if (type == PsiType.NULL) {
-        return new PsiType[]{null};
+        return EMPTY_ARRAY;
       }
       else {
         return new PsiType[]{TypesUtil.boxPrimitiveType(type, getPsiManager(), getResolveScope(), true)};

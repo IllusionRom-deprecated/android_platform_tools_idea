@@ -2,10 +2,12 @@ package com.intellij.vcs.log.ui.frame;
 
 import com.intellij.icons.AllIcons;
 import com.intellij.ide.actions.RefreshAction;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Splitter;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.vcs.VcsDataKeys;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.committed.RepositoryChangesBrowser;
@@ -92,12 +94,19 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
     toolbarsAndTable.add(toolbars, BorderLayout.NORTH);
     toolbarsAndTable.add(myDetailsSplitter, BorderLayout.CENTER);
 
-    Splitter changesBrowserSplitter = new Splitter(false, 0.7f);
+    final Splitter changesBrowserSplitter = new Splitter(false, 0.7f);
     changesBrowserSplitter.setFirstComponent(toolbarsAndTable);
     changesBrowserSplitter.setSecondComponent(myChangesLoadingPane);
 
     setLayout(new BorderLayout());
     add(changesBrowserSplitter);
+
+    Disposer.register(logDataHolder, new Disposable() {
+      public void dispose() {
+        myDetailsSplitter.dispose();
+        changesBrowserSplitter.dispose();
+      }
+    });
   }
 
   private void updateWhenDetailsAreLoaded(final CommitSelectionListener selectionChangeListener) {
@@ -111,6 +120,12 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
       @Override
       public void run() {
         selectionChangeListener.valueChanged(null);
+        myDetailsPanel.valueChanged(null);
+      }
+    });
+    myLogDataHolder.getContainingBranchesGetter().setTaskCompletedListener(new Runnable() {
+      @Override
+      public void run() {
         myDetailsPanel.valueChanged(null);
       }
     });
@@ -200,7 +215,9 @@ public class MainFrame extends JPanel implements TypeSafeDataProvider {
     mainGroup.add(myFilterUi.getFilterActionComponents());
     mainGroup.addSeparator();
     mainGroup.add(toolbarGroup);
-    return ActionManager.getInstance().createActionToolbar(ActionPlaces.UNKNOWN, mainGroup, true).getComponent();
+    ActionToolbar toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.UNKNOWN, mainGroup, true);
+    toolbar.setTargetComponent(this);
+    return toolbar.getComponent();
   }
 
   public JComponent getMainComponent() {

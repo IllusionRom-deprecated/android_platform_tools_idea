@@ -16,13 +16,15 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.remoteServer.agent.util.CloudGitAgent;
 import com.intellij.remoteServer.agent.util.CloudGitAgentDeployment;
 import com.intellij.remoteServer.agent.util.CloudGitApplication;
-import com.intellij.remoteServer.agent.util.CloudGitLoggingHandler;
+import com.intellij.remoteServer.agent.util.CloudLoggingHandler;
 import com.intellij.remoteServer.configuration.deployment.DeploymentSource;
 import com.intellij.remoteServer.configuration.deployment.ModuleDeploymentSource;
 import com.intellij.remoteServer.runtime.ServerTaskExecutor;
+import com.intellij.remoteServer.runtime.deployment.DeploymentLogManager;
 import com.intellij.remoteServer.runtime.deployment.DeploymentRuntime;
 import com.intellij.remoteServer.runtime.deployment.DeploymentTask;
 import com.intellij.remoteServer.runtime.deployment.ServerRuntimeInstance;
+import com.intellij.remoteServer.runtime.log.LoggingHandler;
 import com.intellij.util.ThrowableRunnable;
 import com.intellij.util.concurrency.Semaphore;
 import git4idea.GitUtil;
@@ -56,10 +58,11 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
   private final File myContentRootFile;
   private final AgentTaskExecutor myAgentTaskExecutor;
   private final String myPresentableName;
-  private final CloudGitLoggingHandler myLoggingHandler;
+  private final CloudLoggingHandler myLoggingHandler;
   private final ServerTaskExecutor myTasksExecutor;
   private final AD myDeployment;
 
+  private final DeploymentLogManager myLogManager;
   private final String myRemoteName;
   private final String myCloudName;
 
@@ -70,12 +73,13 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
                                    ServerTaskExecutor taskExecutor,
                                    DeploymentTask<DC> task,
                                    AgentTaskExecutor agentTaskExecutor,
-                                   CloudGitLoggingHandler loggingHandler,
+                                   @Nullable DeploymentLogManager logManager,
                                    CloudDeploymentNameProvider deploymentNameProvider,
                                    String remoteName,
                                    String cloudName) throws ServerRuntimeException {
     myConfiguration = serverConfiguration;
     myTasksExecutor = taskExecutor;
+    myLogManager = logManager;
 
     myRemoteName = remoteName;
     myCloudName = cloudName;
@@ -107,7 +111,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
     }
 
     myAgentTaskExecutor = agentTaskExecutor;
-    myLoggingHandler = loggingHandler;
+    myLoggingHandler = logManager == null ? new CloudSilentLoggingHandlerImpl() : new CloudLoggingHandlerImpl(logManager);
 
     myPresentableName = deploymentSource.getPresentableName();
 
@@ -116,7 +120,7 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
                         ? deploymentNameProvider.getDeploymentName(deploymentSource)
                         : deploymentConfiguration.getDeploymentName();
 
-    myDeployment = agent.createDeployment(getApplicationName(), loggingHandler);
+    myDeployment = agent.createDeployment(getApplicationName(), myLoggingHandler);
   }
 
   public AgentTaskExecutor getAgentTaskExecutor() {
@@ -191,6 +195,13 @@ public abstract class CloudGitDeploymentRuntime<DC extends CloudDeploymentNameCo
     repository.update();
 
     pushApplication(getRemoteName(), application.getGitUrl());
+
+    if (myLogManager != null) {
+      LoggingHandler loggingHandler = myLogManager.getMainLoggingHandler();
+      loggingHandler.print("Application is available at ");
+      loggingHandler.printHyperlink(application.getWebUrl());
+      loggingHandler.print("\n");
+    }
   }
 
   @Override

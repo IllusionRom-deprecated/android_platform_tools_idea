@@ -899,7 +899,7 @@ public class CompileDriver {
                                           final ExitStatus _status,
                                           final boolean refreshOutputRoots) {
     final long duration = System.currentTimeMillis() - compileContext.getStartCompilationStamp();
-    if (refreshOutputRoots) {
+    if (refreshOutputRoots && !myProject.isDisposed()) {
       // refresh on output roots is required in order for the order enumerator to see all roots via VFS
       final Set<File> outputs = new HashSet<File>();
       final Module[] affectedModules = compileContext.getCompileScope().getAffectedModules();
@@ -2359,6 +2359,9 @@ public class CompileDriver {
   }
 
   private boolean executeCompileTasks(final CompileContext context, final boolean beforeTasks) {
+    if (myProject.isDisposed()) {
+      return false;
+    }
     final CompilerManager manager = CompilerManager.getInstance(myProject);
     final ProgressIndicator progressIndicator = context.getProgressIndicator();
     progressIndicator.pushState();

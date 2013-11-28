@@ -1176,20 +1176,11 @@ public class FileUtil extends FileUtilRt {
     return null;
   }
 
-  /**
-   * @deprecated use {@linkplain #isAbsolute(String)} (to remove in IDEA 13)
-   */
-  @SuppressWarnings("UnusedDeclaration")
-  public static boolean isAbsoluteFilePath(String path) {
-    return isAbsolute(path);
-  }
-
-  public static boolean isAbsolutePlatformIndependent(String path) {
+  public static boolean isAbsolutePlatformIndependent(@NotNull String path) {
     return isUnixAbsolutePath(path) || isWindowsAbsolutePath(path);
   }
 
-
-  public static boolean isUnixAbsolutePath(String path) {
+  public static boolean isUnixAbsolutePath(@NotNull String path) {
     return path.startsWith("/");
   }
 
@@ -1410,5 +1401,22 @@ public class FileUtil extends FileUtilRt {
     }
     final String name = file.getName();
     return StringUtil.endsWithIgnoreCase(name, ".jar") || StringUtil.endsWithIgnoreCase(name, ".zip");
+  }
+
+  public static boolean visitFiles(@NotNull File root, @NotNull Processor<File> processor) {
+    if (!processor.process(root)) {
+      return false;
+    }
+
+    File[] children = root.listFiles();
+    if (children != null) {
+      for (File child : children) {
+        if (!visitFiles(child, processor)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 }
