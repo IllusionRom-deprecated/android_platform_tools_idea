@@ -211,6 +211,10 @@ private layoutMac(Map _args, String home, Paths paths) {
 """
   args."idea.properties.path" = "${paths.distAll}/bin/idea.properties"
   args.mac_no_yjp = true
+
+  // Manual updater script
+  ant.copy(file: "$home/../adt/idea/native/update_studio.sh", tofile: "$target/bin/update_studio.sh")
+
   layoutMacApp(target, home, args)
 }
 
@@ -229,6 +233,9 @@ private layoutUnix(Map _args, String home, Paths paths) {
   }
 
   ant.copy(file: "$home/../adt/idea/adt-branding/src/artwork/icon_AS.png", tofile: "$target/bin/idea.png")
+
+  // Manual updater script
+  ant.copy(file: "$home/../adt/idea/native/update_studio.sh", tofile: "$target/bin/update_studio.sh")
 
   unixScripts(target, home, args.script_name, args)
   unixVMOptions(target, "studio")
