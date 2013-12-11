@@ -33,7 +33,7 @@
     <attribute name="test.patterns" default="" />
     <sequential>
       <java failonerror="true" jar="${project.home}/lib/ant/lib/ant-launcher.jar" fork="true">
-        <jvmarg line="-Xmx768m -XX:MaxPermSize=152m"/>
+        <jvmarg line="-Xmx1424m -XX:MaxPermSize=352m"/>
         <jvmarg value="-Dout=${out.dir}" />
         <jvmarg value="-DbuildNumber=${buildId}" />
 
