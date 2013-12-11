@@ -20,6 +20,10 @@ includeTargets << new File("${guessHome(this)}/build/scripts/cucumber-tests.gant
 
 requireProperty("out", "$home/out")
 
+target(check: "Ensure the environment is configured") {
+  tempDir = p("teamcity.build.tempDir")
+}
+
 target(compile: "Compile project") {
   ant.delete(failonerror: false) {
     fileset(dir: "$home/reports")
@@ -39,9 +43,9 @@ private pass(String prop) {
 }
 
 target('run_tests': 'Run java tests') {
-  depends([compile])
+  depends([check, compile])
 
-  ant.junit(fork: "yes", showoutput: "true", logfailedtests:false) {
+  ant.junit(fork: "yes", showoutput: "true", logfailedtests:false, printsummary: "true") {
     pass("idea.test.group")
     pass("idea.test.patterns")
     pass("idea.fast.only")
@@ -70,6 +74,9 @@ target('run_tests': 'Run java tests') {
       pathelement(location: "${jdkHome}/lib/tools.jar")
     }
 
+    formatter(type: "plain")
+    formatter(type: "xml")
+
     testcases.each {
       test (name: it)
     }
@@ -77,5 +84,5 @@ target('run_tests': 'Run java tests') {
 }
 
 target('default' : "Run all tests") {
-  depends([compile, run_tests, run_cucumber_tests])
+  depends([compile, run_tests])
 }

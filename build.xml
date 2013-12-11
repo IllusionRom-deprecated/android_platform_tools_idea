@@ -30,6 +30,7 @@
 
   <macrodef name="call_gant">
     <attribute name="script" />
+    <attribute name="test.patterns" default="" />
     <sequential>
       <java failonerror="true" jar="${project.home}/lib/ant/lib/ant-launcher.jar" fork="true">
         <jvmarg line="-Xmx768m -XX:MaxPermSize=152m"/>
@@ -38,6 +39,7 @@
 
         <arg line="&quot;-Dgant.script=@{script}&quot;"/>
         <arg line="&quot;-Dteamcity.build.tempDir=${tmp.dir}&quot;"/>
+        <arg line="&quot;-Didea.test.patterns=@{test.patterns}&quot;"/>
         <arg line="&quot;-Didea.test.group=ALL_EXCLUDE_DEFINED&quot;"/>
         <arg value="-f"/>
         <arg value="${project.home}/build/gant.xml"/>
@@ -50,7 +52,7 @@
   </target>
 
   <target name="test" depends="init">
-    <call_gant script="${project.home}/build/scripts/tests.gant"/>
+    <call_gant script="${project.home}/build/scripts/tests.gant" test.patterns="org.jetbrains.android.*;com.android.tools.idea.*"/>
   </target>
 
   <target name="all" depends="cleanup,build"/>
