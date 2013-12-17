@@ -635,6 +635,7 @@ def layoutAndroid() {
               "ddmlib",
               "draw9patch",
               "dvlib",
+              "gradle-import",
               "layoutlib-api",
               "lint-api",
               "lint-checks",
